@@ -305,12 +305,9 @@ GEM
       method_source (~> 1.0)
     public_suffix (4.0.7)
     racc (1.7.3)
-    rack (3.0.8)
-    rack-protection (4.0.0)
-      base64 (>= 0.1.0)
-      rack (>= 3.0.0, < 4)
-    rack-session (2.0.0)
-      rack (>= 3.0.0)
+    rack (2.2.8)
+    rack-protection (3.1.0)
+      rack (~> 2.2, >= 2.2.4)
     rainbow (3.1.1)
     rake (13.1.0)
     rchardet (1.8.0)
@@ -358,11 +355,10 @@ GEM
     simctl (1.6.10)
       CFPropertyList
       naturally
-    sinatra (4.0.0)
+    sinatra (3.1.0)
       mustermann (~> 3.0)
-      rack (>= 3.0.0, < 4)
-      rack-protection (= 4.0.0)
-      rack-session (>= 2.0.0, < 3)
+      rack (~> 2.2, >= 2.2.4)
+      rack-protection (= 3.1.0)
       tilt (~> 2.0)
     slather (2.8.0)
       CFPropertyList (>= 2.2, < 4)
@@ -425,7 +421,7 @@ DEPENDENCIES
   rubocop (= 1.38)
   rubocop-performance
   rubocop-require_tools
-  sinatra
+  sinatra (= 3.1.0)
   slather
   xcode-install
   xctest_list
