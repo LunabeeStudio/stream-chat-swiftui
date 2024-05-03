@@ -205,6 +205,7 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                     .modifier(factory.makeMessageListModifier())
                     .modifier(ScrollTargetLayoutModifier(enabled: loadingNextMessages))
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .modifier(ScrollPositionModifier(scrollPosition: loadingNextMessages ? $scrollPosition : .constant(nil)))
                 .background(
                     factory.makeMessageListBackground(
@@ -236,10 +237,10 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                         if scrollButtonShown != showScrollToLatestButton {
                             showScrollToLatestButton = scrollButtonShown
                         }
-                        if keyboardShown && diff < -20 {
-                            keyboardShown = false
-                            resignFirstResponder()
-                        }
+//                        if keyboardShown && diff < -20 {
+//                            keyboardShown = false
+//                            resignFirstResponder()
+//                        }
                         if offsetValue > 5 {
                             onMessageAppear(0, .down)
                         }
