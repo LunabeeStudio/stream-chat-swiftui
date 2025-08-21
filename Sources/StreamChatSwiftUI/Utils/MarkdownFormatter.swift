@@ -12,8 +12,7 @@ final class MarkdownFormatter {
     @Injected(\.fonts) private var fonts
     
     private let markdownParser = MarkdownParser()
-        
-    @available(iOS 15, *)
+
     func format(
         _ string: String,
         attributes: AttributeContainer,
@@ -34,15 +33,13 @@ final class MarkdownFormatter {
     }
     
     // MARK: - Styling Attributes
-    
-    @available(iOS 15, *)
+
     private func inlinePresentationIntentAttributes(
         for inlinePresentationIntent: InlinePresentationIntent
     ) -> AttributeContainer? {
         nil // use default attributes
     }
     
-    @available(iOS 15, *)
     private func presentationIntentAttributes(
         for presentationKind: PresentationIntent.Kind,
         in presentationIntent: PresentationIntent

@@ -231,13 +231,9 @@ struct ListRowModifier: ViewModifier {
     @Injected(\.colors) var colors
 
     func body(content: Content) -> some View {
-        if #available(iOS 15.0, *) {
-            content
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color(colors.background))
-        } else {
-            content
-        }
+        content
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color(colors.background))
     }
 }
 

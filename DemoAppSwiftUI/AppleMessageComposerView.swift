@@ -6,7 +6,6 @@ import StreamChat
 import StreamChatSwiftUI
 import SwiftUI
 
-@available(iOS 15.0, *)
 struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
     @State var text = ""
     @State var shouldShow = false
@@ -197,7 +196,6 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
     }
 }
 
-@available(iOS 15.0, *)
 struct BlurredBackground: View {
     var body: some View {
         Color.clear
@@ -238,7 +236,6 @@ struct ComposerAction: Equatable, Identifiable {
     }
 }
 
-@available(iOS 15.0, *)
 struct ComposerActionsView: View {
     @ObservedObject var viewModel: MessageComposerViewModel
     

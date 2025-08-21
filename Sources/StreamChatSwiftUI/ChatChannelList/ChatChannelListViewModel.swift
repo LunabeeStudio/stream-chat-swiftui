@@ -253,7 +253,6 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     }
 
     func checkTabBarAppearance() {
-        guard #available(iOS 15, *) else { return }
         if hideTabBar != false {
             hideTabBar = false
         }

@@ -4,7 +4,6 @@
 
 import Foundation
 
-@available(iOS 15, *)
 extension AttributedStringProtocol {
     func ranges<T>(
         of stringToFind: T,

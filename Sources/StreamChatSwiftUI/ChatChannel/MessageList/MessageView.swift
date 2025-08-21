@@ -237,17 +237,10 @@ struct StreamTextView: View {
     }
     
     var body: some View {
-        if #available(iOS 15, *) {
-            LinkDetectionTextView(message: message)
-        } else {
-            Text(adjustedText)
-                .foregroundColor(textColor(for: message))
-                .font(fonts.body)
-        }
+        LinkDetectionTextView(message: message)
     }
 }
 
-@available(iOS 15, *)
 public struct LinkDetectionTextView: View {
     @Environment(\.layoutDirection) var layoutDirection
     @Environment(\.channelTranslationLanguage) var translationLanguage
