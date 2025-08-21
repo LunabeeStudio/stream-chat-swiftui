@@ -7,6 +7,10 @@ import SwiftUI
 
 /// Container for presenting link attachments.
 /// In case of more than one link, only the first link is previewed.
+/// - Note: Changes from original implementation:
+///   - Change VStack spacing
+///   - Remove bottom padding
+///   - Add horizontal/vertical padding parameters
 public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
 
@@ -16,26 +20,31 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     var isFirst: Bool
     @Binding var scrolledId: String?
 
-    private let padding: CGFloat = 8
+    private let horizontalPadding: CGFloat
+    private let verticalPadding: CGFloat
     
     public init(
         factory: Factory,
         message: ChatMessage,
         width: CGFloat,
         isFirst: Bool,
-        scrolledId: Binding<String?>
+        scrolledId: Binding<String?>,
+        horizontalPadding: CGFloat = 16,
+        verticalPadding: CGFloat = 8
     ) {
         self.factory = factory
         self.message = message
         self.width = width
         self.isFirst = isFirst
+        self.horizontalPadding = horizontalPadding
+        self.verticalPadding = verticalPadding
         _scrolledId = scrolledId
     }
 
     public var body: some View {
         VStack(
             alignment: message.alignmentInBubble,
-            spacing: 0
+            spacing: 8
         ) {
             if let quotedMessage = message.quotedMessage {
                 factory.makeQuotedMessageView(
@@ -45,13 +54,11 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
                     scrolledId: $scrolledId
                 )
             }
-
-            let availableWidth = width - 4 * padding
-            let size = message.adjustedText.frameSize(maxWidth: availableWidth)
             
             HStack {
                 StreamTextView(message: message)
-                    .standardPadding()
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, verticalPadding)
                 Spacer()
             }
 
@@ -59,11 +66,12 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
                 LinkAttachmentView(
                     linkAttachment: message.linkAttachments[0],
                     width: width,
-                    isFirst: isFirst
+                    isFirst: isFirst,
+                    horizontalPadding: horizontalPadding,
+                    verticalPadding: verticalPadding
                 )
             }
         }
-        .padding(.bottom, 8)
         .modifier(
             factory.makeMessageViewModifier(
                 for: MessageModifierInfo(
@@ -78,32 +86,53 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
 }
 
 /// View for previewing link attachments.
+/// - Note: Changes from original implementation:
+///   - Change VStack spacing
+///   - Change LazyImage placeholder, width and radius
+///   - Remove linkAttachment title and text
+///   - Add horizontal/vertical padding parameters
 public struct LinkAttachmentView: View {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
 
-    private let padding: CGFloat = 8
+    private let horizontalPadding: CGFloat
+    private let verticalPadding: CGFloat
 
     var linkAttachment: ChatMessageLinkAttachment
     var width: CGFloat
     var isFirst: Bool
     
-    public init(linkAttachment: ChatMessageLinkAttachment, width: CGFloat, isFirst: Bool) {
+    public init(
+        linkAttachment: ChatMessageLinkAttachment,
+        width: CGFloat,
+        isFirst: Bool,
+        horizontalPadding: CGFloat,
+        verticalPadding: CGFloat
+    ) {
         self.linkAttachment = linkAttachment
         self.width = width
         self.isFirst = isFirst
+        self.horizontalPadding = horizontalPadding
+        self.verticalPadding = verticalPadding
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: padding) {
+        VStack(alignment: .leading, spacing: 4) {
             if !imageHidden {
                 ZStack {
-                    LazyImage(imageURL: linkAttachment.previewURL ?? linkAttachment.originalURL)
-                        .onDisappear(.cancel)
-                        .processors([ImageProcessors.Resize(width: width)])
-                        .priority(.high)
-                        .frame(width: width - 2 * padding, height: (width - 2 * padding) / 2)
-                        .cornerRadius(14)
+                    LazyImage(url: linkAttachment.previewURL ?? linkAttachment.originalURL) { state in
+                        if let image = state.image {
+                            image
+                                .scaledToFill()
+                        } else {
+                            Color.gray
+                        }
+                    }
+                    .onDisappear(.cancel)
+                    .processors([ImageProcessors.Resize(width: width)])
+                    .priority(.high)
+                    .frame(width: width - 2 * horizontalPadding, height: ((width - 2 * horizontalPadding) / 2).rounded())
+                    .cornerRadius(12)
 
                     if !authorHidden {
                         BottomLeftView {
@@ -120,24 +149,9 @@ public struct LinkAttachmentView: View {
                     }
                 }
             }
-
-            VStack(alignment: .leading) {
-                if let title = linkAttachment.title {
-                    Text(title)
-                        .font(fonts.footnoteBold)
-                        .lineLimit(1)
-                }
-
-                if let description = linkAttachment.text {
-                    Text(description)
-                        .font(fonts.footnote)
-                        .lineLimit(3)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
         }
-        .padding(.horizontal, padding)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.bottom, verticalPadding)
         .onTapGesture {
             if let url = linkAttachment.originalURL.secureURL, UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url, options: [:])
