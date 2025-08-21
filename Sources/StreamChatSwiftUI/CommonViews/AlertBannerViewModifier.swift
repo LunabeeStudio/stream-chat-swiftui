@@ -73,7 +73,7 @@ private struct AlertBannerActionViewModifier: ViewModifier {
     let action: (() -> Void)?
     
     func body(content: Content) -> some View {
-        if #available(iOS 15.0, *), let action {
+        if let action {
             content
                 .refreshable { action() }
         } else {

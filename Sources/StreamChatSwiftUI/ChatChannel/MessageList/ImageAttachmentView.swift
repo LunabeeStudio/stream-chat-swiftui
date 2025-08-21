@@ -103,43 +103,23 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - remove text background, should be handled by makeMessageViewModifier
+///   - remove text padding
 public struct AttachmentTextView: View {
-    @Injected(\.colors) private var colors
-    @Injected(\.fonts) private var fonts
-
     var message: ChatMessage
-    let injectedBackgroundColor: UIColor?
 
-    public init(message: ChatMessage, injectedBackgroundColor: UIColor? = nil) {
+    public init(message: ChatMessage) {
         self.message = message
-        self.injectedBackgroundColor = injectedBackgroundColor
     }
 
     public var body: some View {
         HStack {
             StreamTextView(message: message)
-                .standardPadding()
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
-        .background(Color(backgroundColor))
         .accessibilityIdentifier("AttachmentTextView")
-    }
-
-    private var backgroundColor: UIColor {
-        if let injectedBackgroundColor {
-            return injectedBackgroundColor
-        }
-        var colors = colors
-        if message.isSentByCurrentUser {
-            if message.type == .ephemeral {
-                return colors.background8
-            } else {
-                return colors.messageCurrentUserBackground[0]
-            }
-        } else {
-            return colors.messageOtherUserBackground[0]
-        }
     }
 }
 

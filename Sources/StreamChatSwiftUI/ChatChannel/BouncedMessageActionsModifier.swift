@@ -18,48 +18,26 @@ public struct BouncedMessageActionsModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        if #available(iOS 15.0, *) {
-            content
-                .alert(
-                    L10n.Message.Moderation.Alert.title,
-                    isPresented: $viewModel.bouncedActionsViewShown
-                ) {
-                    Button(L10n.Message.Moderation.Alert.resend) {
-                        resendBouncedMessage()
-                    }
-                    Button(L10n.Message.Moderation.Alert.edit) {
-                        editBouncedMessage()
-                    }
-                    Button(L10n.Message.Moderation.Alert.delete, role: .destructive) {
-                        deleteBouncedMessage()
-                    }
-                    Button(L10n.Message.Moderation.Alert.cancel, role: .cancel, action: {
-                        viewModel.bouncedActionsViewShown = false
-                    })
-                } message: {
-                    Text(L10n.Message.Moderation.Alert.message)
+        content
+            .alert(
+                L10n.Message.Moderation.Alert.title,
+                isPresented: $viewModel.bouncedActionsViewShown
+            ) {
+                Button(L10n.Message.Moderation.Alert.resend) {
+                    resendBouncedMessage()
                 }
-        } else {
-            content
-                .actionSheet(isPresented: $viewModel.bouncedActionsViewShown) {
-                    ActionSheet(
-                        title: Text(L10n.Message.Moderation.Alert.title),
-                        message: Text(L10n.Message.Moderation.Alert.message),
-                        buttons: [
-                            .default(Text(L10n.Message.Moderation.Alert.resend)) {
-                                resendBouncedMessage()
-                            },
-                            .default(Text(L10n.Message.Moderation.Alert.edit)) {
-                                editBouncedMessage()
-                            },
-                            .destructive(Text(L10n.Message.Moderation.Alert.delete)) {
-                                deleteBouncedMessage()
-                            },
-                            .cancel(Text(L10n.Message.Moderation.Alert.cancel))
-                        ]
-                    )
+                Button(L10n.Message.Moderation.Alert.edit) {
+                    editBouncedMessage()
                 }
-        }
+                Button(L10n.Message.Moderation.Alert.delete, role: .destructive) {
+                    deleteBouncedMessage()
+                }
+                Button(L10n.Message.Moderation.Alert.cancel, role: .cancel, action: {
+                    viewModel.bouncedActionsViewShown = false
+                })
+            } message: {
+                Text(L10n.Message.Moderation.Alert.message)
+            }
     }
 
     private func editBouncedMessage() {

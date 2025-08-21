@@ -6,18 +6,20 @@ import StreamChat
 import SwiftUI
 
 /// Contains info needed for a modifier to be applied to the message view.
+/// - Note: Changes from original implementation:
+///   - Change default cornerRadius to 12
 public struct MessageModifierInfo {
     public var message: ChatMessage
     public var isFirst: Bool
     public var injectedBackgroundColor: UIColor?
-    public var cornerRadius: CGFloat = 18
+    public var cornerRadius: CGFloat = 12
     public var forceLeftToRight = false
 
     public init(
         message: ChatMessage,
         isFirst: Bool,
         injectedBackgroundColor: UIColor? = nil,
-        cornerRadius: CGFloat = 18,
+        cornerRadius: CGFloat = 12,
         forceLeftToRight: Bool = false
     ) {
         self.message = message
@@ -29,14 +31,19 @@ public struct MessageModifierInfo {
 }
 
 /// Modifier that enables message bubble container.
+/// - Note: Changes from original implementation:
+///   - Remove border color from bubble modifier
+///   - Change default cornerRadius to 12
+///   - Add showBubble  parameter that doesn't add bubble background modifier if false
 public struct MessageBubbleModifier: ViewModifier {
     @Injected(\.colors) private var colors
     @Injected(\.utils) private var utils
 
     public var message: ChatMessage
     public var isFirst: Bool
+    public var showBubble: Bool
     public var injectedBackgroundColor: UIColor?
-    public var cornerRadius: CGFloat = 18
+    public var cornerRadius: CGFloat = 12
     public var forceLeftToRight = false
     public var topPadding: CGFloat = 0
     public var bottomPadding: CGFloat = 0
@@ -44,14 +51,16 @@ public struct MessageBubbleModifier: ViewModifier {
     public init(
         message: ChatMessage,
         isFirst: Bool,
+        showBubble: Bool = true,
         injectedBackgroundColor: UIColor? = nil,
-        cornerRadius: CGFloat = 18,
+        cornerRadius: CGFloat = 12,
         forceLeftToRight: Bool = false,
         topPadding: CGFloat = 0,
         bottomPadding: CGFloat = 0
     ) {
         self.message = message
         self.isFirst = isFirst
+        self.showBubble = showBubble
         self.injectedBackgroundColor = injectedBackgroundColor
         self.cornerRadius = cornerRadius
         if utils.messageListConfig.messageListAlignment == .leftAligned {
@@ -64,22 +73,29 @@ public struct MessageBubbleModifier: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        content
-            .modifier(
-                BubbleModifier(
-                    corners: message.bubbleCorners(
-                        isFirst: isFirst,
-                        forceLeftToRight: forceLeftToRight
-                    ),
-                    backgroundColors: message.bubbleBackground(
-                        colors: colors,
-                        injectedBackgroundColor: injectedBackgroundColor
-                    ),
-                    cornerRadius: cornerRadius
-                )
-            )
-            .padding(.top, topPadding)
-            .padding(.bottom, bottomPadding)
+        Group {
+            if showBubble {
+                content
+                    .modifier(
+                        BubbleModifier(
+                            corners: message.bubbleCorners(
+                                isFirst: isFirst,
+                                forceLeftToRight: forceLeftToRight
+                            ),
+                            backgroundColors: message.bubbleBackground(
+                                colors: colors,
+                                injectedBackgroundColor: injectedBackgroundColor
+                            ),
+                            borderColor: .clear,
+                            cornerRadius: cornerRadius
+                        )
+                    )
+            } else {
+                content
+            }
+        }
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
     }
 }
 

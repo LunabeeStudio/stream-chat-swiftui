@@ -5,26 +5,32 @@
 import StreamChat
 import SwiftUI
 
-struct ReactionsOverlayContainer: View {
+/// - Note: Changes from original implementation:
+///   - Make it public
+///   - Add customHorizontalOffset parameter that overrides message.reactionOffsetX
+public struct ReactionsOverlayContainer: View {
     @Injected(\.utils) private var utils
     @Injected(\.colors) private var colors
     @Injected(\.images) private var images
 
     let message: ChatMessage
     let contentRect: CGRect
+    let customHorizontalOffset: CGFloat?
     var onReactionTap: (MessageReactionType) -> Void
 
-    init(
+    public init(
         message: ChatMessage,
         contentRect: CGRect,
+        customHorizontalOffset: CGFloat? = nil,
         onReactionTap: @escaping (MessageReactionType) -> Void
     ) {
         self.message = message
         self.contentRect = contentRect
+        self.customHorizontalOffset = customHorizontalOffset
         self.onReactionTap = onReactionTap
     }
 
-    var body: some View {
+    public var body: some View {
         VStack {
             ReactionsHStack(message: message) {
                 ReactionsAnimatableView(
@@ -38,12 +44,13 @@ struct ReactionsOverlayContainer: View {
             Spacer()
         }
         .offset(
-            x: message.reactionOffsetX(
-                for: contentRect,
-                reactionsSize: reactionsSize
-            ),
+            x: messageOffsetX,
             y: -20
         )
+    }
+
+    private var messageOffsetX: CGFloat {
+        customHorizontalOffset ?? message.reactionOffsetX(for: contentRect, reactionsSize: reactionsSize)
     }
 
     private var reactions: [MessageReactionType] {
