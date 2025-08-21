@@ -6,6 +6,10 @@ import AVKit
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - Fix HStack horizontal spacing
+///   - Add extra trailing and bottom paddings
+///   - Add hasHorizontalSpacer parameter, that set MessageSpacer's spacerWidth to 0 if false
 public struct MessageContainerView<Factory: ViewFactory>: View {
     @StateObject var messageViewModel: MessageViewModel
     @Environment(\.channelTranslationLanguage) var translationLanguage
@@ -20,6 +24,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
     let channel: ChatChannel
     let message: ChatMessage
     var width: CGFloat?
+    var hasHorizontalSpacer: Bool
     var showsAllInfo: Bool
     var isInThread: Bool
     var isLast: Bool
@@ -37,7 +42,8 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
     private var paddingValue: CGFloat {
         utils.messageListConfig.messagePaddings.singleBottom
     }
-    
+    private let extraTrailingPadding: CGFloat = 8
+    private let extraBottomPadding: CGFloat = 8
     private var groupMessageInterItemSpacing: CGFloat {
         utils.messageListConfig.messagePaddings.groupBottom
     }
@@ -47,6 +53,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
         channel: ChatChannel,
         message: ChatMessage,
         width: CGFloat? = nil,
+        hasHorizontalSpacer: Bool = true,
         showsAllInfo: Bool,
         isInThread: Bool,
         isLast: Bool,
@@ -59,6 +66,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
         self.channel = channel
         self.message = message
         self.width = width
+        self.hasHorizontalSpacer = hasHorizontalSpacer
         self.showsAllInfo = showsAllInfo
         self.isInThread = isInThread
         self.isLast = isLast
@@ -74,7 +82,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
-        HStack(alignment: .bottom) {
+        HStack(alignment: .bottom, spacing: 8) {
             if messageViewModel.systemMessageShown {
                 factory.makeSystemMessageView(message: message)
             } else {
@@ -282,7 +290,9 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
                 .reactionsTopPadding(message) : 0
         )
         .padding(.horizontal, messageListConfig.messagePaddings.horizontal)
-        .padding(.bottom, showsAllInfo || messageViewModel.isPinned ? paddingValue : groupMessageInterItemSpacing)
+        .padding(.trailing, extraTrailingPadding)
+        .padding(.bottom, extraBottomPadding)
+        .padding(.bottom, showsAllInfo || messageViewModel.isPinned ? paddingValue : 0)
         .padding(.top, isLast ? paddingValue : 0)
         .background(messageViewModel.isPinned ? Color(colors.pinnedBackground) : nil)
         .padding(.bottom, messageViewModel.isPinned ? paddingValue / 2 : 0)
@@ -307,14 +317,14 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
     private var contentWidth: CGFloat {
         let padding: CGFloat = messageListConfig.messagePaddings.horizontal
         let minimumWidth: CGFloat = 240
-        let available = max(minimumWidth, (width ?? 0) - spacerWidth) - 2 * padding
+        let available = max(minimumWidth, (width ?? 0) - spacerWidth) - 2 * padding - extraTrailingPadding
         let avatarSize: CGFloat = CGSize.messageAvatarSize.width + padding
         let totalWidth = messageViewModel.isRightAligned ? available : available - avatarSize
         return totalWidth
     }
 
     private var spacerWidth: CGFloat {
-        messageListConfig.messageDisplayOptions.spacerWidth(width ?? 0)
+        hasHorizontalSpacer ? messageListConfig.messageDisplayOptions.spacerWidth(width ?? 0) : 0
     }
 
     private var topReactionsShown: Bool {
