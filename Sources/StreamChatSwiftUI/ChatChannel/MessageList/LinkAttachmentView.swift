@@ -11,6 +11,7 @@ import SwiftUI
 ///   - Change VStack spacing
 ///   - Remove bottom padding
 ///   - Remove default padding
+///   - Add topPadding (replace previous spacing from text)
 ///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
@@ -20,6 +21,8 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     var width: CGFloat
     var isFirst: Bool
     @Binding var scrolledId: String?
+
+    private let topPadding: CGFloat = 8
 
     public init(
         factory: Factory,
@@ -46,6 +49,7 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
                     width: width,
                     isFirst: isFirst
                 )
+                .padding(.top, topPadding)
             }
         }
         .accessibilityIdentifier("LinkAttachmentContainer")
