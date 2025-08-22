@@ -6,6 +6,8 @@ import AVKit
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct VideoAttachmentsContainer<Factory: ViewFactory>: View {
     var factory: Factory
     let message: ChatMessage
@@ -13,54 +15,11 @@ public struct VideoAttachmentsContainer<Factory: ViewFactory>: View {
     @Binding var scrolledId: String?
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if let quotedMessage = message.quotedMessage {
-                VStack {
-                    factory.makeQuotedMessageView(
-                        quotedMessage: quotedMessage,
-                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                        isInComposer: false,
-                        scrolledId: $scrolledId
-                    )
-
-                    VideoAttachmentsList(
-                        factory: factory,
-                        message: message,
-                        width: width
-                    )
-                }
-                .modifier(
-                    factory.makeMessageViewModifier(
-                        for: MessageModifierInfo(
-                            message: message,
-                            isFirst: false
-                        )
-                    )
-                )
-            } else {
-                VideoAttachmentsList(
-                    factory: factory,
-                    message: message,
-                    width: width
-                )
-            }
-
-            if !message.text.isEmpty {
-                AttachmentTextView(message: message)
-                    .frame(width: width)
-            }
-        }
-        .if(!message.text.isEmpty, transform: { view in
-            view.modifier(
-                factory.makeMessageViewModifier(
-                    for: MessageModifierInfo(
-                        message: message,
-                        isFirst: true,
-                        cornerRadius: 24
-                    )
-                )
-            )
-        })
+        VideoAttachmentsList(
+            factory: factory,
+            message: message,
+            width: width
+        )
         .accessibilityIdentifier("VideoAttachmentsContainer")
     }
 }

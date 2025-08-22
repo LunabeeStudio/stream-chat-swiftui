@@ -11,6 +11,7 @@ import SwiftUI
 ///   - Change VStack spacing
 ///   - Remove bottom padding
 ///   - Add horizontal/vertical padding parameters
+///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
 
@@ -46,22 +47,6 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
             alignment: message.alignmentInBubble,
             spacing: 8
         ) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-            
-            HStack {
-                StreamTextView(message: message)
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, verticalPadding)
-                Spacer()
-            }
-
             if !message.linkAttachments.isEmpty {
                 LinkAttachmentView(
                     linkAttachment: message.linkAttachments[0],
@@ -72,15 +57,6 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
                 )
             }
         }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst,
-                    injectedBackgroundColor: colors.highlightedAccentBackground1
-                )
-            )
-        )
         .accessibilityIdentifier("LinkAttachmentContainer")
     }
 }
@@ -117,7 +93,7 @@ public struct LinkAttachmentView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        Group {
             if !imageHidden {
                 ZStack {
                     LazyImage(url: linkAttachment.previewURL ?? linkAttachment.originalURL) { state in

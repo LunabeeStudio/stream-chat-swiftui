@@ -5,6 +5,8 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct VoiceRecordingContainerView<Factory: ViewFactory>: View {
     @Injected(\.colors) var colors
     @Injected(\.images) var images
@@ -38,37 +40,21 @@ public struct VoiceRecordingContainerView<Factory: ViewFactory>: View {
     }
     
     public var body: some View {
-        VStack(spacing: 0) {
-            VStack {
-                if let quotedMessage = message.quotedMessage {
-                    factory.makeQuotedMessageView(
-                        quotedMessage: quotedMessage,
-                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                        isInComposer: false,
-                        scrolledId: $scrolledId
-                    )
-                }
-                VStack(spacing: 2) {
-                    ForEach(message.voiceRecordingAttachments, id: \.self) { attachment in
-                        VoiceRecordingView(
-                            handler: handler,
-                            textColor: textColor(for: message),
-                            addedVoiceRecording: AddedVoiceRecording(
-                                url: attachment.payload.voiceRecordingURL,
-                                duration: attachment.payload.duration ?? 0,
-                                waveform: attachment.payload.waveformData ?? []
-                            ),
-                            index: index(for: attachment)
-                        )
-                        .padding(.all, 8)
-                        .background(Color(colors.background8))
-                        .roundWithBorder(cornerRadius: 14)
-                    }
-                }
-            }
-            if !message.text.isEmpty {
-                AttachmentTextView(message: message)
-                    .frame(maxWidth: .infinity)
+        VStack(spacing: 2) {
+            ForEach(message.voiceRecordingAttachments, id: \.self) { attachment in
+                VoiceRecordingView(
+                    handler: handler,
+                    textColor: textColor(for: message),
+                    addedVoiceRecording: AddedVoiceRecording(
+                        url: attachment.payload.voiceRecordingURL,
+                        duration: attachment.payload.duration ?? 0,
+                        waveform: attachment.payload.waveformData ?? []
+                    ),
+                    index: index(for: attachment)
+                )
+                .padding(.all, 8)
+                .background(Color(colors.background8))
+                .roundWithBorder(cornerRadius: 14)
             }
         }
         .padding(.all, 2)
@@ -93,15 +79,6 @@ public struct VoiceRecordingContainerView<Factory: ViewFactory>: View {
         .onAppear {
             player.subscribe(handler)
         }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst,
-                    cornerRadius: 16
-                )
-            )
-        )
     }
     
     private func index(for attachment: ChatMessageVoiceRecordingAttachment) -> Int {

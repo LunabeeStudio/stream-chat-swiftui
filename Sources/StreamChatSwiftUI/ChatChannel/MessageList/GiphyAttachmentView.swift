@@ -6,6 +6,8 @@ import StreamChat
 import SwiftUI
 
 /// View for the giphy attachments.
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage  and message modifier. Handled by the parent MessageView
 public struct GiphyAttachmentView<Factory: ViewFactory>: View {
     @Injected(\.chatClient) private var chatClient
     @Injected(\.colors) private var colors
@@ -22,15 +24,6 @@ public struct GiphyAttachmentView<Factory: ViewFactory>: View {
             alignment: message.alignmentInBubble,
             spacing: 0
         ) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-
             LazyGiphyView(
                 source: message.giphyAttachments[0].previewURL,
                 width: width
@@ -64,14 +57,6 @@ public struct GiphyAttachmentView<Factory: ViewFactory>: View {
                 }
             }
         }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst
-                )
-            )
-        )
         .frame(maxWidth: width)
         .accessibilityIdentifier("GiphyAttachmentView")
     }

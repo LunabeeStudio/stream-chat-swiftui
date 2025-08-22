@@ -5,6 +5,8 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - No longer handles message modifier. Handled by the parent MessageView
 public struct PollAttachmentView<Factory: ViewFactory>: View {
     @Injected(\.chatClient) var chatClient
     @Injected(\.fonts) var fonts
@@ -149,14 +151,6 @@ public struct PollAttachmentView<Factory: ViewFactory>: View {
         }
         .disabled(!viewModel.canInteract)
         .padding()
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst
-                )
-            )
-        )
     }
     
     private var poll: Poll {

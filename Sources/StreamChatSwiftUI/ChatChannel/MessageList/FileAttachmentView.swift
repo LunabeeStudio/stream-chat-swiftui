@@ -5,6 +5,8 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct FileAttachmentsContainer<Factory: ViewFactory>: View {
     var factory: Factory
     var message: ChatMessage
@@ -28,44 +30,17 @@ public struct FileAttachmentsContainer<Factory: ViewFactory>: View {
 
     public var body: some View {
         VStack(alignment: message.alignmentInBubble) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-
-            VStack(spacing: 0) {
-                VStack(spacing: 4) {
-                    ForEach(message.fileAttachments, id: \.self) { attachment in
-                        FileAttachmentView(
-                            attachment: attachment,
-                            width: width,
-                            isFirst: isFirst
-                        )
-                    }
-                }
-                if !message.text.isEmpty {
-                    HStack {
-                        Text(message.adjustedText)
-                            .foregroundColor(textColor(for: message))
-                            .standardPadding()
-                        Spacer()
-                    }
+            VStack(spacing: 4) {
+                ForEach(message.fileAttachments, id: \.self) { attachment in
+                    FileAttachmentView(
+                        attachment: attachment,
+                        width: width,
+                        isFirst: isFirst
+                    )
                 }
             }
             .padding(.all, 4)
         }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst
-                )
-            )
-        )
         .accessibilityIdentifier("FileAttachmentsContainer")
     }
 }

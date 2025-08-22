@@ -144,6 +144,8 @@ public struct MessageView<Factory: ViewFactory>: View {
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage and message modifier. Handled by the parent MessageView
 public struct MessageTextView<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
@@ -179,38 +181,18 @@ public struct MessageTextView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
-        VStack(
-            alignment: message.alignmentInBubble,
-            spacing: 0
-        ) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-
-            StreamTextView(message: message)
-                .padding(.leading, leadingPadding)
-                .padding(.trailing, trailingPadding)
-                .padding(.top, topPadding)
-                .padding(.bottom, bottomPadding)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst
-                )
-            )
-        )
-        .accessibilityIdentifier("MessageTextView")
+        StreamTextView(message: message)
+            .padding(.leading, leadingPadding)
+            .padding(.trailing, trailingPadding)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("MessageTextView")
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage and message modifier. Handled by the parent MessageView
 public struct EmojiTextView<Factory: ViewFactory>: View {
     var factory: Factory
     var message: ChatMessage
@@ -220,33 +202,9 @@ public struct EmojiTextView<Factory: ViewFactory>: View {
     @Injected(\.fonts) private var fonts
 
     public var body: some View {
-        ZStack {
-            if let quotedMessage = message.quotedMessage {
-                VStack(spacing: 0) {
-                    factory.makeQuotedMessageView(
-                        quotedMessage: quotedMessage,
-                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                        isInComposer: false,
-                        scrolledId: $scrolledId
-                    )
-
-                    Text(message.adjustedText)
-                        .font(fonts.emoji)
-                }
-                .modifier(
-                    factory.makeMessageViewModifier(
-                        for: MessageModifierInfo(
-                            message: message,
-                            isFirst: isFirst
-                        )
-                    )
-                )
-            } else {
-                Text(message.adjustedText)
-                    .font(fonts.emoji)
-            }
-        }
-        .accessibilityIdentifier("MessageTextView")
+        Text(message.adjustedText)
+            .font(fonts.emoji)
+            .accessibilityIdentifier("MessageTextView")
     }
 }
 
