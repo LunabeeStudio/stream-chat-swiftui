@@ -9,6 +9,7 @@ import SwiftUI
 ///   - Turned into a composition layout : it doesn't pick one view who'll handle the whole layout, but composes the stack with all the attachment required
 ///   - There can be multiple attachments/subiews, but their position/order is fixed
 ///   - This view will handle the quotedMessage view, the message modifier and the text. The subviews should not handle them anymore
+///   - Add showBubble parameter, impact padding, availableWidth and makeMessageViewModifier
 public struct MessageView<Factory: ViewFactory>: View {
     @Injected(\.utils) private var utils
 
@@ -20,13 +21,27 @@ public struct MessageView<Factory: ViewFactory>: View {
     public var message: ChatMessage
     public var contentWidth: CGFloat
     public var isFirst: Bool
+    public var showBubble: Bool
     @Binding public var scrolledId: String?
 
-    public init(factory: Factory, message: ChatMessage, contentWidth: CGFloat, isFirst: Bool, scrolledId: Binding<String?>) {
+    private let availableWidth: CGFloat
+    public let bubbleHorizontalPadding: CGFloat = 12
+    public let bubbleVerticalPadding: CGFloat = 8
+
+    public init(
+        factory: Factory,
+        message: ChatMessage,
+        contentWidth: CGFloat,
+        isFirst: Bool,
+        showBubble: Bool,
+        scrolledId: Binding<String?>
+    ) {
         self.factory = factory
         self.message = message
         self.contentWidth = contentWidth
         self.isFirst = isFirst
+        self.showBubble = showBubble
+        self.availableWidth = showBubble ? contentWidth - (2 * bubbleHorizontalPadding) : contentWidth
         _scrolledId = scrolledId
     }
 
@@ -36,7 +51,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                 factory.makeDeletedMessageView(
                     for: message,
                     isFirst: isFirst,
-                    availableWidth: contentWidth
+                    availableWidth: availableWidth
                 )
             } else  {
                 if let quotedMessage = message.quotedMessage {
@@ -53,7 +68,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeCustomAttachmentViewType(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -62,7 +77,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeImageAttachmentView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -77,7 +92,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeMessageTextView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -86,7 +101,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeGiphyAttachmentView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -95,7 +110,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeVideoAttachmentView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -104,7 +119,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeVoiceRecordingView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -114,7 +129,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeLinkAttachmentView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -123,7 +138,7 @@ public struct MessageView<Factory: ViewFactory>: View {
                     factory.makeFileAttachmentView(
                         for: message,
                         isFirst: isFirst,
-                        availableWidth: contentWidth,
+                        availableWidth: availableWidth,
                         scrolledId: $scrolledId
                     )
                 }
@@ -133,11 +148,14 @@ public struct MessageView<Factory: ViewFactory>: View {
                 }
             }
         }
+        .padding(.horizontal, showBubble ? bubbleHorizontalPadding : 0)
+        .padding(.vertical, showBubble ? bubbleVerticalPadding : 0)
         .modifier(
             factory.makeMessageViewModifier(
                 for: MessageModifierInfo(
                     message: message,
-                    isFirst: isFirst
+                    isFirst: isFirst,
+                    showBubble: showBubble
                 )
             )
         )

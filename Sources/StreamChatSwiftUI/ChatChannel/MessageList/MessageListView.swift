@@ -369,6 +369,7 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                 frame: updatedFrame,
                 contentWidth: messageDisplayInfo.contentWidth,
                 isFirst: messageDisplayInfo.isFirst,
+                showBubble: messageDisplayInfo.showBubble,
                 showsMessageActions: messageDisplayInfo.showsMessageActions,
                 showsBottomContainer: messageDisplayInfo.showsBottomContainer,
                 keyboardWasShown: true
