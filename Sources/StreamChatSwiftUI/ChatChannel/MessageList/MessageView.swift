@@ -5,6 +5,10 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - Turned into a composition layout : it doesn't pick one view who'll handle the whole layout, but composes the stack with all the attachment required
+///   - There can be multiple attachments/subiews, but their position/order is fixed
+///   - This view will handle the quotedMessage view, the message modifier and the text. The subviews should not handle them anymore
 public struct MessageView<Factory: ViewFactory>: View {
     @Injected(\.utils) private var utils
 
@@ -27,23 +31,84 @@ public struct MessageView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
-        VStack {
+        VStack(alignment: message.alignmentInBubble, spacing: 0) {
             if messageTypeResolver.isDeleted(message: message) {
                 factory.makeDeletedMessageView(
                     for: message,
                     isFirst: isFirst,
                     availableWidth: contentWidth
                 )
-            } else if messageTypeResolver.hasCustomAttachment(message: message) {
-                factory.makeCustomAttachmentViewType(
-                    for: message,
-                    isFirst: isFirst,
-                    availableWidth: contentWidth,
-                    scrolledId: $scrolledId
-                )
-            } else if let poll = message.poll {
-                factory.makePollView(message: message, poll: poll, isFirst: isFirst)
-            } else if !message.attachmentCounts.isEmpty {
+            } else  {
+                if let quotedMessage = message.quotedMessage {
+                    factory.makeQuotedMessageView(
+                        quotedMessage: quotedMessage,
+                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
+                        isInComposer: false,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                // TODO: (drichard) Handle multiple attachments and two layouts
+                if messageTypeResolver.hasCustomAttachment(message: message) {
+                    factory.makeCustomAttachmentViewType(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                if messageTypeResolver.hasImageAttachment(message: message) {
+                    factory.makeImageAttachmentView(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                if message.shouldRenderAsJumbomoji {
+                    factory.makeEmojiTextView(
+                        message: message,
+                        scrolledId: $scrolledId,
+                        isFirst: isFirst
+                    )
+                } else if !message.text.isEmpty {
+                    factory.makeMessageTextView(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                if messageTypeResolver.hasGiphyAttachment(message: message) {
+                    factory.makeGiphyAttachmentView(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                if messageTypeResolver.hasVideoAttachment(message: message) {
+                    factory.makeVideoAttachmentView(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
+                if messageTypeResolver.hasVoiceRecording(message: message) {
+                    factory.makeVoiceRecordingView(
+                        for: message,
+                        isFirst: isFirst,
+                        availableWidth: contentWidth,
+                        scrolledId: $scrolledId
+                    )
+                }
+
                 let hasOnlyLinks = { message.attachmentCounts.keys.allSatisfy { $0 == .linkPreview } }
                 if messageTypeResolver.hasLinkAttachment(message: message) && hasOnlyLinks() {
                     factory.makeLinkAttachmentView(
@@ -63,59 +128,19 @@ public struct MessageView<Factory: ViewFactory>: View {
                     )
                 }
 
-                if messageTypeResolver.hasImageAttachment(message: message) {
-                    factory.makeImageAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasGiphyAttachment(message: message) {
-                    factory.makeGiphyAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasVideoAttachment(message: message)
-                    && !messageTypeResolver.hasImageAttachment(message: message) {
-                    factory.makeVideoAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-                
-                if messageTypeResolver.hasVoiceRecording(message: message) {
-                    factory.makeVoiceRecordingView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-            } else {
-                if message.shouldRenderAsJumbomoji {
-                    factory.makeEmojiTextView(
-                        message: message,
-                        scrolledId: $scrolledId,
-                        isFirst: isFirst
-                    )
-                } else if !message.text.isEmpty {
-                    factory.makeMessageTextView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
+                if let poll = message.poll {
+                    factory.makePollView(message: message, poll: poll, isFirst: isFirst)
                 }
             }
         }
+        .modifier(
+            factory.makeMessageViewModifier(
+                for: MessageModifierInfo(
+                    message: message,
+                    isFirst: isFirst
+                )
+            )
+        )
     }
 }
 
