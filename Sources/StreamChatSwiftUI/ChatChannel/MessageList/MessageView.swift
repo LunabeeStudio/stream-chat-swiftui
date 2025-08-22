@@ -46,119 +46,123 @@ public struct MessageView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
+        if messageTypeResolver.isDeleted(message: message) {
+            factory.makeDeletedMessageView(
+                for: message,
+                isFirst: isFirst,
+                availableWidth: availableWidth
+            )
+        } else  {
+            messageContent
+                .padding(.horizontal, showBubble ? bubbleHorizontalPadding : 0)
+                .padding(.vertical, showBubble ? bubbleVerticalPadding : 0)
+                .modifier(
+                    factory.makeMessageViewModifier(
+                        for: MessageModifierInfo(
+                            message: message,
+                            isFirst: isFirst,
+                            showBubble: showBubble
+                        )
+                    )
+                )
+        }
+    }
+
+    private var messageContent: some View {
         VStack(alignment: message.alignmentInBubble, spacing: 0) {
-            if messageTypeResolver.isDeleted(message: message) {
-                factory.makeDeletedMessageView(
+            if let quotedMessage = message.quotedMessage {
+                factory.makeQuotedMessageView(
+                    quotedMessage: quotedMessage,
+                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
+                    isInComposer: false,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            // TODO: (drichard) Handle multiple attachments and two layouts
+            if messageTypeResolver.hasCustomAttachment(message: message) {
+                factory.makeCustomAttachmentViewType(
                     for: message,
                     isFirst: isFirst,
-                    availableWidth: availableWidth
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
                 )
-            } else  {
-                if let quotedMessage = message.quotedMessage {
-                    factory.makeQuotedMessageView(
-                        quotedMessage: quotedMessage,
-                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                        isInComposer: false,
-                        scrolledId: $scrolledId
-                    )
-                }
+            }
 
-                // TODO: (drichard) Handle multiple attachments and two layouts
-                if messageTypeResolver.hasCustomAttachment(message: message) {
-                    factory.makeCustomAttachmentViewType(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if messageTypeResolver.hasImageAttachment(message: message) {
+                factory.makeImageAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if messageTypeResolver.hasImageAttachment(message: message) {
-                    factory.makeImageAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if message.shouldRenderAsJumbomoji {
+                factory.makeEmojiTextView(
+                    message: message,
+                    scrolledId: $scrolledId,
+                    isFirst: isFirst
+                )
+            } else if !message.text.isEmpty {
+                factory.makeMessageTextView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if message.shouldRenderAsJumbomoji {
-                    factory.makeEmojiTextView(
-                        message: message,
-                        scrolledId: $scrolledId,
-                        isFirst: isFirst
-                    )
-                } else if !message.text.isEmpty {
-                    factory.makeMessageTextView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if messageTypeResolver.hasGiphyAttachment(message: message) {
+                factory.makeGiphyAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if messageTypeResolver.hasGiphyAttachment(message: message) {
-                    factory.makeGiphyAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if messageTypeResolver.hasVideoAttachment(message: message) {
+                factory.makeVideoAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if messageTypeResolver.hasVideoAttachment(message: message) {
-                    factory.makeVideoAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if messageTypeResolver.hasVoiceRecording(message: message) {
+                factory.makeVoiceRecordingView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if messageTypeResolver.hasVoiceRecording(message: message) {
-                    factory.makeVoiceRecordingView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            let hasOnlyLinks = { message.attachmentCounts.keys.allSatisfy { $0 == .linkPreview } }
+            if messageTypeResolver.hasLinkAttachment(message: message) && hasOnlyLinks() {
+                factory.makeLinkAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                let hasOnlyLinks = { message.attachmentCounts.keys.allSatisfy { $0 == .linkPreview } }
-                if messageTypeResolver.hasLinkAttachment(message: message) && hasOnlyLinks() {
-                    factory.makeLinkAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
+            if messageTypeResolver.hasFileAttachment(message: message) {
+                factory.makeFileAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
 
-                if messageTypeResolver.hasFileAttachment(message: message) {
-                    factory.makeFileAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: availableWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if let poll = message.poll {
-                    factory.makePollView(message: message, poll: poll, isFirst: isFirst)
-                }
+            if let poll = message.poll {
+                factory.makePollView(message: message, poll: poll, isFirst: isFirst)
             }
         }
-        .padding(.horizontal, showBubble ? bubbleHorizontalPadding : 0)
-        .padding(.vertical, showBubble ? bubbleVerticalPadding : 0)
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst,
-                    showBubble: showBubble
-                )
-            )
-        )
     }
 }
 
