@@ -10,7 +10,7 @@ import SwiftUI
 /// - Note: Changes from original implementation:
 ///   - Change VStack spacing
 ///   - Remove bottom padding
-///   - Add horizontal/vertical padding parameters
+///   - Remove default padding
 ///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
@@ -21,24 +21,17 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
     var isFirst: Bool
     @Binding var scrolledId: String?
 
-    private let horizontalPadding: CGFloat
-    private let verticalPadding: CGFloat
-    
     public init(
         factory: Factory,
         message: ChatMessage,
         width: CGFloat,
         isFirst: Bool,
-        scrolledId: Binding<String?>,
-        horizontalPadding: CGFloat = 16,
-        verticalPadding: CGFloat = 8
+        scrolledId: Binding<String?>
     ) {
         self.factory = factory
         self.message = message
         self.width = width
         self.isFirst = isFirst
-        self.horizontalPadding = horizontalPadding
-        self.verticalPadding = verticalPadding
         _scrolledId = scrolledId
     }
 
@@ -51,9 +44,7 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
                 LinkAttachmentView(
                     linkAttachment: message.linkAttachments[0],
                     width: width,
-                    isFirst: isFirst,
-                    horizontalPadding: horizontalPadding,
-                    verticalPadding: verticalPadding
+                    isFirst: isFirst
                 )
             }
         }
@@ -66,13 +57,9 @@ public struct LinkAttachmentContainer<Factory: ViewFactory>: View {
 ///   - Change VStack spacing
 ///   - Change LazyImage placeholder, width and radius
 ///   - Remove linkAttachment title and text
-///   - Add horizontal/vertical padding parameters
 public struct LinkAttachmentView: View {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
-
-    private let horizontalPadding: CGFloat
-    private let verticalPadding: CGFloat
 
     var linkAttachment: ChatMessageLinkAttachment
     var width: CGFloat
@@ -81,15 +68,11 @@ public struct LinkAttachmentView: View {
     public init(
         linkAttachment: ChatMessageLinkAttachment,
         width: CGFloat,
-        isFirst: Bool,
-        horizontalPadding: CGFloat,
-        verticalPadding: CGFloat
+        isFirst: Bool
     ) {
         self.linkAttachment = linkAttachment
         self.width = width
         self.isFirst = isFirst
-        self.horizontalPadding = horizontalPadding
-        self.verticalPadding = verticalPadding
     }
 
     public var body: some View {
@@ -107,7 +90,7 @@ public struct LinkAttachmentView: View {
                     .onDisappear(.cancel)
                     .processors([ImageProcessors.Resize(width: width)])
                     .priority(.high)
-                    .frame(width: width - 2 * horizontalPadding, height: ((width - 2 * horizontalPadding) / 2).rounded())
+                    .frame(width: width, height: (width / 2).rounded())
                     .cornerRadius(12)
 
                     if !authorHidden {
@@ -126,8 +109,6 @@ public struct LinkAttachmentView: View {
                 }
             }
         }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.bottom, verticalPadding)
         .onTapGesture {
             if let url = linkAttachment.originalURL.secureURL, UIApplication.shared.canOpenURL(url) {
                 UIApplication.shared.open(url, options: [:])

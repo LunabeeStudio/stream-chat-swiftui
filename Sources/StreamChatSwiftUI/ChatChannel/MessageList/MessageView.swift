@@ -164,6 +164,7 @@ public struct MessageView<Factory: ViewFactory>: View {
 
 /// - Note: Changes from original implementation:
 ///   - No longer handles quotedMessage and message modifier. Handled by the parent MessageView
+///   - Default padding values are 0
 public struct MessageTextView<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
@@ -182,10 +183,10 @@ public struct MessageTextView<Factory: ViewFactory>: View {
         factory: Factory,
         message: ChatMessage,
         isFirst: Bool,
-        leadingPadding: CGFloat = 16,
-        trailingPadding: CGFloat = 16,
-        topPadding: CGFloat = 8,
-        bottomPadding: CGFloat = 8,
+        leadingPadding: CGFloat = 0,
+        trailingPadding: CGFloat = 0,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
         scrolledId: Binding<String?>
     ) {
         self.factory = factory
