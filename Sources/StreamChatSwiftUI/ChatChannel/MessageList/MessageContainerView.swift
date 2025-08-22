@@ -10,6 +10,7 @@ import SwiftUI
 ///   - Fix HStack horizontal spacing
 ///   - Add extra trailing and bottom paddings
 ///   - Add hasHorizontalSpacer parameter, that set MessageSpacer's spacerWidth to 0 if false
+///   - Add showBubble parameter, transmitted to MessageView
 public struct MessageContainerView<Factory: ViewFactory>: View {
     @StateObject var messageViewModel: MessageViewModel
     @Environment(\.channelTranslationLanguage) var translationLanguage
@@ -25,6 +26,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
     let message: ChatMessage
     var width: CGFloat?
     var hasHorizontalSpacer: Bool
+    var showBubble: Bool
     var showsAllInfo: Bool
     var isInThread: Bool
     var isLast: Bool
@@ -54,6 +56,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
         message: ChatMessage,
         width: CGFloat? = nil,
         hasHorizontalSpacer: Bool = true,
+        showBubble: Bool = true,
         showsAllInfo: Bool,
         isInThread: Bool,
         isLast: Bool,
@@ -67,6 +70,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
         self.message = message
         self.width = width
         self.hasHorizontalSpacer = hasHorizontalSpacer
+        self.showBubble = showBubble
         self.showsAllInfo = showsAllInfo
         self.isInThread = isInThread
         self.isLast = isLast
@@ -112,6 +116,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
                         message: message,
                         contentWidth: contentWidth,
                         isFirst: showsAllInfo,
+                        showBubble: showBubble,
                         scrolledId: $scrolledId
                     )
                     .overlay(
@@ -400,6 +405,7 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
                     frame: frame,
                     contentWidth: contentWidth,
                     isFirst: showsAllInfo,
+                    showBubble: showBubble,
                     showsMessageActions: showsMessageActions,
                     showsBottomContainer: showsBottomContainer
                 )
@@ -425,11 +431,14 @@ struct SendFailureIndicator: View {
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - Add showBubble attribute
 public struct MessageDisplayInfo {
     public let message: ChatMessage
     public let frame: CGRect
     public let contentWidth: CGFloat
     public let isFirst: Bool
+    public let showBubble: Bool
     public var showsMessageActions: Bool = true
     public var showsBottomContainer: Bool = true
     public var keyboardWasShown: Bool = false
@@ -439,6 +448,7 @@ public struct MessageDisplayInfo {
         frame: CGRect,
         contentWidth: CGFloat,
         isFirst: Bool,
+        showBubble: Bool,
         showsMessageActions: Bool = true,
         showsBottomContainer: Bool = true,
         keyboardWasShown: Bool = false
@@ -447,6 +457,7 @@ public struct MessageDisplayInfo {
         self.frame = frame
         self.contentWidth = contentWidth
         self.isFirst = isFirst
+        self.showBubble = showBubble
         self.showsMessageActions = showsMessageActions
         self.keyboardWasShown = keyboardWasShown
         self.showsBottomContainer = showsBottomContainer

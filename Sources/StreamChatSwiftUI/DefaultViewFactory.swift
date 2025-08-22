@@ -267,6 +267,7 @@ extension ViewFactory {
         MessageBubbleModifier(
             message: messageModifierInfo.message,
             isFirst: messageModifierInfo.isFirst,
+            showBubble: messageModifierInfo.showBubble,
             injectedBackgroundColor: messageModifierInfo.injectedBackgroundColor,
             cornerRadius: messageModifierInfo.cornerRadius,
             forceLeftToRight: messageModifierInfo.forceLeftToRight

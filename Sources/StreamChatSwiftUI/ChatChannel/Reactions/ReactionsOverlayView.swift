@@ -232,6 +232,7 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
             message: messageDisplayInfo.message,
             contentWidth: messageDisplayInfo.contentWidth,
             isFirst: messageDisplayInfo.isFirst,
+            showBubble: messageDisplayInfo.showBubble,
             scrolledId: .constant(nil)
         )
         // This is needed for the LinkDetectionTextView to work properly.

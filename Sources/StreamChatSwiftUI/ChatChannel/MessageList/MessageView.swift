@@ -5,6 +5,11 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - Turned into a composition layout : it doesn't pick one view who'll handle the whole layout, but composes the stack with all the attachment required
+///   - There can be multiple attachments/subiews, but their position/order is fixed
+///   - This view will handle the quotedMessage view, the message modifier and the text. The subviews should not handle them anymore
+///   - Add showBubble parameter, impact padding, availableWidth and makeMessageViewModifier
 public struct MessageView<Factory: ViewFactory>: View {
     @Injected(\.utils) private var utils
 
@@ -16,109 +21,154 @@ public struct MessageView<Factory: ViewFactory>: View {
     public var message: ChatMessage
     public var contentWidth: CGFloat
     public var isFirst: Bool
+    public var showBubble: Bool
     @Binding public var scrolledId: String?
 
-    public init(factory: Factory, message: ChatMessage, contentWidth: CGFloat, isFirst: Bool, scrolledId: Binding<String?>) {
+    private let availableWidth: CGFloat
+    public let bubbleHorizontalPadding: CGFloat = 12
+    public let bubbleVerticalPadding: CGFloat = 8
+
+    public init(
+        factory: Factory,
+        message: ChatMessage,
+        contentWidth: CGFloat,
+        isFirst: Bool,
+        showBubble: Bool,
+        scrolledId: Binding<String?>
+    ) {
         self.factory = factory
         self.message = message
         self.contentWidth = contentWidth
         self.isFirst = isFirst
+        self.showBubble = showBubble
+        self.availableWidth = showBubble ? contentWidth - (2 * bubbleHorizontalPadding) : contentWidth
         _scrolledId = scrolledId
     }
 
     public var body: some View {
-        VStack {
-            if messageTypeResolver.isDeleted(message: message) {
-                factory.makeDeletedMessageView(
-                    for: message,
-                    isFirst: isFirst,
-                    availableWidth: contentWidth
+        if messageTypeResolver.isDeleted(message: message) {
+            factory.makeDeletedMessageView(
+                for: message,
+                isFirst: isFirst,
+                availableWidth: availableWidth
+            )
+        } else  {
+            messageContent
+                .padding(.horizontal, showBubble ? bubbleHorizontalPadding : 0)
+                .padding(.vertical, showBubble ? bubbleVerticalPadding : 0)
+                .modifier(
+                    factory.makeMessageViewModifier(
+                        for: MessageModifierInfo(
+                            message: message,
+                            isFirst: isFirst,
+                            showBubble: showBubble
+                        )
+                    )
                 )
-            } else if messageTypeResolver.hasCustomAttachment(message: message) {
+        }
+    }
+
+    private var messageContent: some View {
+        VStack(alignment: message.alignmentInBubble, spacing: 0) {
+            if let quotedMessage = message.quotedMessage {
+                factory.makeQuotedMessageView(
+                    quotedMessage: quotedMessage,
+                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
+                    isInComposer: false,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            // TODO: (drichard) Handle multiple attachments and two layouts
+            if messageTypeResolver.hasCustomAttachment(message: message) {
                 factory.makeCustomAttachmentViewType(
                     for: message,
                     isFirst: isFirst,
-                    availableWidth: contentWidth,
+                    availableWidth: availableWidth,
                     scrolledId: $scrolledId
                 )
-            } else if let poll = message.poll {
+            }
+
+            if messageTypeResolver.hasImageAttachment(message: message) {
+                factory.makeImageAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if message.shouldRenderAsJumbomoji {
+                factory.makeEmojiTextView(
+                    message: message,
+                    scrolledId: $scrolledId,
+                    isFirst: isFirst
+                )
+            } else if !message.text.isEmpty {
+                factory.makeMessageTextView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if messageTypeResolver.hasGiphyAttachment(message: message) {
+                factory.makeGiphyAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if messageTypeResolver.hasVideoAttachment(message: message) {
+                factory.makeVideoAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if messageTypeResolver.hasVoiceRecording(message: message) {
+                factory.makeVoiceRecordingView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            let hasOnlyLinks = { message.attachmentCounts.keys.allSatisfy { $0 == .linkPreview } }
+            if messageTypeResolver.hasLinkAttachment(message: message) && hasOnlyLinks() {
+                factory.makeLinkAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if messageTypeResolver.hasFileAttachment(message: message) {
+                factory.makeFileAttachmentView(
+                    for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if let poll = message.poll {
                 factory.makePollView(message: message, poll: poll, isFirst: isFirst)
-            } else if !message.attachmentCounts.isEmpty {
-                let hasOnlyLinks = { message.attachmentCounts.keys.allSatisfy { $0 == .linkPreview } }
-                if messageTypeResolver.hasLinkAttachment(message: message) && hasOnlyLinks() {
-                    factory.makeLinkAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasFileAttachment(message: message) {
-                    factory.makeFileAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasImageAttachment(message: message) {
-                    factory.makeImageAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasGiphyAttachment(message: message) {
-                    factory.makeGiphyAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-
-                if messageTypeResolver.hasVideoAttachment(message: message)
-                    && !messageTypeResolver.hasImageAttachment(message: message) {
-                    factory.makeVideoAttachmentView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-                
-                if messageTypeResolver.hasVoiceRecording(message: message) {
-                    factory.makeVoiceRecordingView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
-            } else {
-                if message.shouldRenderAsJumbomoji {
-                    factory.makeEmojiTextView(
-                        message: message,
-                        scrolledId: $scrolledId,
-                        isFirst: isFirst
-                    )
-                } else if !message.text.isEmpty {
-                    factory.makeMessageTextView(
-                        for: message,
-                        isFirst: isFirst,
-                        availableWidth: contentWidth,
-                        scrolledId: $scrolledId
-                    )
-                }
             }
         }
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage and message modifier. Handled by the parent MessageView
+///   - Default padding values are 0
 public struct MessageTextView<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
@@ -137,10 +187,10 @@ public struct MessageTextView<Factory: ViewFactory>: View {
         factory: Factory,
         message: ChatMessage,
         isFirst: Bool,
-        leadingPadding: CGFloat = 16,
-        trailingPadding: CGFloat = 16,
-        topPadding: CGFloat = 8,
-        bottomPadding: CGFloat = 8,
+        leadingPadding: CGFloat = 0,
+        trailingPadding: CGFloat = 0,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
         scrolledId: Binding<String?>
     ) {
         self.factory = factory
@@ -154,38 +204,18 @@ public struct MessageTextView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
-        VStack(
-            alignment: message.alignmentInBubble,
-            spacing: 0
-        ) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-
-            StreamTextView(message: message)
-                .padding(.leading, leadingPadding)
-                .padding(.trailing, trailingPadding)
-                .padding(.top, topPadding)
-                .padding(.bottom, bottomPadding)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message,
-                    isFirst: isFirst
-                )
-            )
-        )
-        .accessibilityIdentifier("MessageTextView")
+        StreamTextView(message: message)
+            .padding(.leading, leadingPadding)
+            .padding(.trailing, trailingPadding)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("MessageTextView")
     }
 }
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage and message modifier. Handled by the parent MessageView
 public struct EmojiTextView<Factory: ViewFactory>: View {
     var factory: Factory
     var message: ChatMessage
@@ -195,33 +225,9 @@ public struct EmojiTextView<Factory: ViewFactory>: View {
     @Injected(\.fonts) private var fonts
 
     public var body: some View {
-        ZStack {
-            if let quotedMessage = message.quotedMessage {
-                VStack(spacing: 0) {
-                    factory.makeQuotedMessageView(
-                        quotedMessage: quotedMessage,
-                        fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                        isInComposer: false,
-                        scrolledId: $scrolledId
-                    )
-
-                    Text(message.adjustedText)
-                        .font(fonts.emoji)
-                }
-                .modifier(
-                    factory.makeMessageViewModifier(
-                        for: MessageModifierInfo(
-                            message: message,
-                            isFirst: isFirst
-                        )
-                    )
-                )
-            } else {
-                Text(message.adjustedText)
-                    .font(fonts.emoji)
-            }
-        }
-        .accessibilityIdentifier("MessageTextView")
+        Text(message.adjustedText)
+            .font(fonts.emoji)
+            .accessibilityIdentifier("MessageTextView")
     }
 }
 

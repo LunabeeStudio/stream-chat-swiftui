@@ -5,6 +5,8 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - No longer handles quotedMessage, text and message modifier. Handled by the parent MessageView
 public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
 
@@ -22,43 +24,17 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
             alignment: message.alignmentInBubble,
             spacing: 0
         ) {
-            if let quotedMessage = message.quotedMessage {
-                factory.makeQuotedMessageView(
-                    quotedMessage: quotedMessage,
-                    fillAvailableSpace: !message.attachmentCounts.isEmpty,
-                    isInComposer: false,
-                    scrolledId: $scrolledId
-                )
-            }
-
-            VStack(
-                alignment: message.alignmentInBubble,
-                spacing: 0
-            ) {
-                ImageAttachmentView(
-                    message: message,
-                    sources: sources,
-                    width: width
-                ) { index in
-                    if message.localState == nil {
-                        selectedIndex = index
-                        galleryShown = true
-                    }
-                }
-
-                if !message.text.isEmpty {
-                    AttachmentTextView(message: message)
-                        .frame(width: width)
+            ImageAttachmentView(
+                message: message,
+                sources: sources,
+                width: width
+            ) { index in
+                if message.localState == nil {
+                    selectedIndex = index
+                    galleryShown = true
                 }
             }
         }
-        .modifier(
-            factory.makeMessageViewModifier(
-                for: MessageModifierInfo(
-                    message: message, isFirst: isFirst && message.videoAttachments.isEmpty
-                )
-            )
-        )
         .fullScreenCover(isPresented: $galleryShown, onDismiss: {
             self.selectedIndex = 0
         }) {

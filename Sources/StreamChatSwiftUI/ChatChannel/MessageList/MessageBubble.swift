@@ -7,10 +7,12 @@ import SwiftUI
 
 /// Contains info needed for a modifier to be applied to the message view.
 /// - Note: Changes from original implementation:
+///   - Add showBubble attribute
 ///   - Change default cornerRadius to 12
 public struct MessageModifierInfo {
     public var message: ChatMessage
     public var isFirst: Bool
+    public var showBubble: Bool
     public var injectedBackgroundColor: UIColor?
     public var cornerRadius: CGFloat = 12
     public var forceLeftToRight = false
@@ -18,12 +20,14 @@ public struct MessageModifierInfo {
     public init(
         message: ChatMessage,
         isFirst: Bool,
+        showBubble: Bool = true,
         injectedBackgroundColor: UIColor? = nil,
         cornerRadius: CGFloat = 12,
         forceLeftToRight: Bool = false
     ) {
         self.message = message
         self.isFirst = isFirst
+        self.showBubble = showBubble
         self.injectedBackgroundColor = injectedBackgroundColor
         self.cornerRadius = cornerRadius
         self.forceLeftToRight = forceLeftToRight
