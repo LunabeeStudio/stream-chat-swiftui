@@ -285,6 +285,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         // When
         let view = viewFactory.makeCustomAttachmentViewType(
             for: message,
+            layout: .all,
             isFirst: true,
             availableWidth: 300,
             scrolledId: .constant(nil)

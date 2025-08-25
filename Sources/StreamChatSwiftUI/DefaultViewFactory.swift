@@ -543,6 +543,7 @@ extension ViewFactory {
     
     public func makeCustomAttachmentViewType(
         for message: ChatMessage,
+        layout: CustomAttachmentLayout,
         isFirst: Bool,
         availableWidth: CGFloat,
         scrolledId: Binding<String?>

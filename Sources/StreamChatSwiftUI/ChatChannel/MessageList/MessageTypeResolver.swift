@@ -5,6 +5,13 @@
 import Foundation
 import StreamChat
 
+/// Custom enum to separate custom attachments displayed on top of the message, from those displayed at the bottom of the message
+public enum CustomAttachmentLayout {
+    case all
+    case top
+    case bottom
+}
+
 /// Resolves the message type, based on the message.
 public protocol MessageTypeResolving {
     /// Checks whether the message is deleted.
@@ -45,7 +52,9 @@ public protocol MessageTypeResolving {
     /// Checks whether the message has custom attachment.
     /// - Parameter message: the message being checked.
     /// - Returns: bool, whether the condition is satisfied.
-    func hasCustomAttachment(message: ChatMessage) -> Bool
+    /// - Note: Changes from original implementation:
+    ///   - add layout parameter
+    func hasCustomAttachment(message: ChatMessage, layout: CustomAttachmentLayout) -> Bool
 }
 
 /// Default methods implementation of the `MessageTypeResolving` protocol.
@@ -80,7 +89,7 @@ extension MessageTypeResolving {
         !message.voiceRecordingAttachments.isEmpty
     }
 
-    public func hasCustomAttachment(message: ChatMessage) -> Bool {
+    public func hasCustomAttachment(message: ChatMessage, layout: CustomAttachmentLayout) -> Bool {
         false
     }
 }

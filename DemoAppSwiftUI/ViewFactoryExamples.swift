@@ -328,6 +328,7 @@ class CustomFactory: ViewFactory {
 
     func makeCustomAttachmentViewType(
         for message: ChatMessage,
+        layout: CustomAttachmentLayout,
         isFirst: Bool,
         availableWidth: CGFloat
     ) -> some View {
