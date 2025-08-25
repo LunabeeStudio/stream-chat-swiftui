@@ -7,7 +7,7 @@ import StreamChatSwiftUI
 import SwiftUI
 
 class CustomMessageResolver: MessageTypeResolving {
-    func hasCustomAttachment(message: ChatMessage) -> Bool {
+    func hasCustomAttachment(message: ChatMessage, layout: CustomAttachmentLayout) -> Bool {
         let messageComponents = message.text.components(separatedBy: CharacterSet.whitespacesAndNewlines)
         return !messageComponents.filter { component in
             isValidEmail(component)

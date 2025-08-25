@@ -570,8 +570,11 @@ public protocol ViewFactory: AnyObject {
     ///   - isFirst: whether it is first in the group (latest creation date).
     ///   - availableWidth: the available width for the view.
     ///  - Returns: view displayed in the custom attachment slot.
+    /// - Note: Changes from original implementation:
+    ///   - add layout parameter
     func makeCustomAttachmentViewType(
         for message: ChatMessage,
+        layout: CustomAttachmentLayout,
         isFirst: Bool,
         availableWidth: CGFloat,
         scrolledId: Binding<String?>

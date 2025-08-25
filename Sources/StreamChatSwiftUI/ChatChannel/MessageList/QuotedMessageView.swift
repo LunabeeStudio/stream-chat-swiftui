@@ -90,7 +90,7 @@ public struct QuotedMessageView<Factory: ViewFactory>: View {
         HStack(alignment: .top) {
             if !quotedMessage.attachmentCounts.isEmpty {
                 ZStack {
-                    if messageTypeResolver.hasCustomAttachment(message: quotedMessage) {
+                    if messageTypeResolver.hasCustomAttachment(message: quotedMessage, layout: .all) {
                         factory.makeCustomAttachmentQuotedView(for: quotedMessage)
                     } else if hasVoiceAttachments {
                         VoiceRecordingPreview(voiceAttachment: quotedMessage.voiceRecordingAttachments[0].payload)

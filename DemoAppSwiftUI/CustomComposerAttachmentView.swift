@@ -73,6 +73,7 @@ class CustomAttachmentsFactory: ViewFactory {
 
     func makeCustomAttachmentViewType(
         for message: ChatMessage,
+        layout: CustomAttachmentLayout,
         isFirst: Bool,
         availableWidth: CGFloat
     ) -> some View {
@@ -108,7 +109,7 @@ class CustomAttachmentsFactory: ViewFactory {
 }
 
 class CustomMessageTypeResolver: MessageTypeResolving {
-    func hasCustomAttachment(message: ChatMessage) -> Bool {
+    func hasCustomAttachment(message: ChatMessage, layout: CustomAttachmentLayout) -> Bool {
         let contactAttachments = message.attachments(payloadType: ContactAttachmentPayload.self)
         return !contactAttachments.isEmpty
     }

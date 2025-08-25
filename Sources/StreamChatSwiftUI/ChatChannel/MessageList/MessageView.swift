@@ -7,7 +7,7 @@ import SwiftUI
 
 /// - Note: Changes from original implementation:
 ///   - Turned into a composition layout : it doesn't pick one view who'll handle the whole layout, but composes the stack with all the attachment required
-///   - There can be multiple attachments/subiews, but their position/order is fixed
+///   - There can be multiple attachments/subiews, but their position/order is fixed. Custom attachments have two positions possible.
 ///   - This view will handle the quotedMessage view, the message modifier and the text. The subviews should not handle them anymore
 ///   - Add showBubble parameter, impact padding, availableWidth and makeMessageViewModifier
 public struct MessageView<Factory: ViewFactory>: View {
@@ -79,10 +79,10 @@ public struct MessageView<Factory: ViewFactory>: View {
                 )
             }
 
-            // TODO: (drichard) Handle multiple attachments and two layouts
-            if messageTypeResolver.hasCustomAttachment(message: message) {
+            if messageTypeResolver.hasCustomAttachment(message: message, layout: .top) {
                 factory.makeCustomAttachmentViewType(
                     for: message,
+                    layout: .top,
                     isFirst: isFirst,
                     availableWidth: availableWidth,
                     scrolledId: $scrolledId
@@ -153,6 +153,16 @@ public struct MessageView<Factory: ViewFactory>: View {
             if messageTypeResolver.hasFileAttachment(message: message) {
                 factory.makeFileAttachmentView(
                     for: message,
+                    isFirst: isFirst,
+                    availableWidth: availableWidth,
+                    scrolledId: $scrolledId
+                )
+            }
+
+            if messageTypeResolver.hasCustomAttachment(message: message, layout: .bottom) {
+                factory.makeCustomAttachmentViewType(
+                    for: message,
+                    layout: .bottom,
                     isFirst: isFirst,
                     availableWidth: availableWidth,
                     scrolledId: $scrolledId
