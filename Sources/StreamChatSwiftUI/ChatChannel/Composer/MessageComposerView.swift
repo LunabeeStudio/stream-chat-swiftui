@@ -6,6 +6,8 @@ import StreamChat
 import SwiftUI
 
 /// Main view for the message composer.
+/// - Note: Changes from original implementation:
+///   - Made HStack alignment center instead of bottom
 public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
     @Injected(\.colors) private var colors
     @Injected(\.fonts) private var fonts
@@ -64,7 +66,7 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
                 .transition(.identity)
             }
 
-            HStack(alignment: .bottom) {
+            HStack(alignment: .center) {
                 factory.makeLeadingComposerView(
                     state: $viewModel.pickerTypeState,
                     channelConfig: channelConfig
