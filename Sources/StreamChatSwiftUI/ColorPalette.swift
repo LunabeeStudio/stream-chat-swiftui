@@ -8,9 +8,19 @@ import UIKit
 /// Provides the colors used throughout the SDK.
 public struct ColorPalette {
     public init() {
-        // Public init.
+        navigationBarGlyph = .white
+        navigationBarTitle = text
+        navigationBarSubtitle = textLowEmphasis
+        navigationBarTintColor = tintColor
+
+        messageLinkAttachmentAuthorColor = tintColor
+        messageLinkAttachmentTitleColor = Color(text)
+        messageLinkAttachmentTextColor = Color(text)
     }
 
+    /// Tint color used in UI components.
+    ///
+    /// - SeeAlso: ``navigationBarTintColor``
     public var tintColor: Color = .accentColor
 
     // MARK: - Text
@@ -49,7 +59,8 @@ public struct ColorPalette {
     public var highlightedBackground: UIColor = .streamGrayGainsboro
     public var highlightedAccentBackground: UIColor = .streamAccentBlue
     public var highlightedAccentBackground1: UIColor = .streamBlueAlice
-    public var pinnedBackground: UIColor = .streamHighlight
+    public var pinnedBackground: UIColor = .streamYellowBackground
+    public var messageCellHighlightBackground: UIColor = .streamYellowBackground
 
     // MARK: - Borders and shadows
 
@@ -81,12 +92,55 @@ public struct ColorPalette {
     public lazy var selectedReactionBackgroundColor: UIColor? = nil
     public var voiceMessageControlBackground: UIColor = .streamWhiteStatic
 
+    // MARK: - Link Attachment View
+
+    public var messageLinkAttachmentAuthorColor: Color
+    public var messageLinkAttachmentTitleColor: Color
+    public var messageLinkAttachmentTextColor: Color
+
     // MARK: - Composer
 
     public lazy var composerPlaceholderColor: UIColor = subtitleText
     public lazy var composerInputBackground: UIColor = background
     public lazy var composerInputHighlightedBorder: UIColor = innerBorder
 
+    // MARK: - Navigation Bar
+    
+    public var navigationBarGlyph: UIColor
+    
+    public var navigationBarTitle: UIColor {
+        didSet {
+            let attributes: [NSAttributedString.Key: Any] = [.foregroundColor: navigationBarTitle]
+            UINavigationBar.appearance().titleTextAttributes = attributes
+            UINavigationBar.appearance().largeTitleTextAttributes = attributes
+        }
+    }
+
+    public var navigationBarSubtitle: UIColor
+    
+    /// Sets a different tint color for the navigation bar.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// var colors = ColorPalette()
+    /// colors.navigationBarTintColor = .purple
+    /// colors.navigationBarTitle = .brown
+    /// colors.navigationBarSubtitle = .cyan
+    /// colors.navigationBarBackground = .yellow
+    /// colors.tintColor = .red
+    /// let appearance = Appearance(colors: colors)
+    /// streamChat = StreamChat(chatClient: chatClient, appearance: appearance, utils: utils)
+    /// ```
+    ///
+    /// - Important: `tintColor` must also be customised when setting this color.
+    public var navigationBarTintColor: Color
+    
+    /// Sets a custom background color for navigation bars.
+    ///
+    /// - Important: Customized views must use ``toolbarThemed(content:)``.
+    public var navigationBarBackground: UIColor?
+    
     // MARK: - Threads
 
     public var bannerBackgroundColor: UIColor = .streamDarkGray
@@ -113,7 +167,7 @@ private extension UIColor {
     static let streamAccentGreen = mode(0x20e070, 0x20e070)
     static let streamGrayDisabledText = mode(0x72767e, 0x72767e)
     static let streamInnerBorder = mode(0xdbdde1, 0x272a30)
-    static let streamHighlight = mode(0xfbf4dd, 0x333024)
+    static let streamYellowBackground = mode(0xfbf4dd, 0x333024)
     static let streamDisabled = mode(0xb4b7bb, 0x4c525c)
 
     // Currently we are not using the correct shadow color from figma's color palette. This is to avoid

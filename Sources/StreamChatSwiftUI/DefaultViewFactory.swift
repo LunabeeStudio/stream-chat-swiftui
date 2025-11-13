@@ -467,7 +467,8 @@ extension ViewFactory {
             mediaAttachments: mediaAttachments,
             author: message.author,
             isShown: isShown,
-            selected: options.selectedIndex
+            selected: options.selectedIndex,
+            message: message
         )
     }
     
@@ -609,7 +610,8 @@ extension ViewFactory {
             message: parentMessage,
             replyCount: replyCount,
             showReplyCount: false,
-            isRightAligned: message.isRightAligned
+            isRightAligned: message.isRightAligned,
+            threadReplyMessage: message // Pass the actual reply message (shown in channel)
         )
     }
     
@@ -1027,9 +1029,11 @@ extension ViewFactory {
             message: message
         )
         let showReadCount = channel.memberCount > 2 && !message.isLastActionFailed
+        let showDelivered = message.deliveryStatus(for: channel) == .delivered
         return MessageReadIndicatorView(
             readUsers: readUsers,
             showReadCount: showReadCount,
+            showDelivered: showDelivered,
             localState: message.localState
         )
     }
@@ -1151,6 +1155,12 @@ extension ViewFactory {
         onUserTap: @escaping (ChatUser) -> Void
     ) -> some View {
         AddUsersView(loadedUserIds: options.loadedUsers.map(\.id), onUserTap: onUserTap)
+    }
+    
+    public func makeAttachmentTextView(
+        options: AttachmentTextViewOptions
+    ) -> some View {
+        StreamTextView(message: options.message)
     }
 }
 

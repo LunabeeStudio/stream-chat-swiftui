@@ -8,7 +8,7 @@ require 'xcodeproj'
 import 'Sonarfile'
 import 'Allurefile'
 
-xcode_version = ENV['XCODE_VERSION'] || '16.3'
+xcode_version = ENV['XCODE_VERSION'] || '16.4'
 xcode_project = 'StreamChatSwiftUI.xcodeproj'
 sdk_names = ['StreamChatSwiftUI']
 github_repo = ENV['GITHUB_REPOSITORY'] || 'GetStream/stream-chat-swiftui'
@@ -143,8 +143,6 @@ lane :publish_release do |options|
   )
 
   update_spm(version: release_version)
-
-  sh('gh workflow run merge-main-to-develop.yml --ref main')
 end
 
 lane :get_sdk_version_from_environment do
@@ -493,17 +491,29 @@ lane :lint_pr do
   danger(dangerfile: 'Dangerfile') if is_ci
 end
 
+def check_foundation_import
+  files_missing_imports = []
+  Dir.glob("Sources/**/*.swift").each do |file|
+    next if file =~ /(StreamNuke|StreamSwiftyGif)/
+
+    files_missing_imports << file unless File.read(file).match?(/import (Foundation|UIKit|SwiftUI|Combine|StreamChat)/)
+  end
+
+  unless files_missing_imports.empty?
+    UI.error("Files missing 'Foundation' import:")
+    files_missing_imports.each { |file| UI.error("- #{file}") }
+    UI.user_error!("Lint check failed.")
+  end
+end
+
 desc 'Run source code formatting/linting'
 lane :run_swift_format do |options|
   Dir.chdir('..') do
+    check_foundation_import
     strict = options[:strict] ? '--lint' : nil
-    sources_matrix[:swiftformat].each do |path|
-      sh("mint run swiftformat #{strict} --config .swiftformat #{path}")
-      next if path.include?('Tests')
-
-      sh("mint run swiftlint lint --config .swiftlint.yml --fix --progress --quiet --reporter json #{path}") unless strict
-      sh("mint run swiftlint lint --config .swiftlint.yml --strict --progress --quiet --reporter json #{path}")
-    end
+    sh("swiftformat #{strict} --config .swiftformat .")
+    sh("swiftlint lint --config .swiftlint.yml --fix --progress --reporter json") unless strict
+    sh("swiftlint lint --config .swiftlint.yml --strict --progress --reporter json")
   end
 end
 
@@ -531,8 +541,7 @@ lane :sources_matrix do
     ruby: ['fastlane', 'Gemfile', 'Gemfile.lock'],
     size: ['Sources', xcode_project],
     sonar: ['Sources'],
-    public_interface: ['Sources'],
-    swiftformat: ['Sources', 'DemoAppSwiftUI', 'StreamChatSwiftUITests']
+    public_interface: ['Sources']
   }
 end
 
@@ -549,12 +558,15 @@ end
 lane :validate_public_interface do
   next unless is_check_required(sources: sources_matrix[:public_interface], force_check: @force_check)
 
-  # Run the analysis on the current branch
+  # Get branch names
   original_branch = current_branch
+  target_branch = ENV['GITHUB_BASE_REF'] || (original_branch.include?('release/') ? 'main' : 'develop')
+  UI.important("Target branch: #{target_branch} 🕊️")
+
+  # Run the analysis on the current branch
   sh('interface-analyser analysis ../Sources/ public_interface_current.json')
 
   # Checkout the target branch
-  target_branch = original_branch.include?('release/') ? 'main' : 'develop'
   sh("git fetch origin #{target_branch}")
   sh("git checkout #{target_branch}")
 
@@ -601,7 +613,7 @@ lane :update_img_shields_sdk_sizes do |options|
   )
 end
 
-def frameworks_sizes
+private_lane :frameworks_sizes do
   root_dir = 'Build/SDKSize'
   archive_dir = "#{root_dir}/DemoApp.xcarchive"
 
@@ -613,7 +625,9 @@ def frameworks_sizes
     scheme: 'DemoAppSwiftUI',
     archive_path: archive_dir,
     export_method: 'ad-hoc',
-    export_options: 'fastlane/sdk_size_export_options.plist'
+    export_options: 'fastlane/sdk_size_export_options.plist',
+    derived_data_path: derived_data_path,
+    cloned_source_packages_path: source_packages_path
   )
 
   # Parse the thinned size of Assets.car from Packaging.log
@@ -627,4 +641,21 @@ def frameworks_sizes
   stream_chat_swiftui_size_kb = (stream_chat_swiftui_size + assets_thinned_size) / 1024.0
 
   { StreamChatSwiftUI: stream_chat_swiftui_size_kb.round(0) }
+end
+
+lane :size_analyze do
+  next unless is_check_required(sources: sources_matrix[:size], force_check: @force_check)
+
+  gym(
+    scheme: 'DemoAppSwiftUI',
+    configuration: 'Release',
+    skip_archive: true,
+    skip_package_ipa: true,
+    skip_package_pkg: true,
+    skip_codesigning: true,
+    derived_data_path: derived_data_path,
+    cloned_source_packages_path: source_packages_path
+  )
+
+  show_detailed_sdk_size(sdk_names: sdk_names, threshold: 42)
 end

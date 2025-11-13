@@ -47,15 +47,10 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
         }
         .accessibilityIdentifier("ImageAttachmentContainer")
     }
-    
+
     private var sources: [MediaAttachment] {
         let videoSources = message.videoAttachments.map { attachment in
-            let url: URL
-            if let state = attachment.uploadingState {
-                url = state.localFileURL
-            } else {
-                url = attachment.videoURL
-            }
+            let url: URL = attachment.videoURL
             return MediaAttachment(
                 url: url,
                 type: .video,
@@ -63,12 +58,7 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
             )
         }
         let imageSources = message.imageAttachments.map { attachment in
-            let url: URL
-            if let state = attachment.uploadingState {
-                url = state.localFileURL
-            } else {
-                url = attachment.imageURL
-            }
+            let url: URL = attachment.imageURL
             return MediaAttachment(
                 url: url,
                 type: .image,
@@ -82,16 +72,20 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
 /// - Note: Changes from original implementation:
 ///   - remove text background, should be handled by makeMessageViewModifier
 ///   - remove text padding
-public struct AttachmentTextView: View {
+
+public struct AttachmentTextView<Factory: ViewFactory>: View {
+    var factory: Factory
     var message: ChatMessage
 
-    public init(message: ChatMessage) {
+    public init(factory: Factory = DefaultViewFactory.shared, message: ChatMessage) {
+        self.factory = factory
         self.message = message
     }
 
     public var body: some View {
         HStack {
-            StreamTextView(message: message)
+            factory.makeAttachmentTextView(options: .init(mesage: message))
+                .standardPadding()
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
@@ -269,6 +263,7 @@ struct SingleImageView: View {
             index: index
         )
         .frame(width: width, height: height)
+        .id(source.id)
         .accessibilityIdentifier("SingleImageView")
     }
 }
@@ -289,6 +284,7 @@ struct MultiImageView: View {
             index: index
         )
         .frame(width: width, height: height)
+        .id(source.id)
         .accessibilityIdentifier("MultiImageView")
     }
 }
@@ -341,7 +337,7 @@ struct LazyLoadingImage: View {
                     ProgressView()
                 }
             }
-            
+
             if source.type == .video && width > 64 && source.uploadingState == nil {
                 VideoPlayIcon()
                     .accessibilityHidden(true)
@@ -386,13 +382,23 @@ extension ChatMessage {
     }
 }
 
-public struct MediaAttachment {
+public struct MediaAttachment: Identifiable, Equatable {
     @Injected(\.utils) var utils
-    
-    let url: URL
-    let type: MediaAttachmentType
-    var uploadingState: AttachmentUploadingState?
-    
+
+    public let url: URL
+    public let type: MediaAttachmentType
+    public var uploadingState: AttachmentUploadingState?
+
+    public init(url: URL, type: MediaAttachmentType, uploadingState: AttachmentUploadingState? = nil) {
+        self.url = url
+        self.type = type
+        self.uploadingState = uploadingState
+    }
+
+    public var id: String {
+        url.absoluteString
+    }
+
     func generateThumbnail(
         resize: Bool,
         preferredSize: CGSize,
@@ -413,6 +419,12 @@ public struct MediaAttachment {
             )
         }
     }
+
+    public static func == (lhs: MediaAttachment, rhs: MediaAttachment) -> Bool {
+        lhs.url == rhs.url
+            && lhs.type == rhs.type
+            && lhs.uploadingState == rhs.uploadingState
+    }
 }
 
 extension MediaAttachment {
@@ -431,9 +443,14 @@ extension MediaAttachment {
     }
 }
 
-enum MediaAttachmentType {
-    case image
-    case video
+public struct MediaAttachmentType: RawRepresentable {
+    public let rawValue: String
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static let image = Self(rawValue: "image")
+    public static let video = Self(rawValue: "video")
 }
 
 /// Options for the gallery view.

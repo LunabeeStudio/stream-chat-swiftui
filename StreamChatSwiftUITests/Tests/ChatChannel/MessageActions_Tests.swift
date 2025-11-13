@@ -72,6 +72,105 @@ class MessageActions_Tests: StreamChatTestCase {
         XCTAssert(messageActions[5].title == "Mute User")
     }
 
+    func test_messageActions_partOfThread() {
+        // Given
+        let channel = mockDMChannel
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: channel.cid,
+            text: "Test",
+            author: .mock(id: .unique),
+            parentMessageId: .unique,
+            showReplyInChannel: false,
+            isSentByCurrentUser: false
+        )
+        let factory = DefaultViewFactory.shared
+
+        // When
+        let messageActions = MessageAction.defaultActions(
+            factory: factory,
+            for: message,
+            channel: channel,
+            chatClient: chatClient,
+            onFinish: { _ in },
+            onError: { _ in }
+        )
+
+        // Then
+        XCTAssertEqual(messageActions.count, 4)
+        XCTAssertEqual(messageActions[0].title, "Reply")
+        XCTAssertEqual(messageActions[1].title, "Pin to conversation")
+        XCTAssertEqual(messageActions[2].title, "Copy Message")
+        XCTAssertEqual(messageActions[3].title, "Mute User")
+    }
+
+    func test_messageActions_partOfThreadButAlsoInChannel() {
+        // Given
+        let channel = mockDMChannel
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: channel.cid,
+            text: "Test",
+            author: .mock(id: .unique),
+            parentMessageId: .unique,
+            showReplyInChannel: true,
+            isSentByCurrentUser: false
+        )
+        let factory = DefaultViewFactory.shared
+
+        // When
+        let messageActions = MessageAction.defaultActions(
+            factory: factory,
+            for: message,
+            channel: channel,
+            chatClient: chatClient,
+            onFinish: { _ in },
+            onError: { _ in }
+        )
+
+        // Then
+        XCTAssertEqual(messageActions.count, 5)
+        XCTAssertEqual(messageActions[0].title, "Reply")
+        XCTAssertEqual(messageActions[1].title, "Pin to conversation")
+        XCTAssertEqual(messageActions[2].title, "Copy Message")
+        XCTAssertEqual(messageActions[3].title, "Mark Unread")
+        XCTAssertEqual(messageActions[4].title, "Mute User")
+    }
+
+    func test_messageActions_rootOfThreadButAlsoInChannel() {
+        // Given
+        let channel = mockDMChannel
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: channel.cid,
+            text: "Test",
+            author: .mock(id: .unique),
+            parentMessageId: .unique,
+            showReplyInChannel: true,
+            replyCount: 3,
+            isSentByCurrentUser: false
+        )
+        let factory = DefaultViewFactory.shared
+
+        // When
+        let messageActions = MessageAction.defaultActions(
+            factory: factory,
+            for: message,
+            channel: channel,
+            chatClient: chatClient,
+            onFinish: { _ in },
+            onError: { _ in }
+        )
+
+        // Then
+        XCTAssertEqual(messageActions.count, 5)
+        XCTAssertEqual(messageActions[0].title, "Reply")
+        XCTAssertEqual(messageActions[1].title, "Pin to conversation")
+        XCTAssertEqual(messageActions[2].title, "Copy Message")
+        XCTAssertEqual(messageActions[3].title, "Mark Unread")
+        XCTAssertEqual(messageActions[4].title, "Mute User")
+    }
+
     func test_messageActions_otherUserDefaultReadEventsDisabled() {
         // Given
         let channel = ChatChannel.mockDMChannel(ownCapabilities: [.sendMessage, .uploadFile, .pinMessage])
@@ -374,12 +473,132 @@ class MessageActions_Tests: StreamChatTestCase {
         // Then
         XCTAssertTrue(messageActions.contains(where: { $0.title == "Edit Message" }))
     }
+    
+    func test_messageActions_otherUser_deletingEnabledWhenDeleteAnyMessageCapability() {
+        // Given
+        let channel = ChatChannel.mockDMChannel(ownCapabilities: [.deleteAnyMessage])
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: channel.cid,
+            text: "Test",
+            author: .mock(id: .unique),
+            isSentByCurrentUser: false
+        )
+        let factory = DefaultViewFactory.shared
+        
+        // When
+        let messageActions = MessageAction.defaultActions(
+            factory: factory,
+            for: message,
+            channel: channel,
+            chatClient: chatClient,
+            onFinish: { _ in },
+            onError: { _ in }
+        )
+        
+        // Then
+        XCTAssertTrue(messageActions.contains(where: { $0.title == "Delete Message" }))
+    }
 
+    // MARK: - MessageActionsResolver Tests
+    
+    func test_messageActionsResolver_markUnreadAction() {
+        // Given
+        let message = ChatMessage.mock(id: "test-message-id", cid: .unique, text: "Test message")
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let resolver = MessageActionsResolver()
+        let actionInfo = MessageActionInfo(message: message, identifier: MessageActionId.markUnread)
+        
+        // When
+        resolver.resolveMessageAction(info: actionInfo, viewModel: viewModel)
+        
+        // Then
+        XCTAssertEqual(viewModel.firstUnreadMessageId, message.messageId)
+        XCTAssertTrue(viewModel.currentUserMarkedMessageUnread)
+        XCTAssertEqual(viewModel.scrolledId, message.messageId)
+        XCTAssertEqual(viewModel.skipHighlightMessageId, message.messageId)
+        XCTAssertFalse(viewModel.reactionsShown)
+    }
+    
+    func test_messageActionsResolver_inlineReplyAction() {
+        // Given
+        let message = ChatMessage.mock(id: "test-message-id", cid: .unique, text: "Test message")
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let resolver = MessageActionsResolver()
+        let actionInfo = MessageActionInfo(message: message, identifier: "inlineReply")
+        
+        // When
+        resolver.resolveMessageAction(info: actionInfo, viewModel: viewModel)
+        
+        // Then
+        XCTAssertEqual(viewModel.quotedMessage, message)
+        XCTAssertNil(viewModel.editedMessage)
+        XCTAssertFalse(viewModel.reactionsShown)
+    }
+    
+    func test_messageActionsResolver_editAction() {
+        // Given
+        let message = ChatMessage.mock(id: "test-message-id", cid: .unique, text: "Test message")
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let resolver = MessageActionsResolver()
+        let actionInfo = MessageActionInfo(message: message, identifier: "edit")
+        
+        // When
+        resolver.resolveMessageAction(info: actionInfo, viewModel: viewModel)
+        
+        // Then
+        XCTAssertEqual(viewModel.editedMessage, message)
+        XCTAssertNil(viewModel.quotedMessage)
+        XCTAssertFalse(viewModel.reactionsShown)
+    }
+    
+    func test_messageActionsResolver_unknownAction() {
+        // Given
+        let message = ChatMessage.mock(id: "test-message-id", cid: .unique, text: "Test message")
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let resolver = MessageActionsResolver()
+        let actionInfo = MessageActionInfo(message: message, identifier: "unknown")
+        
+        // When
+        resolver.resolveMessageAction(info: actionInfo, viewModel: viewModel)
+        
+        // Then
+        XCTAssertNil(viewModel.quotedMessage)
+        XCTAssertNil(viewModel.editedMessage)
+        XCTAssertNil(viewModel.firstUnreadMessageId)
+        XCTAssertFalse(viewModel.currentUserMarkedMessageUnread)
+        XCTAssertFalse(viewModel.reactionsShown)
+    }
+    
     // MARK: - Private
     
     private var mockDMChannel: ChatChannel {
         ChatChannel.mockDMChannel(
-            ownCapabilities: [.updateOwnMessage, .sendMessage, .uploadFile, .pinMessage, .readEvents]
+            ownCapabilities: [
+                .deleteOwnMessage,
+                .updateOwnMessage,
+                .sendMessage,
+                .uploadFile,
+                .pinMessage,
+                .readEvents
+            ]
         )
+    }
+    
+    private func makeChannelController(messages: [ChatMessage] = []) -> ChatChannelController_Mock {
+        let channelController = ChatChannelTestHelpers.makeChannelController(
+            chatClient: chatClient,
+            messages: messages
+        )
+        channelController.simulateInitial(
+            channel: .mockDMChannel(),
+            messages: messages,
+            state: .initialized
+        )
+        return channelController
     }
 }

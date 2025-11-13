@@ -22,7 +22,10 @@ open class StreamChatTestCase: XCTestCase {
 
     override open func setUp() {
         super.setUp()
-        streamChat = StreamChat(chatClient: chatClient)
+        streamChat = StreamChat(
+            chatClient: chatClient,
+            utils: Utils(videoPreviewLoader: VideoPreviewLoader_Mock(), imageLoader: ImageLoader_Mock())
+        )
     }
     
     func adjustAppearance(_ block: (inout Appearance) -> Void) {
@@ -30,5 +33,15 @@ open class StreamChatTestCase: XCTestCase {
         var appearance = streamChat.appearance
         block(&appearance)
         streamChat.appearance = appearance
+    }
+    
+    func setThemedNavigationBarAppearance() {
+        adjustAppearance { appearance in
+            appearance.colors.navigationBarTintColor = .purple
+            appearance.colors.navigationBarTitle = .blue
+            appearance.colors.navigationBarSubtitle = .cyan
+            appearance.colors.navigationBarBackground = .yellow
+            appearance.colors.navigationBarGlyph = .green
+        }
     }
 }

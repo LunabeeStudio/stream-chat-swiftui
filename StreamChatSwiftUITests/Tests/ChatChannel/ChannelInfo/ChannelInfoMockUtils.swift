@@ -5,7 +5,7 @@
 @testable import StreamChat
 @testable import StreamChatSwiftUI
 
-struct ChannelInfoMockUtils {
+enum ChannelInfoMockUtils {
     static func setupMockMembers(
         count: Int,
         currentUserId: String,
@@ -86,6 +86,24 @@ struct ChannelInfoMockUtils {
                 text: "File Attachment \(i)",
                 author: .mock(id: .unique),
                 attachments: ChatChannelTestHelpers.fileAttachments
+            )
+            result.append(message)
+        }
+
+        return LazyCachedMapCollection(source: result) { $0 }
+    }
+
+    static func generateMessagesWithPdfAttachments(
+        count: Int
+    ) -> LazyCachedMapCollection<ChatMessage> {
+        var result = [ChatMessage]()
+        for i in 0..<count {
+            let message = ChatMessage.mock(
+                id: .unique,
+                cid: .unique,
+                text: "File Attachment \(i)",
+                author: .mock(id: .unique),
+                attachments: ChatChannelTestHelpers.pdfFileAttachments
             )
             result.append(message)
         }

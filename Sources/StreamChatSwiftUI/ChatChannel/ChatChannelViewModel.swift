@@ -36,7 +36,8 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     private var readsString = ""
     private var canMarkRead = false
     private var hasSetInitialCanMarkRead = false
-    
+    private var currentUserSentNewMessage = false
+
     private let messageListDateOverlay: DateFormatter = DateFormatter.messageListDateOverlay
     
     private lazy var messagesDateFormatter = utils.dateFormatter
@@ -55,7 +56,11 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     public var messageController: ChatMessageController?
     
     @Published public var scrolledId: String?
+    @Published public var highlightedMessageId: String?
     @Published public var listId = UUID().uuidString
+    // A boolean to skip highlighting of a message when scrolling to it.
+    // This is used for scenarios when scrolling to message Id should not highlight it.
+    var skipHighlightMessageId: String?
 
     @Published public var showScrollToLatestButton = false
     @Published var showAlertBanner = false
@@ -127,7 +132,12 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             }
         }
     }
-    
+
+    // A boolean value indicating if the user marked a message as unread
+    // in the current session of the channel. If it is true,
+    // it should not call markRead() in any scenario.
+    public var currentUserMarkedMessageUnread: Bool = false
+
     @Published public private(set) var channel: ChatChannel?
 
     public var isMessageThread: Bool {
@@ -166,6 +176,11 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                 self?.messageCachingUtils.jumpToReplyId = scrollToMessage.messageId
             } else if messageController != nil, let jumpToReplyId = self?.messageCachingUtils.jumpToReplyId {
                 self?.scrolledId = jumpToReplyId
+                // Clear scroll ID after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                    self?.scrolledId = nil
+                }
+                self?.highlightMessage(withId: jumpToReplyId)
                 self?.messageCachingUtils.jumpToReplyId = nil
             } else if messageController == nil {
                 self?.scrolledId = scrollToMessage?.messageId
@@ -226,6 +241,12 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         if let message = notification.userInfo?[MessageRepliesConstants.selectedMessage] as? ChatMessage {
             threadMessage = message
             threadMessageShown = true
+
+            // Only set jumpToReplyId if there's a specific reply message to highlight
+            // (for showReplyInChannel messages). The parent message should never be highlighted.
+            if let replyMessage = notification.userInfo?[MessageRepliesConstants.threadReplyMessage] as? ChatMessage {
+                messageCachingUtils.jumpToReplyId = replyMessage.messageId
+            }
         }
     }
     
@@ -266,10 +287,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
 
     /// The user tapped on the message sent button.
     public func messageSentTapped() {
-        // only scroll if the message is not being edited
-        if editedMessage == nil {
-            scrollToLastMessage()
-        }
+        currentUserSentNewMessage = true
     }
 
     public func jumpToMessage(messageId: String) -> Bool {
@@ -294,9 +312,11 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                 if scrolledId == nil {
                     scrolledId = messageId
                 }
+                // Clear scroll ID after 2 seconds
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
                     self?.scrolledId = nil
                 }
+                highlightMessage(withId: messageId)
                 return true
             } else {
                 let message = channelController.dataStore.message(id: baseId)
@@ -322,16 +342,36 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                     if toJumpId == baseId, let message = self?.channelController.dataStore.message(id: toJumpId) {
                         toJumpId = message.messageId
                     }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                         self?.scrolledId = toJumpId
                         self?.loadingMessagesAround = false
+                        self?.highlightMessage(withId: toJumpId)
                     }
                 }
                 return false
             }
         }
     }
-    
+
+    /// Highlights the message background.
+    ///
+    /// - Parameter messageId: The ID of the message to highlight.
+    public func highlightMessage(withId messageId: MessageId) {
+        if skipHighlightMessageId == messageId {
+            skipHighlightMessageId = nil
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.highlightedMessageId = messageId
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+            withAnimation {
+                self?.highlightedMessageId = nil
+            }
+        }
+    }
+
     open func handleMessageAppear(index: Int, scrollDirection: ScrollDirection) {
         if index >= channelDataSource.messages.count || loadingMessagesAround {
             return
@@ -349,7 +389,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         if utils.messageListConfig.dateIndicatorPlacement == .overlay {
             save(lastDate: message.createdAt)
         }
-        if index == 0, channelDataSource.hasLoadedAllNextMessages {
+        if channelDataSource.hasLoadedAllNextMessages {
             let isActive = UIApplication.shared.applicationState == .active
             if isActive && canMarkRead {
                 sendReadEventIfNeeded(for: message)
@@ -448,6 +488,9 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         
         if !showScrollToLatestButton && scrolledId == nil && !loadingNextMessages {
             updateScrolledIdToNewestMessage()
+        } else if changes.first?.isInsertion == true && currentUserSentNewMessage {
+            updateScrolledIdToNewestMessage()
+            currentUserSentNewMessage = false
         }
     }
     
@@ -513,7 +556,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
     
     // MARK: - private
-    
+
     private func checkForOlderMessages(index: Int) {
         guard index >= channelDataSource.messages.count - 25 else { return }
         guard !loadingPreviousMessages else { return }
@@ -570,7 +613,12 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
     
     private func sendReadEventIfNeeded(for message: ChatMessage) {
-        guard let channel, channel.unreadCount.messages > 0 else { return }
+        guard let channel, channel.unreadCount.messages > 0 else {
+            return
+        }
+        if currentUserMarkedMessageUnread {
+            return
+        }
         throttler.execute { [weak self] in
             self?.channelController.markRead()
             // We keep `firstUnreadMessageId` value set which keeps showing the new messages header in the channel view
@@ -678,7 +726,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         canMarkRead = true
         
         if channel.unreadCount.messages > 0 {
-            if channelController.firstUnreadMessageId != nil {
+            if channelDataSource.firstUnreadMessageId != nil {
                 firstUnreadMessageId = channelController.firstUnreadMessageId
                 canMarkRead = false
             } else if channelController.lastReadMessageId != nil {
@@ -821,25 +869,6 @@ extension ChatMessage: Identifiable {
         }
 
         return repliesCountId
-    }
-    
-    var uploadingStatesId: String {
-        var states = imageAttachments.compactMap { $0.uploadingState?.state }
-        states += giphyAttachments.compactMap { $0.uploadingState?.state }
-        states += videoAttachments.compactMap { $0.uploadingState?.state }
-        states += fileAttachments.compactMap { $0.uploadingState?.state }
-        
-        if states.isEmpty {
-            if localState == .sendingFailed {
-                return "failed"
-            } else {
-                return localState?.rawValue ?? "empty"
-            }
-        }
-        
-        let strings = states.map { "\($0)" }
-        let combined = strings.joined(separator: "-")
-        return combined
     }
     
     var reactionScoresId: String {

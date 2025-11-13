@@ -10,6 +10,31 @@ import SwiftUI
 import XCTest
 
 class ChatChannelInfoView_Tests: StreamChatTestCase {
+    func test_chatChannelInfoView_navigationBarAppearance() {
+        // Given
+        setThemedNavigationBarAppearance()
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 8,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.deleteChannel, .updateChannel, .updateChannelMembers],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        
+        // When
+        let view = NavigationContainerView(embedInNavigationView: true) {
+            ChatChannelInfoView(channel: channel)
+        }.applyDefaultSize()
+        
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
     func test_chatChannelInfoView_directChannelOfflineSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
@@ -278,6 +303,112 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         )
         let viewModel = ChatChannelInfoViewModel(channel: group)
         viewModel.addUsersShown = true
+
+        // When
+        let view = ChatChannelInfoView(viewModel: viewModel)
+            .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_chatChannelInfoView_participantSelectedBasicActionsSnapshot() {
+        // Given
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 4,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.updateChannelMembers],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        let viewModel = ChatChannelInfoViewModel(channel: group)
+        // Select the second participant (index 1)
+        viewModel.selectedParticipant = viewModel.displayedParticipants[1]
+
+        // When
+        let view = ChatChannelInfoView(viewModel: viewModel)
+            .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_chatChannelInfoView_participantSelectedWithMuteActionsSnapshot() {
+        // Given
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 4,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let config = ChannelConfig(mutesEnabled: true)
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            config: config,
+            ownCapabilities: [.updateChannelMembers],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        let viewModel = ChatChannelInfoViewModel(channel: group)
+        // Select the second participant (index 1)
+        viewModel.selectedParticipant = viewModel.displayedParticipants[1]
+
+        // When
+        let view = ChatChannelInfoView(viewModel: viewModel)
+            .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_chatChannelInfoView_participantSelectedWithRemoveActionSnapshot() {
+        // Given
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 4,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.updateChannelMembers],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        let viewModel = ChatChannelInfoViewModel(channel: group)
+        // Select the second participant (index 1)
+        viewModel.selectedParticipant = viewModel.displayedParticipants[1]
+
+        // When
+        let view = ChatChannelInfoView(viewModel: viewModel)
+            .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_chatChannelInfoView_participantSelectedOfflineUserSnapshot() {
+        // Given
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 4,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0] // Only current user is online
+        )
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.updateChannelMembers],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        let viewModel = ChatChannelInfoViewModel(channel: group)
+        // Select the second participant (index 1) who is offline
+        viewModel.selectedParticipant = viewModel.displayedParticipants[1]
 
         // When
         let view = ChatChannelInfoView(viewModel: viewModel)
