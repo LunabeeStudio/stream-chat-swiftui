@@ -356,7 +356,11 @@ final class ChatChannelListItemView_Tests: StreamChatTestCase {
     func test_channelListItem_draftMessageWithAttachment() throws {
         // Given
         let message = DraftMessage.mock(text: "Draft message", attachments: [.dummy(payload: try JSONEncoder().encode(
-            ImageAttachmentPayload(title: "Test", imageRemoteURL: .localYodaImage, file: .init(url: .localYodaImage))
+            ImageAttachmentPayload(
+                title: "Test",
+                imageRemoteURL: .localYodaImage,
+                file: .init(url: .localYodaQuote)
+            )
         ))])
         let channel = ChatChannel.mock(cid: .unique, previewMessage: .mock(), draftMessage: message)
 
@@ -366,6 +370,92 @@ final class ChatChannelListItemView_Tests: StreamChatTestCase {
             channelName: "Test",
             avatar: .circleImage,
             onlineIndicatorShown: true,
+            onItemTap: { _ in }
+        )
+        .frame(width: defaultScreenSize.width)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_channelListItem_messageDelivered() throws {
+        let date = Date(timeIntervalSince1970: 100)
+
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Test message",
+            author: .mock(id: .unique, name: "Darth Vader"),
+            createdAt: date.addingTimeInterval(-100),
+            isSentByCurrentUser: true
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            config: .mock(readEventsEnabled: true),
+            reads: [
+                .init(
+                    lastReadAt: .distantPast,
+                    lastReadMessageId: nil,
+                    unreadMessagesCount: 0,
+                    user: .unique,
+                    lastDeliveredAt: date,
+                    lastDeliveredMessageId: message.id
+                )
+            ],
+            latestMessages: [message],
+            previewMessage: message
+        )
+        
+        // When
+        let view = ChatChannelListItem(
+            channel: channel,
+            channelName: "Test",
+            avatar: .circleImage,
+            onlineIndicatorShown: false,
+            onItemTap: { _ in }
+        )
+        .frame(width: defaultScreenSize.width)
+        
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_channelListItem_messageDeliveredAndRead() throws {
+        let date = Date(timeIntervalSince1970: 100)
+
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Test message",
+            author: .mock(id: .unique, name: "Darth Vader"),
+            createdAt: date.addingTimeInterval(-100),
+            isSentByCurrentUser: true
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            config: .mock(readEventsEnabled: true),
+            reads: [
+                .init(
+                    lastReadAt: date.addingTimeInterval(10),
+                    lastReadMessageId: message.id,
+                    unreadMessagesCount: 0,
+                    user: .unique,
+                    lastDeliveredAt: date,
+                    lastDeliveredMessageId: message.id
+                )
+            ],
+            latestMessages: [message],
+            previewMessage: message
+        )
+
+        // When
+        let view = ChatChannelListItem(
+            channel: channel,
+            channelName: "Test",
+            avatar: .circleImage,
+            onlineIndicatorShown: false,
             onItemTap: { _ in }
         )
         .frame(width: defaultScreenSize.width)

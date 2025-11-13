@@ -14,7 +14,8 @@ import SwiftUI
 public struct MessageContainerView<Factory: ViewFactory>: View {
     @StateObject var messageViewModel: MessageViewModel
     @Environment(\.channelTranslationLanguage) var translationLanguage
-    
+    @Environment(\.highlightedMessageId) var highlightedMessageId
+
     @Injected(\.fonts) private var fonts
     @Injected(\.colors) private var colors
     @Injected(\.images) private var images
@@ -299,7 +300,17 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
         .padding(.bottom, extraBottomPadding)
         .padding(.bottom, showsAllInfo || messageViewModel.isPinned ? paddingValue : 0)
         .padding(.top, isLast ? paddingValue : 0)
-        .background(messageViewModel.isPinned ? Color(colors.pinnedBackground) : nil)
+        .background(
+            Group {
+                if utils.messageListConfig.highlightMessageWhenJumping,
+                   let highlightedMessageId = highlightedMessageId,
+                   highlightedMessageId == message.messageId {
+                    Color(colors.messageCellHighlightBackground)
+                } else if messageViewModel.isPinned {
+                    Color(colors.pinnedBackground)
+                }
+            }
+        )
         .padding(.bottom, messageViewModel.isPinned ? paddingValue / 2 : 0)
         .transition(
             message.isSentByCurrentUser ?
@@ -411,6 +422,18 @@ public struct MessageContainerView<Factory: ViewFactory>: View {
                 )
             )
         }
+    }
+}
+
+// Environment plumbing colocated to avoid adding new files to the package list.
+private struct HighlightedMessageIdKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var highlightedMessageId: String? {
+        get { self[HighlightedMessageIdKey.self] }
+        set { self[HighlightedMessageIdKey.self] = newValue }
     }
 }
 

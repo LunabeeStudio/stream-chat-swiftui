@@ -56,7 +56,7 @@ public struct CreatePollView: View {
     }
                 
     public var body: some View {
-        NavigationView {
+        NavigationContainerView(embedInNavigationView: true) {
             List {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L10n.Composer.Polls.question)
@@ -164,7 +164,7 @@ public struct CreatePollView: View {
             .background(Color(colors.background).ignoresSafeArea())
             .listStyle(.plain)
             .id(listId)
-            .toolbar {
+            .toolbarThemed {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         if viewModel.canShowDiscardConfirmation {
@@ -175,11 +175,23 @@ public struct CreatePollView: View {
                     } label: {
                         Text(L10n.Alert.Actions.cancel)
                     }
+                    .actionSheet(isPresented: $viewModel.discardConfirmationShown) {
+                        ActionSheet(
+                            title: Text(L10n.Composer.Polls.actionSheetDiscardTitle),
+                            buttons: [
+                                .destructive(Text(L10n.Alert.Actions.discardChanges)) {
+                                    presentationMode.wrappedValue.dismiss()
+                                },
+                                .default(Text(L10n.Alert.Actions.keepEditing))
+                            ]
+                        )
+                    }
                 }
                 
                 ToolbarItem(placement: .principal) {
                     Text(L10n.Composer.Polls.createPoll)
                         .bold()
+                        .foregroundColor(Color(colors.navigationBarTitle))
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -189,23 +201,11 @@ public struct CreatePollView: View {
                         }
                     } label: {
                         Image(systemName: "paperplane.fill")
-                            .foregroundColor(colors.tintColor)
                     }
                     .disabled(!viewModel.canCreatePoll)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .actionSheet(isPresented: $viewModel.discardConfirmationShown) {
-                ActionSheet(
-                    title: Text(L10n.Composer.Polls.actionSheetDiscardTitle),
-                    buttons: [
-                        .destructive(Text(L10n.Alert.Actions.discardChanges)) {
-                            presentationMode.wrappedValue.dismiss()
-                        },
-                        .cancel(Text(L10n.Alert.Actions.keepEditing))
-                    ]
-                )
-            }
             .alert(isPresented: $viewModel.errorShown) {
                 Alert.defaultErrorAlert
             }

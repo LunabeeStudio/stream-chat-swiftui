@@ -29,7 +29,7 @@ struct PollCommentsView<Factory: ViewFactory>: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationContainerView(embedInNavigationView: true) {
             ScrollView {
                 LazyVStack(alignment: .leading) {
                     ForEach(viewModel.comments) { comment in
@@ -64,15 +64,15 @@ struct PollCommentsView<Factory: ViewFactory>: View {
                                 .bold()
                                 .foregroundColor(colors.tintColor)
                         })
-                            .frame(maxWidth: .infinity)
-                            .withPollsBackground()
-                            .uiAlert(
-                                title: commentButtonTitle,
-                                isPresented: $viewModel.addCommentShown,
-                                text: $viewModel.newCommentText,
-                                accept: L10n.Alert.Actions.send,
-                                action: { viewModel.add(comment: viewModel.newCommentText) }
-                            )
+                        .frame(maxWidth: .infinity)
+                        .withPollsBackground()
+                        .uiAlert(
+                            title: commentButtonTitle,
+                            isPresented: $viewModel.addCommentShown,
+                            text: $viewModel.newCommentText,
+                            accept: L10n.Alert.Actions.send,
+                            action: { viewModel.add(comment: viewModel.newCommentText) }
+                        )
                     }
                 }
                 .padding()
@@ -82,10 +82,11 @@ struct PollCommentsView<Factory: ViewFactory>: View {
                 isPresented: $viewModel.errorShown,
                 action: viewModel.refresh
             )
-            .toolbar {
+            .toolbarThemed {
                 ToolbarItem(placement: .principal) {
                     Text(L10n.Message.Polls.Toolbar.commentsTitle)
                         .bold()
+                        .foregroundColor(Color(colors.navigationBarTitle))
                 }
                 
                 ToolbarItem(placement: .navigationBarLeading) {

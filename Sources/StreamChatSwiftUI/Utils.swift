@@ -8,7 +8,7 @@ import StreamChat
 /// Class providing implementations of several utilities used in the SDK.
 /// The default implementations can be replaced in the init method, or directly via the variables.
 public class Utils {
-    var markdownFormatter = MarkdownFormatter()
+    public var markdownFormatter: MarkdownFormatter
 
     public var dateFormatter: DateFormatter
     
@@ -16,6 +16,7 @@ public class Utils {
     ///
     /// - SeeAlso: ``ChannelListConfig/messageRelativeDateFormatEnabled``.
     public var messageRelativeDateFormatter: DateFormatter
+    public var galleryHeaderViewDateFormatter: DateFormatter
     public var videoPreviewLoader: VideoPreviewLoader
     public var imageLoader: ImageLoading
     public var imageCDN: ImageCDN
@@ -75,8 +76,10 @@ public class Utils {
     internal var pollsDateFormatter = PollsDateFormatter()
 
     public init(
+        markdownFormatter: MarkdownFormatter = DefaultMarkdownFormatter(),
         dateFormatter: DateFormatter = .makeDefault(),
         messageRelativeDateFormatter: DateFormatter = MessageRelativeDateFormatter(),
+        galleryHeaderViewDateFormatter: DateFormatter = GalleryHeaderViewDateFormatter(),
         videoPreviewLoader: VideoPreviewLoader = DefaultVideoPreviewLoader(),
         imageLoader: ImageLoading = NukeImageLoader(),
         imageCDN: ImageCDN = StreamImageCDN(),
@@ -102,8 +105,10 @@ public class Utils {
         sortReactions: @escaping (MessageReactionType, MessageReactionType) -> Bool = Utils.defaultSortReactions,
         shouldSyncChannelControllerOnAppear: @escaping (ChatChannelController) -> Bool = { _ in true }
     ) {
+        self.markdownFormatter = markdownFormatter
         self.dateFormatter = dateFormatter
         self.messageRelativeDateFormatter = messageRelativeDateFormatter
+        self.galleryHeaderViewDateFormatter = galleryHeaderViewDateFormatter
         self.videoPreviewLoader = videoPreviewLoader
         self.imageLoader = imageLoader
         self.imageCDN = imageCDN

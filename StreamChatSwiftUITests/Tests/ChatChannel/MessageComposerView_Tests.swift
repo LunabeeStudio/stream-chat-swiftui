@@ -14,7 +14,10 @@ import XCTest
 class MessageComposerView_Tests: StreamChatTestCase {
     override func setUp() {
         super.setUp()
+
+        let imageLoader = TestImagesLoader_Mock()
         let utils = Utils(
+            imageLoader: imageLoader,
             messageListConfig: MessageListConfig(
                 becomesFirstResponderOnOpen: true,
                 draftMessagesEnabled: true
@@ -201,7 +204,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
         // Given
         let factory = DefaultViewFactory.shared
         let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
-        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile])
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.sendMessage, .uploadFile])
         let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
 
         // When
@@ -226,6 +229,97 @@ class MessageComposerView_Tests: StreamChatTestCase {
         let view = factory.makeLeadingComposerView(state: pickerTypeState, channelConfig: nil)
             .environmentObject(viewModel)
             .frame(width: 36, height: 36)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    // MARK: - Frozen Channel Tests
+
+    func test_messageComposerView_frozenChannel() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        // Create a channel without sendMessage capability (simulating frozen channel)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: mockChannelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            onMessageSent: {}
+        )
+        .frame(width: defaultScreenSize.width, height: 100)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_composerInputView_frozenChannel() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let view = ComposerInputView(
+            factory: factory,
+            text: .constant(""),
+            selectedRangeLocation: .constant(0),
+            command: .constant(nil),
+            addedAssets: [],
+            addedFileURLs: [],
+            addedCustomAttachments: [],
+            quotedMessage: .constant(nil),
+            cooldownDuration: 0,
+            onCustomAttachmentTap: { _ in },
+            removeAttachmentWithId: { _ in }
+        )
+        .environmentObject(viewModel)
+        .frame(width: defaultScreenSize.width, height: 100)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_leadingComposerView_frozenChannel() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let pickerTypeState: Binding<PickerTypeState> = .constant(.expanded(.none))
+        let view = factory.makeLeadingComposerView(state: pickerTypeState, channelConfig: nil)
+            .environmentObject(viewModel)
+            .frame(width: 36, height: 36)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_trailingComposerView_frozenChannel() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let view = factory.makeTrailingComposerView(
+            enabled: true,
+            cooldownDuration: 0,
+            onTap: {}
+        )
+        .environmentObject(viewModel)
+        .frame(width: 100, height: 40)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -581,7 +675,8 @@ class MessageComposerView_Tests: StreamChatTestCase {
             draftMessage: draftMessage
         )
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        viewModel.attachmentsConverter = SyncAttachmentsConverter()
+        viewModel.attachmentsConverter = SynchronousAttachmentsConverter()
+        viewModel.fillDraftMessage()
 
         return MessageComposerView(
             viewFactory: factory,
@@ -639,6 +734,22 @@ class MessageComposerView_Tests: StreamChatTestCase {
             cid: .unique,
             text: "This is a message being edited",
             author: .mock(id: .unique)
+        )
+
+        let view = makeComposerViewWithEditedMessage(mockEditedMessage)
+            .frame(width: size.width, height: size.height)
+
+        AssertSnapshot(view, variants: [.defaultLight], size: size)
+    }
+
+    func test_composerView_editingMessageWithQuotedMessage() {
+        let size = CGSize(width: defaultScreenSize.width, height: 100)
+        let mockEditedMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a message being edited",
+            author: .mock(id: .unique),
+            quotedMessage: .mock(text: "Should not appear")
         )
 
         let view = makeComposerViewWithEditedMessage(mockEditedMessage)
@@ -771,7 +882,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        viewModel.attachmentsConverter = SyncAttachmentsConverter()
+        viewModel.attachmentsConverter = SynchronousAttachmentsConverter()
         viewModel.fillEditedMessage(editedMessage)
 
         return MessageComposerView(
@@ -783,14 +894,173 @@ class MessageComposerView_Tests: StreamChatTestCase {
             onMessageSent: {}
         )
     }
+    
+    // MARK: - Notification Tests
+    
+    func test_commandsOverlayHiddenNotification_hidesCommandsOverlay() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(
+                hidesCommandsOverlayOnMessageListTap: true
+            )
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        
+        // Set up a command to be shown
+        viewModel.composerCommand = ComposerCommand(
+            id: "testCommand",
+            typingSuggestion: TypingSuggestion.empty,
+            displayInfo: nil
+        )
+        
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            onMessageSent: {}
+        )
+        view.addToViewHierarchy()
+
+        // When
+        NotificationCenter.default.post(
+            name: .commandsOverlayHiddenNotification,
+            object: nil
+        )
+        
+        // Then
+        XCTAssertNil(viewModel.composerCommand)
+    }
+    
+    func test_commandsOverlayHiddenNotification_respectsConfigSetting() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(
+                hidesCommandsOverlayOnMessageListTap: false
+            )
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        
+        // Set up a command to be shown
+        let testCommand = ComposerCommand(
+            id: "testCommand",
+            typingSuggestion: TypingSuggestion.empty,
+            displayInfo: nil
+        )
+        viewModel.composerCommand = testCommand
+        
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            onMessageSent: {}
+        )
+        view.addToViewHierarchy()
+
+        // When
+        NotificationCenter.default.post(
+            name: .commandsOverlayHiddenNotification,
+            object: nil
+        )
+        
+        // Then
+        XCTAssertNotNil(viewModel.composerCommand)
+        XCTAssertEqual(viewModel.composerCommand?.id, testCommand.id)
+    }
+    
+    func test_attachmentPickerHiddenNotification_hidesAttachmentPicker() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(
+                hidesAttachmentsPickersOnMessageListTap: true
+            )
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        
+        // Set up attachment picker to be shown
+        viewModel.pickerTypeState = .expanded(.media)
+        
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            onMessageSent: {}
+        )
+        view.addToViewHierarchy()
+
+        // When
+        NotificationCenter.default.post(
+            name: .attachmentPickerHiddenNotification,
+            object: nil
+        )
+        
+        // Then
+        XCTAssertEqual(viewModel.pickerTypeState, .expanded(.none))
+    }
+    
+    func test_attachmentPickerHiddenNotification_respectsConfigSetting() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(
+                hidesAttachmentsPickersOnMessageListTap: false
+            )
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        
+        // Set up attachment picker to be shown
+        viewModel.pickerTypeState = .expanded(.media)
+        
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            onMessageSent: {}
+        )
+        view.addToViewHierarchy()
+
+        // When
+        NotificationCenter.default.post(
+            name: .attachmentPickerHiddenNotification,
+            object: nil
+        )
+        
+        // Then
+        XCTAssertEqual(viewModel.pickerTypeState, .expanded(.media))
+    }
 }
 
-class SyncAttachmentsConverter: MessageAttachmentsConverter {
+class SynchronousAttachmentsConverter: MessageAttachmentsConverter {
     override func attachmentsToAssets(
         _ attachments: [AnyChatMessageAttachment],
         completion: @escaping (ComposerAssets) -> Void
     ) {
-        let addedAssets = attachmentsToAssets(attachments)
-        completion(addedAssets)
+        super.attachmentsToAssets(attachments, with: nil, completion: completion)
     }
 }

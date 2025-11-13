@@ -996,8 +996,12 @@ class MessageComposerViewModel_Tests: StreamChatTestCase {
         viewModel.sendMessage(quotedMessage: nil, editedMessage: nil) {}
         
         // Then
-        // Sending a message will clear the input, deleting the draft message.
-        XCTAssertEqual(channelController.deleteDraftMessage_callCount, 1)
+        let expectation = XCTestExpectation(description: "Text cleared")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            XCTAssertEqual(channelController.deleteDraftMessage_callCount, 1)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
     }
 
     func test_messageComposerVM_whenMessagePublished_deleteDraftReply() {
@@ -1020,7 +1024,12 @@ class MessageComposerViewModel_Tests: StreamChatTestCase {
         viewModel.sendMessage(quotedMessage: nil, editedMessage: nil) {}
         
         // Then
-        XCTAssertEqual(messageController.deleteDraftReply_callCount, 1)
+        let expectation = XCTestExpectation(description: "Text cleared")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            XCTAssertEqual(messageController.deleteDraftReply_callCount, 1)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: 1.0)
     }
 
     func test_messageComposerVM_draftMessageUpdatedEvent() throws {
@@ -1094,74 +1103,6 @@ class MessageComposerViewModel_Tests: StreamChatTestCase {
         messageController.message_mock = .mock(draftReply: draftMessage)
         let cid = try XCTUnwrap(channelController.cid)
         let event = DraftUpdatedEvent(cid: cid, channel: .mock(cid: cid), draftMessage: draftMessage, createdAt: .unique)
-        viewModel.eventsController(viewModel.eventsController, didReceiveEvent: event)
-
-        // Then
-        XCTAssertEqual(viewModel.text, "Draft")
-    }
-
-    func test_messageComposerVM_draftMessageDeletedEvent() throws {
-        // Given
-        let channelController = makeChannelController()
-        channelController.channel_mock = .mock(cid: .unique, draftMessage: .mock(text: "Draft"))
-        let viewModel = makeComposerDraftsViewModel(
-            channelController: channelController,
-            messageController: nil
-        )
-
-        // When
-        channelController.channel_mock = .mock(cid: .unique, draftMessage: nil)
-        let cid = try XCTUnwrap(channelController.cid)
-        let event = DraftDeletedEvent(cid: cid, threadId: nil, createdAt: .unique)
-        viewModel.eventsController(viewModel.eventsController, didReceiveEvent: event)
-
-        // Then
-        XCTAssertEqual(viewModel.text, "")
-    }
-
-    func test_messageComposerVM_draftReplyDeletedEvent() throws {
-        // Given
-        let channelController = makeChannelController()
-        let messageController = ChatMessageControllerSUI_Mock.mock(
-            chatClient: chatClient,
-            cid: channelController.cid!,
-            messageId: .unique
-        )
-        messageController.message_mock = .mock(draftReply: .mock(text: "Draft"))
-        let viewModel = makeComposerDraftsViewModel(
-            channelController: channelController,
-            messageController: messageController
-        )
-
-        // When
-        messageController.message_mock = .mock(draftReply: nil)
-        let cid = try XCTUnwrap(channelController.cid)
-        let event = DraftDeletedEvent(cid: cid, threadId: messageController.messageId, createdAt: .unique)
-        viewModel.eventsController(viewModel.eventsController, didReceiveEvent: event)
-
-        // Then
-        XCTAssertEqual(viewModel.text, "")
-    }
-
-    func test_messageComposerVM_draftReplyDeletedEventFromOtherThread_shouldNotUpdate() throws {
-        // Given
-        let channelController = makeChannelController()
-        let messageController = ChatMessageControllerSUI_Mock.mock(
-            chatClient: chatClient,
-            cid: channelController.cid!,
-            messageId: .unique
-        )
-        messageController.message_mock = .mock(draftReply: .mock(text: "Draft"))
-        let viewModel = makeComposerDraftsViewModel(
-            channelController: channelController,
-            messageController: messageController
-        )
-        viewModel.fillDraftMessage()
-
-        // When
-        messageController.message_mock = .mock(draftReply: nil)
-        let cid = try XCTUnwrap(channelController.cid)
-        let event = DraftDeletedEvent(cid: cid, threadId: .unique, createdAt: .unique)
         viewModel.eventsController(viewModel.eventsController, didReceiveEvent: event)
 
         // Then

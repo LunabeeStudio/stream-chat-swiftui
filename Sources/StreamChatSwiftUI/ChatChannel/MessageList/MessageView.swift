@@ -214,7 +214,7 @@ public struct MessageTextView<Factory: ViewFactory>: View {
     }
 
     public var body: some View {
-        StreamTextView(message: message)
+        factory.makeAttachmentTextView(options: .init(mesage: message))
             .padding(.leading, leadingPadding)
             .padding(.trailing, trailingPadding)
             .padding(.top, topPadding)
@@ -254,6 +254,16 @@ struct StreamTextView: View {
     
     var body: some View {
         LinkDetectionTextView(message: message)
+    }
+}
+
+// Options for the attachment text view.
+public class AttachmentTextViewOptions {
+    // The message to display the text for.
+    public let message: ChatMessage
+    
+    public init(mesage: ChatMessage) {
+        self.message = mesage
     }
 }
 
