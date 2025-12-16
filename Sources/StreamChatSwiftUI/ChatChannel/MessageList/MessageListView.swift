@@ -5,6 +5,8 @@
 import StreamChat
 import SwiftUI
 
+/// - Note: Changes from original implementation:
+///   - scrollTo anchor on first message's scrolledId set to 0.1 instead of top
 public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
     @Injected(\.utils) private var utils
     @Injected(\.chatClient) private var chatClient
@@ -302,7 +304,8 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                             }
                             withAnimation {
                                 if messages.first?.id == scrolledId {
-                                    scrollView.scrollTo(scrolledId, anchor: .top)
+                                    // Used to scroll to top, but doesn't inlude MessageList top(bottom) padding. So we scroll almost to top instead
+                                    scrollView.scrollTo(scrolledId, anchor: .init(x: 0.5, y: 0.1))
                                 } else {
                                     scrollView.scrollTo(scrolledId, anchor: messageListConfig.scrollingAnchor)
                                 }
