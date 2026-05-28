@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -69,7 +69,7 @@ public struct ChatInfoParticipantsView<Factory: ViewFactory>: View {
     }
 }
 
-public struct ParticipantInfo: Identifiable {
+public final class ParticipantInfo: Identifiable {
     public var id: String {
         chatUser.id
     }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -28,7 +28,7 @@ class MessageCachingUtils {
 }
 
 /// Contains display information for the user.
-public struct UserDisplayInfo {
+public final class UserDisplayInfo {
     public let id: String
     public let name: String
     public let imageURL: URL?

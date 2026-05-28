@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SwiftUI
@@ -7,6 +7,7 @@ import UIKit
 
 /// SwiftUI wrapper for a text field with multiple rows.
 struct ComposerTextInputView: UIViewRepresentable {
+    @Environment(\.layoutDirection) private var layoutDirection
     @EnvironmentObject var composerViewModel: MessageComposerViewModel
     @Injected(\.utils) private var utils
 
@@ -36,6 +37,7 @@ struct ComposerTextInputView: UIViewRepresentable {
         inputTextView.onImagePasted = {
             composerViewModel.imagePasted($0)
         }
+        inputTextView.semanticContentAttribute = layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
 
         if utils.messageListConfig.becomesFirstResponderOnOpen {
             inputTextView.becomeFirstResponder()
@@ -45,6 +47,7 @@ struct ComposerTextInputView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: InputTextView, context: Context) {
+        uiView.semanticContentAttribute = layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
         DispatchQueue.main.async {
             // Clear marked text if text is reset
             let canUpdate = uiView.markedTextRange == nil || text.isEmpty

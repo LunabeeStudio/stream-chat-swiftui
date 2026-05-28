@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 @testable import SnapshotTesting
@@ -21,7 +21,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let channel = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel, .updateChannelMembers],
+            ownCapabilities: [.deleteChannel, .updateChannel, .updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -34,6 +34,32 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
+
+    func test_chatChannelInfoView_rtlSnapshot() {
+        // Given
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 8,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.deleteChannel, .updateChannel, .updateChannelMembers, .muteChannel],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+
+        // When – RTL layout (e.g. Arabic)
+        let view = NavigationContainerView(embedInNavigationView: true) {
+            ChatChannelInfoView(channel: channel)
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+        .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision), named: "rtl")
+    }
     
     func test_chatChannelInfoView_directChannelOfflineSnapshot() {
         // Given
@@ -43,6 +69,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         )
         let channel = ChatChannel.mockDMChannel(
             name: "Direct channel",
+            ownCapabilities: [.muteChannel],
             lastActiveMembers: members
         )
 
@@ -63,6 +90,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         )
         let channel = ChatChannel.mockDMChannel(
             name: "Direct channel",
+            ownCapabilities: [.muteChannel],
             lastActiveMembers: members
         )
 
@@ -82,6 +110,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         )
         let channel = ChatChannel.mockDMChannel(
             name: "Direct channel",
+            ownCapabilities: [.muteChannel],
             lastActiveMembers: members
         )
 
@@ -101,6 +130,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         )
         let channel = ChatChannel.mockDMChannel(
             name: "Direct channel",
+            ownCapabilities: [.muteChannel],
             lastActiveMembers: members,
             muteDetails: MuteDetails(createdAt: Date(), updatedAt: Date(), expiresAt: nil)
         )
@@ -123,7 +153,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel],
+            ownCapabilities: [.deleteChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -146,7 +176,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.leaveChannel, .updateChannel],
+            ownCapabilities: [.leaveChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -170,7 +200,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.leaveChannel, .updateChannel],
+            ownCapabilities: [.leaveChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -193,7 +223,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel],
+            ownCapabilities: [.deleteChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -219,7 +249,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel],
+            ownCapabilities: [.deleteChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -244,7 +274,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel],
+            ownCapabilities: [.deleteChannel, .updateChannel, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -268,7 +298,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.updateChannel, .leaveChannel, .updateChannelMembers],
+            ownCapabilities: [.updateChannel, .leaveChannel, .updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -297,7 +327,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.deleteChannel, .updateChannel],
+            ownCapabilities: [.deleteChannel, .muteChannel, .updateChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -322,7 +352,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.updateChannelMembers],
+            ownCapabilities: [.updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -350,7 +380,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             cid: .unique,
             name: "Test Group",
             config: config,
-            ownCapabilities: [.updateChannelMembers],
+            ownCapabilities: [.updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -376,7 +406,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.updateChannelMembers],
+            ownCapabilities: [.updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )
@@ -402,7 +432,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         let group = ChatChannel.mock(
             cid: .unique,
             name: "Test Group",
-            ownCapabilities: [.updateChannelMembers],
+            ownCapabilities: [.updateChannelMembers, .muteChannel],
             lastActiveMembers: members,
             memberCount: members.count
         )

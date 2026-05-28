@@ -1,11 +1,11 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
 
 /// Config for various poll settings.
-public struct PollsConfig {
+public final class PollsConfig {
     /// Configuration for allowing multiple answers in a poll.
     public var multipleAnswers: PollsEntryConfig
     /// Configuration for enabling anonymous polls.
@@ -41,7 +41,7 @@ public struct PollsConfig {
 }
 
 /// Config for individual poll entry.
-public struct PollsEntryConfig {
+public final class PollsEntryConfig {
     /// Indicates whether the poll entry is configurable.
     public var configurable: Bool
     /// Indicates the default value of the poll entry.

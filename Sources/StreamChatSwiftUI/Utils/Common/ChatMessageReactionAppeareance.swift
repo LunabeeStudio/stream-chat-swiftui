@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -13,7 +13,7 @@ public protocol ChatMessageReactionAppearanceType {
 
 /// The default `ReactionAppearanceType` implementation without any additional data
 /// which can be used to provide custom icons for message reaction.
-public struct ChatMessageReactionAppearance: ChatMessageReactionAppearanceType {
+public final class ChatMessageReactionAppearance: ChatMessageReactionAppearanceType {
     public let smallIcon: UIImage
     public let largeIcon: UIImage
 

@@ -1,11 +1,11 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SwiftUI
 
 /// Provides access to fonts used in the SDK.
-public struct Fonts {
+public final class Fonts {
     public init() {
         // Public init.
     }

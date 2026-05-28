@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Combine
@@ -25,18 +25,24 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
 
     /// Used when screen is shown from a deeplink.
     private var selectedChannelId: String?
-
-    /// Temporarly holding changes while message list is shown.
-    private var queuedChannelsChanges = LazyCachedMapCollection<ChatChannel>()
-
+    
     private var timer: Timer?
 
     /// Controls loading the channels.
     public private(set) var loadingNextChannels: Bool = false
 
-    /// Checks if the queued changes are completely applied.
-    private var markDirty = false
-
+    /// True, if channel updates were skipped and are applied when selectedChannel is set to nil
+    private var skippedChannelUpdates = false
+    
+    /// True, if channel updates can be skipped for optimizing view refreshes while showing message list.
+    ///
+    /// - Important: Only meant for stacked navigation view style.
+    private var canSkipChannelUpdates: Bool {
+        guard isIphone || !utils.messageListConfig.iPadSplitViewEnabled else { return false }
+        guard selectedChannel != nil || !searchText.isEmpty else { return false }
+        return true
+    }
+    
     /// Index of the selected channel.
     private var selectedChannelIndex: Int?
     
@@ -44,23 +50,15 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     @Published public var scrolledChannelId: String?
 
     /// Published variables.
-    @Published public var channels = LazyCachedMapCollection<ChatChannel>() {
-        didSet {
-            if !markDirty {
-                queuedChannelsChanges = []
-            } else {
-                markDirty = false
-            }
-        }
-    }
+    @Published public var channels = LazyCachedMapCollection<ChatChannel>()
 
     @Published public var selectedChannel: ChannelSelectionInfo? {
         willSet {
             hideTabBar = newValue != nil
             if selectedChannel != nil && newValue == nil {
                 // pop happened, apply the queued changes.
-                if !queuedChannelsChanges.isEmpty {
-                    channels = queuedChannelsChanges
+                if skippedChannelUpdates {
+                    updateChannels()
                 }
             }
             if newValue == nil {
@@ -114,6 +112,10 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     public var channelListSearchController: ChatChannelListController?
     /// The message search controller which should be created only by ``performMessageSearch()``.
     public var messageSearchController: ChatMessageSearchController?
+
+    /// Sort order for message search results. When set (e.g. from the channel list's sort), it is passed to the search API.
+    /// When `nil`, the controller uses its default (newest first).
+    public var messageSearchSort: [Sorting<MessageSearchSortingKey>]?
 
     /// Serial queue used to process the search results.
     private let queue = DispatchQueue(label: "com.getstream.stream-chat-swiftui.ChatChannelListViewModel")
@@ -316,8 +318,8 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     // MARK: - private
 
     private func handleChannelListChanges(_ controller: ChatChannelListController) {
-        if selectedChannel != nil || !searchText.isEmpty {
-            queuedChannelsChanges = controller.channels
+        if canSkipChannelUpdates {
+            skippedChannelUpdates = true
             updateChannelsIfNeeded()
         } else {
             channels = controller.channels
@@ -445,7 +447,7 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     open func performMessageSearch() {
         messageSearchController = chatClient.messageSearchController()
         loadingSearchResults = true
-        messageSearchController?.search(text: searchText) { [weak self] _ in
+        messageSearchController?.search(text: searchText, sort: messageSearchSort) { [weak self] _ in
             self?.loadingSearchResults = false
             self?.messageSearchController?.delegate = self
             self?.updateMessageSearchResults()
@@ -536,15 +538,16 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     }
 
     private func updateChannels() {
+        skippedChannelUpdates = false
         channels = controller?.channels ?? LazyCachedMapCollection<ChatChannel>()
     }
 
     private func handleChannelAppearance() {
-        if !queuedChannelsChanges.isEmpty && selectedChannel == nil {
-            channels = queuedChannelsChanges
-        } else if !queuedChannelsChanges.isEmpty {
-            handleQueuedChanges()
-        } else if queuedChannelsChanges.isEmpty && selectedChannel != nil {
+        if skippedChannelUpdates && selectedChannel == nil {
+            updateChannels()
+        } else if skippedChannelUpdates {
+            updateSelectedChannelData()
+        } else if !skippedChannelUpdates && selectedChannel != nil {
             if selectedChannel?.injectedChannelInfo == nil {
                 selectedChannel?.injectedChannelInfo = InjectedChannelInfo(unreadCount: 0)
             }
@@ -561,10 +564,10 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
         }
     }
 
-    private func handleQueuedChanges() {
+    private func updateSelectedChannelData() {
         let selected = selectedChannel?.channel
         var index: Int?
-        var temp = Array(queuedChannelsChanges)
+        var temp = Array(controller?.channels ?? [])
         for i in 0..<temp.count {
             let current = temp[i]
             if current.cid == selected?.cid {
@@ -582,7 +585,6 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
         if let index = index, let selected = selected {
             temp[index] = selected
         }
-        markDirty = true
         channels = LazyCachedMapCollection(source: temp, map: { $0 })
     }
     
@@ -646,13 +648,17 @@ public enum ChannelPopupType {
 }
 
 /// The type of data the channel list should perform a search.
-public struct ChannelListSearchType: Equatable {
+public final class ChannelListSearchType: Equatable {
     let type: String
 
     private init(type: String) {
         self.type = type
     }
 
-    public static var channels = Self(type: "channels")
-    public static var messages = Self(type: "messages")
+    public static let channels = ChannelListSearchType(type: "channels")
+    public static let messages = ChannelListSearchType(type: "messages")
+
+    public static func == (lhs: ChannelListSearchType, rhs: ChannelListSearchType) -> Bool {
+        lhs.type == rhs.type
+    }
 }

@@ -1,18 +1,19 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
 import SwiftUI
 
 /// Config for customizing the composer.
-public struct ComposerConfig {
+public final class ComposerConfig {
     public var isVoiceRecordingEnabled: Bool
     public var inputViewMinHeight: CGFloat
     public var inputViewMaxHeight: CGFloat
     public var inputViewCornerRadius: CGFloat
     public var inputFont: UIFont
     public var gallerySupportedTypes: GallerySupportedTypes
+    public var maxGalleryAssetsCount: Int?
     public var inputPaddingsConfig: PaddingsConfig
     public var adjustMessageOnSend: (String) -> (String)
     public var adjustMessageOnRead: (String) -> (String)
@@ -33,6 +34,7 @@ public struct ComposerConfig {
         inputViewCornerRadius: CGFloat = 20,
         inputFont: UIFont = UIFont.preferredFont(forTextStyle: .body),
         gallerySupportedTypes: GallerySupportedTypes = .imagesAndVideo,
+        maxGalleryAssetsCount: Int? = nil,
         inputPaddingsConfig: PaddingsConfig = .composerInput,
         adjustMessageOnSend: @escaping (String) -> (String) = { $0 },
         adjustMessageOnRead: @escaping (String) -> (String) = { $0 },
@@ -47,6 +49,7 @@ public struct ComposerConfig {
         self.adjustMessageOnRead = adjustMessageOnRead
         self.attachmentPayloadConverter = attachmentPayloadConverter
         self.gallerySupportedTypes = gallerySupportedTypes
+        self.maxGalleryAssetsCount = maxGalleryAssetsCount
         self.inputPaddingsConfig = inputPaddingsConfig
         self.isVoiceRecordingEnabled = isVoiceRecordingEnabled
     }
@@ -63,7 +66,7 @@ public enum GallerySupportedTypes {
     case videos
 }
 
-public struct PaddingsConfig {
+public final class PaddingsConfig {
     public let top: CGFloat
     public let bottom: CGFloat
     public let leading: CGFloat

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -25,7 +25,6 @@ class LoginViewModel: ObservableObject {
     private func connectUser(withCredentials credentials: UserCredentials) {
         loading = true
         let token = try! Token(rawValue: credentials.token)
-        LogConfig.level = .warning
 
         chatClient.connectUser(
             userInfo: .init(
@@ -53,7 +52,6 @@ class LoginViewModel: ObservableObject {
 
     private func connectGuestUser(withCredentials credentials: UserCredentials) {
         loading = true
-        LogConfig.level = .warning
 
         chatClient.connectGuestUser(
             userInfo: .init(id: credentials.id, name: credentials.name)

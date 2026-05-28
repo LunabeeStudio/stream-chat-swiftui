@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -9,7 +9,7 @@ import SwiftUI
 /// - Note: Changes from original implementation:
 ///   - Add showBubble attribute
 ///   - Change default cornerRadius to 12
-public struct MessageModifierInfo {
+public final class MessageModifierInfo {
     public var message: ChatMessage
     public var isFirst: Bool
     public var showBubble: Bool

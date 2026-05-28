@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -526,7 +526,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let view = viewFactory.makeCommandsContainerView(suggestions: [:]) { _ in }
 
         // Then
-        XCTAssert(view is CommandsContainerView)
+        XCTAssert(view is CommandsContainerView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeLeadingSwipeActionsView() {
@@ -602,7 +602,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         )
 
         // Then
-        XCTAssert(view is ReactionsUsersView)
+        XCTAssert(view is ReactionsUsersView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeChannelListFooterView() {

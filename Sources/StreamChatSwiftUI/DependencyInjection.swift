@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -14,7 +14,7 @@ public protocol InjectionKey {
 }
 
 /// Provides access to injected dependencies.
-public struct InjectedValues {
+public final class InjectedValues {
     /// This is only used as an accessor to the computed properties within extensions of `InjectedValues`.
     private static var current = InjectedValues()
 
@@ -32,7 +32,7 @@ public struct InjectedValues {
 }
 
 @propertyWrapper
-public struct Injected<T> {
+public final class Injected<T> {
     private let keyPath: WritableKeyPath<InjectedValues, T>
     public var wrappedValue: T {
         get { InjectedValues[keyPath] }

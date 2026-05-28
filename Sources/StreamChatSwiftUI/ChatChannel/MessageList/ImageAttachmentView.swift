@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -18,6 +18,20 @@ public struct ImageAttachmentContainer<Factory: ViewFactory>: View {
 
     @State private var galleryShown = false
     @State private var selectedIndex = 0
+    
+    public init(
+        factory: Factory,
+        message: ChatMessage,
+        width: CGFloat,
+        isFirst: Bool,
+        scrolledId: Binding<String?>
+    ) {
+        self.factory = factory
+        self.message = message
+        self.width = width
+        self.isFirst = isFirst
+        self._scrolledId = scrolledId
+    }
 
     public var body: some View {
         VStack(
@@ -382,7 +396,7 @@ extension ChatMessage {
     }
 }
 
-public struct MediaAttachment: Identifiable, Equatable {
+public final class MediaAttachment: Identifiable, Equatable {
     @Injected(\.utils) var utils
 
     public let url: URL
@@ -428,7 +442,7 @@ public struct MediaAttachment: Identifiable, Equatable {
 }
 
 extension MediaAttachment {
-    init(from attachment: ChatMessageImageAttachment) {
+    convenience init(from attachment: ChatMessageImageAttachment) {
         let url: URL
         if let state = attachment.uploadingState {
             url = state.localFileURL
@@ -443,18 +457,18 @@ extension MediaAttachment {
     }
 }
 
-public struct MediaAttachmentType: RawRepresentable {
+public final class MediaAttachmentType: RawRepresentable {
     public let rawValue: String
     public init(rawValue: String) {
         self.rawValue = rawValue
     }
 
-    public static let image = Self(rawValue: "image")
-    public static let video = Self(rawValue: "video")
+    public static let image = MediaAttachmentType(rawValue: "image")
+    public static let video = MediaAttachmentType(rawValue: "video")
 }
 
 /// Options for the gallery view.
-public struct MediaViewsOptions {
+public final class MediaViewsOptions {
     /// The index of the selected media item.
     public let selectedIndex: Int
 

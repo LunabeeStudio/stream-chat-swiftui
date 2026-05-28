@@ -1,12 +1,12 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SwiftUI
 import UIKit
 
 /// Provides the colors used throughout the SDK.
-public struct ColorPalette {
+public final class ColorPalette {
     public init() {
         navigationBarGlyph = .white
         navigationBarTitle = text

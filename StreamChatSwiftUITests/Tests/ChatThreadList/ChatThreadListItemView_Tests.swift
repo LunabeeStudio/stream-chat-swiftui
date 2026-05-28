@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SnapshotTesting
@@ -163,7 +163,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
     }
 }
 
-extension ChatThreadListItem {
+extension ChatThreadListItem where Factory == DefaultViewFactory {
     init(thread: ChatThread) {
         self.init(viewModel: ChatThreadListItemViewModel(thread: thread))
     }

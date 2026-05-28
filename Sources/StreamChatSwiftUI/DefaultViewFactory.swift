@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Photos
@@ -452,6 +452,7 @@ extension ViewFactory {
             factory: self,
             message: message,
             width: availableWidth,
+            isFirst: isFirst,
             scrolledId: scrolledId
         )
     }
@@ -909,6 +910,7 @@ extension ViewFactory {
         maxHeight: CGFloat
     ) -> some View {
         ReactionsUsersView(
+            factory: self,
             message: message,
             maxHeight: maxHeight
         )
@@ -1000,6 +1002,15 @@ extension ViewFactory {
         )
     }
     
+    public func makeQuotedMessageContentView(
+        options: QuotedMessageContentViewOptions
+    ) -> some View {
+        QuotedMessageContentView(
+            factory: self,
+            options: options
+        )
+    }
+    
     public func makeCustomAttachmentQuotedView(for message: ChatMessage) -> some View {
         EmptyView()
     }
@@ -1015,6 +1026,7 @@ extension ViewFactory {
         handleCommand: @escaping ([String: Any]) -> Void
     ) -> some View {
         CommandsContainerView(
+            factory: self,
             suggestions: suggestions,
             handleCommand: handleCommand
         )
@@ -1093,6 +1105,7 @@ extension ViewFactory {
         return ChatThreadListNavigatableItem(
             thread: thread,
             threadListItem: ChatThreadListItem(
+                factory: self,
                 viewModel: .init(thread: thread)
             ),
             threadDestination: threadDestination,
@@ -1110,7 +1123,7 @@ extension ViewFactory {
     }
 
     public func makeThreadListLoadingView() -> some View {
-        ChatThreadListLoadingView()
+        ChatThreadListLoadingView(factory: self)
     }
 
     public func makeThreadListContainerViewModifier(viewModel: ChatThreadListViewModel) -> some ViewModifier {

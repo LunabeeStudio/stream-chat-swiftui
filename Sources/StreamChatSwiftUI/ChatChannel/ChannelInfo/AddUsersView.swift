@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -94,7 +94,7 @@ public struct AddUsersView<Factory: ViewFactory>: View {
 }
 
 /// Options used in the add users view.
-public struct AddUsersOptions {
+public final class AddUsersOptions {
     public let loadedUsers: [ChatUser]
     
     public init(loadedUsers: [ChatUser]) {

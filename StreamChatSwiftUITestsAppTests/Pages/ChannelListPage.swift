@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -42,6 +42,19 @@ enum ChannelListPage {
             cell.staticTexts["subtitleView"]
         }
 
+        static func lastMessageText(in cell: XCUIElement) -> String {
+            let subtitleElements = cell.staticTexts.matching(identifier: "subtitleView")
+            _ = subtitleElements.firstMatch.wait()
+            var combinedText = ""
+            for i in 0..<subtitleElements.count {
+                let element = subtitleElements.element(boundBy: i)
+                if element.exists {
+                    combinedText += " \(element.label)"
+                }
+            }
+            return combinedText
+        }
+
         static func avatar(in cell: XCUIElement) -> XCUIElement {
             cell.images["ChannelAvatarView"].firstMatch
         }
@@ -50,7 +63,10 @@ enum ChannelListPage {
             cell.staticTexts["UnreadIndicatorView"]
         }
 
-        static func statusCheckmark(for status: MessageDeliveryStatus?, in cell: XCUIElement) -> XCUIElement {
+        static func statusCheckmark(
+            for status: StreamChatTestMockServer.MessageDeliveryStatus?,
+            in cell: XCUIElement
+        ) -> XCUIElement {
             return cell.images["readIndicatorCheckmark"]
         }
     }

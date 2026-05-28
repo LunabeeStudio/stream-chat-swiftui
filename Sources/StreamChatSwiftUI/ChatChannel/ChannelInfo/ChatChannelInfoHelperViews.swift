@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -76,13 +76,15 @@ public struct ChatInfoOptionsView<Factory: ViewFactory>: View {
 
             Divider()
 
-            ChannelInfoItemView(
-                icon: images.muted,
-                title: viewModel.mutedText,
-                verticalPadding: 12
-            ) {
-                Toggle(isOn: $viewModel.muted) {
-                    EmptyView()
+            if viewModel.shouldShowMuteChannelButton {
+                ChannelInfoItemView(
+                    icon: images.muted,
+                    title: viewModel.mutedText,
+                    verticalPadding: 12
+                ) {
+                    Toggle(isOn: $viewModel.muted) {
+                        EmptyView()
+                    }
                 }
             }
 
@@ -195,7 +197,7 @@ struct DisclosureIndicatorView: View {
     @Injected(\.colors) private var colors
 
     var body: some View {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.forward")
             .foregroundColor(Color(colors.textLowEmphasis))
     }
 }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -82,7 +82,7 @@ public struct ChatChannelNavigatableListItem<Factory: ViewFactory, ChannelDestin
 
 /// Used for representing selection of an item in the channel list.
 /// The optional message is used in case we need to scroll to a particular one in the message list.
-public struct ChannelSelectionInfo: Identifiable {
+public final class ChannelSelectionInfo: Identifiable {
     public let id: String
     public let channel: ChatChannel
     public let message: ChatMessage?
