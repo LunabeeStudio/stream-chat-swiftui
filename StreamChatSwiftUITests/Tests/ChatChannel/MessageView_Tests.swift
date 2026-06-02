@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SnapshotTesting
@@ -478,7 +478,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
 
         // When
-        adjustAppearance() { appearance in
+        adjustAppearance { appearance in
             appearance.colors.messageCurrentUserBackground = [.orange]
             appearance.colors.background8 = .yellow
             appearance.colors.voiceMessageControlBackground = .cyan
@@ -501,6 +501,40 @@ class MessageView_Tests: StreamChatTestCase {
         AssertSnapshot(
             view,
             variants: [.defaultLight],
+            size: CGSize(width: defaultScreenSize.width, height: 250)
+        )
+    }
+
+    func test_voiceRecordingViewPauseState_snapshot() {
+        // Given
+        let url = ChatChannelTestHelpers.testURL
+        let recording = AddedVoiceRecording(
+            url: url,
+            duration: 5.0,
+            waveform: [0, 0.1, 0.5, 1]
+        )
+        let handler = VoiceRecordingHandler()
+        handler.context = AudioPlaybackContext(
+            assetLocation: url,
+            duration: 5.0,
+            currentTime: 2.0,
+            state: .playing,
+            rate: .normal,
+            isSeeking: false
+        )
+        // When
+        let view = VoiceRecordingView(
+            handler: handler,
+            textColor: .primary,
+            addedVoiceRecording: recording,
+            index: 0
+        )
+        .frame(width: defaultScreenSize.width, height: 80)
+        .padding()
+
+        // Then
+        AssertSnapshot(
+            view,
             size: CGSize(width: defaultScreenSize.width, height: 250)
         )
     }
@@ -681,7 +715,8 @@ class MessageView_Tests: StreamChatTestCase {
             id: .unique,
             cid: channel.cid,
             text: "Message with replies",
-            author: .mock(id: .unique)
+            author: .mock(id: .unique),
+            threadParticipants: [.mock(id: .unique)]
         )
 
         // When
@@ -704,7 +739,8 @@ class MessageView_Tests: StreamChatTestCase {
             id: .unique,
             cid: channel.cid,
             text: "Message with replies",
-            author: .mock(id: .unique)
+            author: .mock(id: .unique),
+            threadParticipants: [.mock(id: .unique)]
         )
 
         // When

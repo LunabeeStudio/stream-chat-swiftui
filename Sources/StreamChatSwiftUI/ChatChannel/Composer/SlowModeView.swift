@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import SwiftUI
@@ -13,6 +13,10 @@ public struct SlowModeView: View {
     private let size: CGFloat = 32
 
     var cooldownDuration: Int
+    
+    public init(cooldownDuration: Int) {
+        self.cooldownDuration = cooldownDuration
+    }
 
     public var body: some View {
         Text("\(cooldownDuration)")

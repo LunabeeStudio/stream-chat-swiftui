@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import AVKit
@@ -12,7 +12,22 @@ public struct VideoAttachmentsContainer<Factory: ViewFactory>: View {
     var factory: Factory
     let message: ChatMessage
     let width: CGFloat
+    let isFirst: Bool
     @Binding var scrolledId: String?
+
+    public init(
+        factory: Factory,
+        message: ChatMessage,
+        width: CGFloat,
+        isFirst: Bool = true,
+        scrolledId: Binding<String?>
+    ) {
+        self.factory = factory
+        self.message = message
+        self.width = width
+        self.isFirst = isFirst
+        _scrolledId = scrolledId
+    }
 
     public var body: some View {
         VideoAttachmentsList(
@@ -63,7 +78,7 @@ public struct VideoAttachmentView<Factory: ViewFactory>: View {
     let message: ChatMessage
     let width: CGFloat
     var ratio: CGFloat = 0.75
-    var cornerRadius: CGFloat = 24
+    var cornerRadius: CGFloat = 18
 
     public init(
         factory: Factory = DefaultViewFactory.shared,
@@ -71,7 +86,7 @@ public struct VideoAttachmentView<Factory: ViewFactory>: View {
         message: ChatMessage,
         width: CGFloat,
         ratio: CGFloat = 0.75,
-        cornerRadius: CGFloat = 24
+        cornerRadius: CGFloat = 18
     ) {
         self.factory = factory
         self.attachment = attachment
@@ -111,7 +126,7 @@ struct VideoAttachmentContentView<Factory: ViewFactory>: View {
     let message: ChatMessage
     let width: CGFloat
     var ratio: CGFloat = 0.75
-    var cornerRadius: CGFloat = 24
+    var cornerRadius: CGFloat = 18
 
     @State var previewImage: UIImage?
     @State var error: Error?
@@ -123,6 +138,7 @@ struct VideoAttachmentContentView<Factory: ViewFactory>: View {
                 Image(uiImage: previewImage)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: width, height: width * ratio)
                     .clipped()
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -151,7 +167,6 @@ struct VideoAttachmentContentView<Factory: ViewFactory>: View {
             }
         }
         .frame(width: width, height: width * ratio)
-        .cornerRadius(cornerRadius)
         .fullScreenCover(isPresented: $fullScreenShown) {
             factory.makeVideoPlayerView(
                 attachment: attachment,
@@ -161,7 +176,7 @@ struct VideoAttachmentContentView<Factory: ViewFactory>: View {
             )
         }
         .onAppear {
-            videoPreviewLoader.loadPreviewForVideo(at: attachment.videoURL) { result in
+            videoPreviewLoader.loadPreviewForVideo(with: attachment) { result in
                 switch result {
                 case let .success(image):
                     self.previewImage = image

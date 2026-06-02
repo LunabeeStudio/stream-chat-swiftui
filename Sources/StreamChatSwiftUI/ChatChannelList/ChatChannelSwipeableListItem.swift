@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -81,7 +81,7 @@ public struct ChatChannelSwipeableListItem<Factory: ViewFactory, ChannelListItem
                 .offset(x: self.offsetX)
                 .simultaneousGesture(
                     DragGesture(
-                        minimumDistance: 20,
+                        minimumDistance: 40,
                         coordinateSpace: .local
                     )
                     .updating($offset) { (value, gestureState, _) in

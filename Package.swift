@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:5.10
 
 import Foundation
 import PackageDescription
@@ -16,7 +16,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "4.93.0")
+        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "4.100.1")
     ],
     targets: [
         .target(

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -1017,6 +1017,18 @@ public protocol ViewFactory: AnyObject {
         isInComposer: Bool,
         scrolledId: Binding<String?>
     ) -> QuotedMessageViewType
+    
+    associatedtype QuotedMessageContentViewType: View
+    /// Creates the quoted message content view.
+    ///
+    /// It is the view that is embedded in quoted message bubble view.
+    ///
+    /// - Parameters:
+    ///  - options: configuration options for the quoted message content view.
+    /// - Returns: view displayed in the quoted message content slot.
+    func makeQuotedMessageContentView(
+        options: QuotedMessageContentViewOptions
+    ) -> QuotedMessageContentViewType
     
     associatedtype CustomAttachmentQuotedViewType: View
     /// Creates a quoted view for custom attachments. Returns `EmptyView` by default.

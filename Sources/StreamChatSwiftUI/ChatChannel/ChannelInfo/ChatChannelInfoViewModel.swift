@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -42,6 +42,10 @@ open class ChatChannelInfoViewModel: ObservableObject, ChatChannelControllerDele
         } else {
             channel.ownCapabilities.contains(.leaveChannel)
         }
+    }
+    
+    open var shouldShowMuteChannelButton: Bool {
+        channel.ownCapabilities.contains(.muteChannel)
     }
 
     open var canRenameChannel: Bool {
@@ -87,7 +91,7 @@ open class ChatChannelInfoViewModel: ObservableObject, ChatChannelControllerDele
         }
     }
 
-    public var leaveButtonTitle: String {
+    open var leaveButtonTitle: String {
         if channel.isDirectMessageChannel {
             L10n.Alert.Actions.deleteChannelTitle
         } else {
@@ -95,7 +99,7 @@ open class ChatChannelInfoViewModel: ObservableObject, ChatChannelControllerDele
         }
     }
 
-    public var leaveConversationDescription: String {
+    open var leaveConversationDescription: String {
         if channel.isDirectMessageChannel {
             L10n.Alert.Actions.deleteChannelMessage
         } else {

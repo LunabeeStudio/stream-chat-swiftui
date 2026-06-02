@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Photos
@@ -115,7 +115,7 @@ extension PHAsset: Identifiable {
 }
 
 /// Helper collection that allows iteration over the fetched assets from the photo library.
-public struct PHFetchResultCollection: RandomAccessCollection, Equatable {
+public final class PHFetchResultCollection: RandomAccessCollection, Equatable {
     public typealias Element = PHAsset
     public typealias Index = Int
 
@@ -130,5 +130,9 @@ public struct PHFetchResultCollection: RandomAccessCollection, Equatable {
 
     public subscript(position: Int) -> PHAsset {
         fetchResult.object(at: position)
+    }
+
+    public static func == (lhs: PHFetchResultCollection, rhs: PHFetchResultCollection) -> Bool {
+        lhs.fetchResult == rhs.fetchResult
     }
 }

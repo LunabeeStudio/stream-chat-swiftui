@@ -5,6 +5,105 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 🔄 Changed
 
+# [4.100.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.100.1)
+_May 22, 2026_
+
+### 🔄 Changed
+
+# [4.100.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.100.0)
+_May 13, 2026_
+
+### 🔄 Changed
+
+# [4.99.2](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.2)
+_May 06, 2026_
+
+### 🔄 Changed
+
+# [4.99.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.1)
+_April 01, 2026_
+
+### 🐞 Fixed
+- Fix pause button size in voice recording view [#1344](https://github.com/GetStream/stream-chat-swiftui/pull/1344)
+
+# [4.99.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.0)
+_March 16, 2026_
+
+### ✅ Added
+- `AddedAsset` now has `originalWidth`, `originalHeight`, and `duration` (videos), set at selection time and passed into image/video attachment payloads for custom CDN uploads [#1255](https://github.com/GetStream/stream-chat-swiftui/pull/1255)
+- Introduce `AVPlayerProvider` in `Utils` to be able to provide a custom `AVPlayer` configuration [#1284](https://github.com/GetStream/stream-chat-swiftui/pull/1284)
+- Add new `loadPreviewForVideo()` to `VideoPreviewLoader` for remote video attachments and use remote thumbnails by default [#1284](https://github.com/GetStream/stream-chat-swiftui/pull/1284)
+
+### 🐞 Fixed
+- Align video attachments' bubble corner radius and corner shape with image attachments [#1260](https://github.com/GetStream/stream-chat-swiftui/pull/1260)
+
+# [4.98.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.98.0)
+_February 26, 2026_
+
+### ✅ Added
+- Add support for optional sort in channel list message search [#1237](https://github.com/GetStream/stream-chat-swiftui/pull/1237)
+
+### 🐞 Fixed
+- Fix composer text, placeholder and icons not respecting layout direction in RTL [#1206](https://github.com/GetStream/stream-chat-swiftui/pull/1206)
+- Use `chevron.forward` instead of `chevron.right` for channel info disclosure indicator in RTL [#1206](https://github.com/GetStream/stream-chat-swiftui/pull/1206)
+
+# [4.97.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.97.1)
+_February 11, 2026_
+
+### 🐞 Fixed
+- Fix typing suggestions breaking when there are emoji in the composer (bounds guard now uses UTF-16 length to match `caretLocation`) [#1186](https://github.com/GetStream/stream-chat-swiftui/pull/1186)
+
+### ✅ Added
+- Add public init for `ImageContainerView` [#1174](https://github.com/GetStream/stream-chat-swiftui/pull/1174)
+- Expose Keyboard Handling methods [#1175](https://github.com/GetStream/stream-chat-swiftui/pull/1175)
+
+### ⚡️ Performance
+- Reduction of the SDK size by 2MB [#1173
+](https://github.com/GetStream/stream-chat-swiftui/pull/1173)
+
+# [4.97.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.97.0)
+_January 27, 2026_
+
+### ✅ Added
+- Add option to specify a bundle in ActionItemView [#1147](https://github.com/GetStream/stream-chat-swiftui/pull/1147)
+
+# [4.96.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.96.0)
+_January 13, 2026_
+
+### 🐞 Fixed
+- Fix updating member count in `ChatChannelInfoView` header [#1081](https://github.com/GetStream/stream-chat-swiftui/pull/1081)
+- Fix the message list jumping when opening the channel [#1101](https://github.com/GetStream/stream-chat-swiftui/pull/1101)
+- Fix not having an offset at the bottom of the message list when scrolling to the newest message [#1101](https://github.com/GetStream/stream-chat-swiftui/pull/1101)
+
+# [4.95.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.95.1)
+_December 18, 2025_
+
+### ✅ Added
+- Open `ChatChannelInfoViewModel.leaveButtonTitle` and `ChatChannelInfoViewModel.leaveConversationDescription` [#1018](https://github.com/GetStream/stream-chat-swiftui/pull/1018)
+- Open `ChatThreadListViewModel.preselectThreadIfNeeded()` [#1069](https://github.com/GetStream/stream-chat-swiftui/pull/1069)
+### 🐞 Fixed
+- Use `muteChannel` capability for showing mute channel button in the `ChatChannelInfoView` [#1018](https://github.com/GetStream/stream-chat-swiftui/pull/1018)
+- Fix `PollOptionAllVotesViewModel` not loading more votes [#1067](https://github.com/GetStream/stream-chat-swiftui/pull/1067)
+- Fix "sliderThumb.pdf" asset not single scaled [#1070](https://github.com/GetStream/stream-chat-swiftui/pull/1070)
+- Fix `ViewFactory.makeMessageAvatarView()` not used in some views [#1068](https://github.com/GetStream/stream-chat-swiftui/pull/1068)
+  - `MessageRepliesView`
+  - `ReactionsUsersView`
+  - `MentionUsersView`
+  - `ParticipantInfoView`
+  - `ChatThreadListItem`
+- Fix reading messages from muted users [#1063](https://github.com/GetStream/stream-chat-swiftui/pull/1063)
+
+# [4.94.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.94.0)
+_December 02, 2025_
+
+### ✅ Added
+- Add the `maxGalleryAssetsCount` to the composer config [#1053](https://github.com/GetStream/stream-chat-swiftui/pull/1053)
+- Expose `QuotedMessageViewContainer` [#1056](https://github.com/GetStream/stream-chat-swiftui/pull/1056)
+- Add `QuotedMessageContentView` and `ViewFactory.makeQuotedMessageContentView()` [#1056](https://github.com/GetStream/stream-chat-swiftui/pull/1056)
+- Allow customizing the attachment size and avatar size of the quoted message view [#1056](https://github.com/GetStream/stream-chat-swiftui/pull/1056)
+### 🐞 Fixed
+- Fix channel list skipping some updates on iPad [#1059](https://github.com/GetStream/stream-chat-swiftui/pull/1059)
+
 # [4.93.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.93.0)
 _November 18, 2025_
 

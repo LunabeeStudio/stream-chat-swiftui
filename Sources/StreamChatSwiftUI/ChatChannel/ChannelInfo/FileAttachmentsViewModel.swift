@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
@@ -132,11 +132,16 @@ class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDel
     }
 }
 
-struct MonthlyFileAttachments: Identifiable {
+final class MonthlyFileAttachments: Identifiable {
     var id: String {
         monthAndYear
     }
 
     let monthAndYear: String
     let attachments: [ChatMessageFileAttachment]
+
+    init(monthAndYear: String, attachments: [ChatMessageFileAttachment]) {
+        self.monthAndYear = monthAndYear
+        self.attachments = attachments
+    }
 }

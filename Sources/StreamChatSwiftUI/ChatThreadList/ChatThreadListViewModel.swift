@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Combine
@@ -155,6 +155,15 @@ open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDe
         }
     }
 
+    /// Preselects the the thread if needed, for example, when inside an iPad Split View.
+    open func preselectThreadIfNeeded() {
+        guard isIPad else { return }
+        guard let firstThread = threads.first else { return }
+        guard selectedThread == nil else { return }
+
+        selectedThread = .init(thread: firstThread)
+    }
+
     public func controller(
         _ controller: ChatThreadListController,
         didChangeThreads changes: [ListChange<ChatThread>]
@@ -183,13 +192,5 @@ open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDe
 
     private func makeDefaultEventsController() {
         eventsController = chatClient.eventsController()
-    }
-
-    private func preselectThreadIfNeeded() {
-        guard isIPad else { return }
-        guard let firstThread = threads.first else { return }
-        guard selectedThread == nil else { return }
-
-        selectedThread = .init(thread: firstThread)
     }
 }

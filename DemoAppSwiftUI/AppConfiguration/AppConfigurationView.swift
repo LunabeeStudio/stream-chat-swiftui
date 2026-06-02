@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Combine
@@ -12,6 +12,12 @@ struct AppConfigurationView: View {
         AppConfiguration.default.isChannelPinningFeatureEnabled = newValue
     }
 
+    var forceRTL: Binding<Bool> = Binding {
+        AppConfiguration.default.forceRTL
+    } set: { newValue in
+        AppConfiguration.default.forceRTL = newValue
+    }
+
     var body: some View {
         NavigationView {
             List {
@@ -20,6 +26,9 @@ struct AppConfigurationView: View {
                         AppConfigurationTranslationView()
                     }
                     Toggle("Channel Pinning", isOn: channelPinningEnabled)
+                }
+                Section("Layout") {
+                    Toggle("Force RTL (preview)", isOn: forceRTL)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

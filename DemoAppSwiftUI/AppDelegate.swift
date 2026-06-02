@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Sentry
@@ -61,6 +61,14 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         #endif
 
+        LogConfig.level = StreamRuntimeCheck.logLevel ?? .warning
+        LogConfig.formatters = [
+            PrefixLogFormatter(prefixes: [.info: "ℹ️", .debug: "🛠", .warning: "⚠️", .error: "🚨"])
+        ]
+        if let subsystems = StreamRuntimeCheck.subsystems {
+            LogConfig.subsystems = subsystems
+        }
+        
         let utils = Utils(
             channelListConfig: ChannelListConfig(
                 messageRelativeDateFormatEnabled: true,
@@ -141,4 +149,18 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 extension UIColor {
     static let streamBlue = UIColor(red: 0, green: 108.0 / 255.0, blue: 255.0 / 255.0, alpha: 1)
+}
+
+extension StreamRuntimeCheck {
+    static var logLevel: LogLevel? {
+        guard let value = ProcessInfo.processInfo.environment["STREAM_LOG_LEVEL"] else { return nil }
+        guard let intValue = Int(value) else { return nil }
+        return LogLevel(rawValue: intValue)
+    }
+    
+    static var subsystems: LogSubsystem? {
+        guard let value = ProcessInfo.processInfo.environment["STREAM_LOG_SUBSYSTEM"] else { return nil }
+        guard let intValue = Int(value) else { return nil }
+        return LogSubsystem(rawValue: intValue)
+    }
 }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -238,7 +238,7 @@ struct ListRowModifier: ViewModifier {
 }
 
 private extension VerticalAlignment {
-    private struct TextFieldToggleAlignment: AlignmentID {
+    private final class TextFieldToggleAlignment: AlignmentID {
         static func defaultValue(in context: ViewDimensions) -> CGFloat {
             context[VerticalAlignment.center]
         }

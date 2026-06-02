@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -50,7 +50,7 @@ public struct ChatThreadListNavigatableItem<ThreadListItem: View, ThreadDestinat
     }
 }
 
-public struct ThreadSelectionInfo: Identifiable {
+public final class ThreadSelectionInfo: Identifiable {
     public let id: String
     public let thread: ChatThread
 

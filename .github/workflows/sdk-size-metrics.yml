@@ -2,12 +2,17 @@ name: SDK Size
 
 on:
   pull_request:
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - '**/*.png'
 
   workflow_dispatch:
 
   push:
     branches:
       - develop
+      - v4
 
 env:
   HOMEBREW_NO_INSTALL_CLEANUP: 1 # Disable cleanup for homebrew, we don't need it on CI

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import AVKit
@@ -456,7 +456,7 @@ struct SendFailureIndicator: View {
 
 /// - Note: Changes from original implementation:
 ///   - Add showBubble attribute
-public struct MessageDisplayInfo {
+public final class MessageDisplayInfo {
     public let message: ChatMessage
     public let frame: CGRect
     public let contentWidth: CGFloat

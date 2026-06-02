@@ -1,12 +1,12 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
 import SwiftUI
 
 /// - Note: Changes from original implementation:
-///   - scrollTo anchor on first message's scrolledId set to 0.1 instead of top
+///   - old fix : scrollTo anchor on first message's scrolledId set to 0.1 instead of top
 public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
     @Injected(\.utils) private var utils
     @Injected(\.chatClient) private var chatClient
@@ -62,6 +62,7 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
         messageListConfig.messageDisplayOptions.newMessagesSeparatorSize
     }
 
+    private let bottomId = "BottomID"
     private let scrollAreaId = "scrollArea"
 
     public init(
@@ -220,7 +221,7 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                                             factory.makeMessageListDateIndicator(date: messageDate!)
                                             .frame(maxHeight: messageListConfig.messageDisplayOptions.dateLabelSize)
                                             : nil
-                                        
+
                                         showUnreadSeparator ?
                                             factory.makeNewMessagesIndicatorView(
                                                 newMessagesStartId: $firstUnreadMessageId,
@@ -251,6 +252,16 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                     .delayedRendering()
                     .modifier(factory.makeMessageListModifier())
                     .modifier(ScrollTargetLayoutModifier(enabled: loadingNextMessages))
+                    .overlay(
+                        VStack {
+                            // Workaround to make scrolling to bottom more precise
+                            Color.clear
+                                .frame(height: 0)
+                                .id(bottomId)
+
+                            Spacer()
+                        }
+                    )
                 }
                 .modifier(ScrollPositionModifier(scrollPosition: loadingNextMessages ? $scrollPosition : .constant(nil)))
                 .background(
@@ -304,8 +315,9 @@ public struct MessageListView<Factory: ViewFactory>: View, KeyboardReadable {
                             }
                             withAnimation {
                                 if messages.first?.id == scrolledId {
-                                    // Used to scroll to top, but doesn't inlude MessageList top(bottom) padding. So we scroll almost to top instead
-                                    scrollView.scrollTo(scrolledId, anchor: .init(x: 0.5, y: 0.1))
+                                    // Old fix: Used to scroll to top, but doesn't inlude MessageList top(bottom) padding. So we scroll almost to top instead
+//                                    scrollView.scrollTo(scrolledId, anchor: .init(x: 0.5, y: 0.1))
+                                    scrollView.scrollTo(bottomId, anchor: .bottom)
                                 } else {
                                     scrollView.scrollTo(scrolledId, anchor: messageListConfig.scrollingAnchor)
                                 }

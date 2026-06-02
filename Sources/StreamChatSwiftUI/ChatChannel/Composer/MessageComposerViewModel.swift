@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Combine
@@ -533,11 +533,14 @@ open class MessageComposerViewModel: ObservableObject {
             log.error("Failed to write image to local temporary file")
             return
         }
+        let scale = image.scale
         let addedImage = AddedAsset(
             image: image,
             id: UUID().uuidString,
             url: imageURL,
-            type: .image
+            type: .image,
+            originalWidth: Double(image.size.width * scale),
+            originalHeight: Double(image.size.height * scale)
         )
         addedAssets.append(addedImage)
     }
@@ -689,6 +692,9 @@ open class MessageComposerViewModel: ObservableObject {
             fetchOptions.predicate = predicate
         }
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        if let maxGalleryAssetsCount = utils.composerConfig.maxGalleryAssetsCount {
+            fetchOptions.fetchLimit = maxGalleryAssetsCount
+        }
         let assets = PHAsset.fetchAssets(with: fetchOptions)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             self?.imageAssets = assets
@@ -916,7 +922,7 @@ extension MessageComposerViewModel: EventsControllerDelegate {
 }
 
 // The assets added to the composer.
-struct ComposerAssets {
+final class ComposerAssets {
     // Image and Video Assets.
     var mediaAssets: [AddedAsset] = []
     // File Assets.
@@ -925,13 +931,30 @@ struct ComposerAssets {
     var voiceAssets: [AddedVoiceRecording] = []
     // Custom Assets.
     var customAssets: [CustomAttachment] = []
+    
+    init(
+        mediaAssets: [AddedAsset] = [],
+        fileAssets: [FileAddedAsset] = [],
+        voiceAssets: [AddedVoiceRecording] = [],
+        customAssets: [CustomAttachment] = []
+    ) {
+        self.mediaAssets = mediaAssets
+        self.fileAssets = fileAssets
+        self.voiceAssets = voiceAssets
+        self.customAssets = customAssets
+    }
 }
 
 // A asset containing file information.
 // If it has a payload, it means that the file is already uploaded to the server.
-struct FileAddedAsset {
+final class FileAddedAsset {
     var url: URL
     var payload: FileAttachmentPayload?
+
+    init(url: URL, payload: FileAttachmentPayload? = nil) {
+        self.url = url
+        self.payload = payload
+    }
 }
 
 // The converter responsible to map attachments to assets and vice versa.
@@ -1066,7 +1089,11 @@ class MessageAttachmentsConverter {
                 id: videoAttachment.id.rawValue,
                 url: localUrl,
                 type: .video,
-                extraData: videoAttachment.extraData ?? [:]
+                extraData: videoAttachment.extraData ?? [:],
+                originalWidth: videoAttachment.originalWidth,
+                originalHeight: videoAttachment.originalHeight,
+                duration: videoAttachment.duration,
+                payload: nil
             )
         }
 
@@ -1076,6 +1103,9 @@ class MessageAttachmentsConverter {
             url: videoAttachment.videoURL,
             type: .video,
             extraData: videoAttachment.extraData ?? [:],
+            originalWidth: videoAttachment.originalWidth,
+            originalHeight: videoAttachment.originalHeight,
+            duration: videoAttachment.duration,
             payload: videoAttachment.payload
         )
     }
@@ -1096,7 +1126,10 @@ class MessageAttachmentsConverter {
                 id: imageAttachment.id.rawValue,
                 url: localFileUrl,
                 type: .image,
-                extraData: imageAttachment.extraData ?? [:]
+                extraData: imageAttachment.extraData ?? [:],
+                originalWidth: imageAttachment.originalWidth,
+                originalHeight: imageAttachment.originalHeight,
+                payload: nil
             )
             completion(imageAsset)
             return
@@ -1115,6 +1148,8 @@ class MessageAttachmentsConverter {
                     url: imageAttachment.imageURL,
                     type: .image,
                     extraData: imageAttachment.extraData ?? [:],
+                    originalWidth: imageAttachment.originalWidth,
+                    originalHeight: imageAttachment.originalHeight,
                     payload: imageAttachment.payload
                 )
                 completion(imageAsset)

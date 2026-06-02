@@ -1,12 +1,12 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
 import UIKit
 
 /// The options to configure the `TypingSuggester`.
-public struct TypingSuggestionOptions {
+public final class TypingSuggestionOptions {
     /// The symbol that typing suggester will use to recognise a suggestion.
     public var symbol: String
     /// Wether the suggester should only be recognising at the start of the input.
@@ -32,8 +32,8 @@ public struct TypingSuggestionOptions {
     }
 }
 
-/// A structure that contains the information of the typing suggestion.
-public struct TypingSuggestion {
+/// Contains the information of the typing suggestion.
+public final class TypingSuggestion {
     /// A String representing the currently typing text.
     public let text: String
     /// A NSRange that stores the location of the typing suggestion in relation with the whole input.
@@ -61,7 +61,7 @@ extension TypingSuggestion {
 }
 
 /// A component responsible for finding typing suggestions in a `UITextView`.
-public struct TypingSuggester {
+public final class TypingSuggester {
     /// The structure that contains the suggestion configuration.
     public let options: TypingSuggestionOptions
 
@@ -76,7 +76,7 @@ public struct TypingSuggester {
         in text: String,
         caretLocation: Int
     ) -> TypingSuggestion? {
-        if caretLocation > text.count {
+        if caretLocation > (text as NSString).length {
             return nil
         }
         let textString = text as NSString

@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -21,7 +21,7 @@ open class MessageActionsViewModel: ObservableObject {
 }
 
 /// Model describing a message action.
-public struct MessageAction: Identifiable, Equatable {
+public final class MessageAction: Identifiable, Equatable {
     public var id: String
 
     public let title: String
@@ -53,7 +53,7 @@ public struct MessageAction: Identifiable, Equatable {
 }
 
 /// Provides information about a performed `MessageAction`.
-public struct MessageActionInfo {
+public final class MessageActionInfo {
     public let message: ChatMessage
     public let identifier: String
 

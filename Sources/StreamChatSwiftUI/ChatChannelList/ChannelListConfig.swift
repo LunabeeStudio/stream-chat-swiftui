@@ -1,11 +1,11 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Foundation
 
 /// A configuration for channel lists.
-public struct ChannelListConfig {
+public final class ChannelListConfig {
     public init(
         messageRelativeDateFormatEnabled: Bool = false,
         showChannelListDividerOnLastItem: Bool = true,

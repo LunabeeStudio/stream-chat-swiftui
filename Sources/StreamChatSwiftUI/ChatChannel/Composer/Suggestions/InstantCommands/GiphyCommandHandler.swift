@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import Combine
@@ -7,7 +7,7 @@ import StreamChat
 import SwiftUI
 
 /// Handles the giphy command and provides suggestions.
-public struct GiphyCommandHandler: CommandHandler {
+public final class GiphyCommandHandler: CommandHandler {
     @Injected(\.images) private var images
     @Injected(\.colors) private var colors
 

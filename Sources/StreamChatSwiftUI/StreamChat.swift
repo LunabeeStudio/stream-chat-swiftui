@@ -1,5 +1,5 @@
 //
-// Copyright © 2025 Stream.io Inc. All rights reserved.
+// Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
 import StreamChat
@@ -25,7 +25,7 @@ public class StreamChat {
 }
 
 /// Returns the current value for the `StreamChat` instance.
-private struct StreamChatProviderKey: InjectionKey {
+private final class StreamChatProviderKey: InjectionKey {
     static var currentValue: StreamChat?
 }
 
