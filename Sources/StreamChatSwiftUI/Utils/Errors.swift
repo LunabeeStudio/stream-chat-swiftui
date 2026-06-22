@@ -13,7 +13,7 @@ public final class StreamChatError: Error {
     public let description: String?
 
     /// The additional information dictionary.
-    public let additionalInfo: [String: Any]?
+    public nonisolated(unsafe) let additionalInfo: [String: Any]?
 
     public init(
         errorCode: StreamChatErrorCode,
@@ -65,7 +65,7 @@ extension StreamChatError {
 }
 
 /// Error codes for errors happening in the app.
-public enum StreamChatErrorCode: Int {
+public enum StreamChatErrorCode: Int, Sendable {
     case unknown = 101_000
     case missingData = 101_001
     case wrongConfig = 101_002

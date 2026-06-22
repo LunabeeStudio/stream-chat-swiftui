@@ -7,7 +7,7 @@
 @testable import StreamChatTestTools
 import XCTest
 
-class MessageActions_Tests: StreamChatTestCase {
+@MainActor class MessageActions_Tests: StreamChatTestCase {
     func test_messageActions_currentUserDefault() {
         // Given
         let channel = mockDMChannel
@@ -18,16 +18,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: chatClient.currentUserId!),
             isSentByCurrentUser: true
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -50,26 +49,26 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssert(messageActions.count == 6)
+        XCTAssert(messageActions.count == 7)
         XCTAssert(messageActions[0].title == "Reply")
         XCTAssert(messageActions[1].title == "Thread Reply")
         XCTAssert(messageActions[2].title == "Pin to conversation")
         XCTAssert(messageActions[3].title == "Copy Message")
         XCTAssert(messageActions[4].title == "Mark Unread")
         XCTAssert(messageActions[5].title == "Mute User")
+        XCTAssert(messageActions[6].title == "Block User")
     }
 
     func test_messageActions_partOfThread() {
@@ -84,24 +83,24 @@ class MessageActions_Tests: StreamChatTestCase {
             showReplyInChannel: false,
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssertEqual(messageActions.count, 4)
+        XCTAssertEqual(messageActions.count, 5)
         XCTAssertEqual(messageActions[0].title, "Reply")
         XCTAssertEqual(messageActions[1].title, "Pin to conversation")
         XCTAssertEqual(messageActions[2].title, "Copy Message")
         XCTAssertEqual(messageActions[3].title, "Mute User")
+        XCTAssertEqual(messageActions[4].title, "Block User")
     }
 
     func test_messageActions_partOfThreadButAlsoInChannel() {
@@ -116,25 +115,25 @@ class MessageActions_Tests: StreamChatTestCase {
             showReplyInChannel: true,
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssertEqual(messageActions.count, 5)
+        XCTAssertEqual(messageActions.count, 6)
         XCTAssertEqual(messageActions[0].title, "Reply")
         XCTAssertEqual(messageActions[1].title, "Pin to conversation")
         XCTAssertEqual(messageActions[2].title, "Copy Message")
         XCTAssertEqual(messageActions[3].title, "Mark Unread")
         XCTAssertEqual(messageActions[4].title, "Mute User")
+        XCTAssertEqual(messageActions[5].title, "Block User")
     }
 
     func test_messageActions_rootOfThreadButAlsoInChannel() {
@@ -150,25 +149,25 @@ class MessageActions_Tests: StreamChatTestCase {
             replyCount: 3,
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssertEqual(messageActions.count, 5)
+        XCTAssertEqual(messageActions.count, 6)
         XCTAssertEqual(messageActions[0].title, "Reply")
         XCTAssertEqual(messageActions[1].title, "Pin to conversation")
         XCTAssertEqual(messageActions[2].title, "Copy Message")
         XCTAssertEqual(messageActions[3].title, "Mark Unread")
         XCTAssertEqual(messageActions[4].title, "Mute User")
+        XCTAssertEqual(messageActions[5].title, "Block User")
     }
 
     func test_messageActions_otherUserDefaultReadEventsDisabled() {
@@ -181,25 +180,25 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssert(messageActions.count == 5)
+        XCTAssert(messageActions.count == 6)
         XCTAssert(messageActions[0].title == "Reply")
         XCTAssert(messageActions[1].title == "Thread Reply")
         XCTAssert(messageActions[2].title == "Pin to conversation")
         XCTAssert(messageActions[3].title == "Copy Message")
         XCTAssert(messageActions[4].title == "Mute User")
+        XCTAssertEqual(messageActions[5].title, "Block User")
     }
 
     func test_messageActions_otherUserDefaultBlockingEnabled() {
@@ -216,16 +215,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -255,16 +253,15 @@ class MessageActions_Tests: StreamChatTestCase {
                 expiresAt: nil
             )
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -287,16 +284,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: chatClient.currentUserId!),
             localState: .sendingFailed
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -324,16 +320,15 @@ class MessageActions_Tests: StreamChatTestCase {
             attachments: attachments,
             localState: .pendingSend
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -362,16 +357,15 @@ class MessageActions_Tests: StreamChatTestCase {
             isBounced: true,
             moderationsDetails: moderationDetails
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -385,7 +379,7 @@ class MessageActions_Tests: StreamChatTestCase {
     func test_messageActions_giphyMessage_shouldNotContainEditActtion() throws {
         // Given
         let channel = mockDMChannel
-        let message = ChatMessage.mock(
+        let message = try ChatMessage.mock(
             id: .unique,
             cid: channel.cid,
             text: "Test",
@@ -393,7 +387,7 @@ class MessageActions_Tests: StreamChatTestCase {
             attachments: [
                 .dummy(
                     type: .giphy,
-                    payload: try JSONEncoder().encode(GiphyAttachmentPayload(
+                    payload: JSONEncoder().encode(GiphyAttachmentPayload(
                         title: "Test",
                         previewURL: URL(string: "Url")!
                     ))
@@ -401,16 +395,15 @@ class MessageActions_Tests: StreamChatTestCase {
             ],
             isSentByCurrentUser: true
         )
-        let factory = DefaultViewFactory.shared
 
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -432,16 +425,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: chatClient.currentUserId!),
             isSentByCurrentUser: true
         )
-        let factory = DefaultViewFactory.shared
         
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
         
         // Then
@@ -458,16 +450,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
         
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
         
         // Then
@@ -484,16 +475,15 @@ class MessageActions_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             isSentByCurrentUser: false
         )
-        let factory = DefaultViewFactory.shared
         
         // When
         let messageActions = MessageAction.defaultActions(
-            factory: factory,
-            for: message,
-            channel: channel,
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
+            for: SupportedMessageActionsOptions(
+                message: message,
+                channel: channel,
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
         
         // Then

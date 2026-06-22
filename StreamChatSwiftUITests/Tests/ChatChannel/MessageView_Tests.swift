@@ -4,12 +4,26 @@
 
 import SnapshotTesting
 @testable import StreamChat
+@testable import StreamChatCommonUI
 @testable import StreamChatSwiftUI
 import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class MessageView_Tests: StreamChatTestCase {
+@MainActor class MessageView_Tests: StreamChatTestCase {
+    override func setUp() {
+        super.setUp()
+
+        streamChat = StreamChat(
+            chatClient: chatClient,
+            utils: Utils(
+                mediaLoader: MediaLoader_Mock(),
+                messageListConfig: .init(markdownSupportEnabled: true),
+                composerConfig: .init(isVoiceRecordingEnabled: true)
+            )
+        )
+    }
+    
     func test_messageViewText_snapshot() {
         // Given
         let textMessage = ChatMessage.mock(
@@ -18,7 +32,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "test message",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -28,7 +42,57 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_messageViewText_sendingFailed_singleLine_snapshot() {
+        // Given
+        let textMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "test message",
+            author: .mock(id: .unique),
+            localState: .sendingFailed
+        )
+        
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: textMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .overlay(SendFailureIndicator())
+        .frame(width: defaultScreenSize.width, height: 100)
+        
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_messageViewText_sendingFailed_multiLine_snapshot() {
+        // Given
+        let textMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Hey, did you get a chance to look at the venue options for Saturday?",
+            author: .mock(id: .unique),
+            localState: .sendingFailed
+        )
+        
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: textMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .overlay(SendFailureIndicator())
+        .frame(width: defaultScreenSize.width, height: 150)
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -42,7 +106,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             mentionedUsers: [.mock(id: "martin", name: "Martin")]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -52,7 +116,7 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .frame(width: defaultScreenSize.width, height: 100)
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -66,7 +130,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             mentionedUsers: [.mock(id: "martin", name: "Martin"), .mock(id: "alexey", name: "Alexey")]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -76,11 +140,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .frame(width: defaultScreenSize.width, height: 100)
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageViewImage_snapshot() {
         // Given
         let imageMessage = ChatMessage.mock(
@@ -89,6 +153,34 @@ class MessageView_Tests: StreamChatTestCase {
             text: "test message",
             author: .mock(id: .unique),
             attachments: ChatChannelTestHelpers.imageAttachments
+        )
+        
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: imageMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applyDefaultSize()
+        
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageViewPortraitImage_snapshot() {
+        // Given
+        let imageMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "test message",
+            author: .mock(id: .unique),
+            attachments: ChatChannelTestHelpers.imageAttachments(
+                count: 1,
+                originalWidth: 1200,
+                originalHeight: 1600
+            )
         )
 
         // When
@@ -103,6 +195,245 @@ class MessageView_Tests: StreamChatTestCase {
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageViewPortraitImageLongText_snapshot() {
+        // Given
+        let imageMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a much longer message that should span multiple lines when displayed below the portrait image attachment in the message bubble",
+            author: .mock(id: .unique),
+            attachments: ChatChannelTestHelpers.imageAttachments(
+                count: 1,
+                originalWidth: 1200,
+                originalHeight: 1600
+            )
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: imageMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageViewAttachmentBubble_defaultSingleImageWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.image
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: DefaultViewFactory.shared,
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_defaultSingleVideoWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.video
+        let caption = "Video caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: DefaultViewFactory.shared,
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleImageWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.image
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleVideoWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.video
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleVoiceWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.voice
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleFileWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.file
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleImageWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.image
+        let caption = "Image caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleVideoWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.video
+        let caption = "Video caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleVoiceWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.voice
+        let caption = "Voice caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleFileWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.file
+        let caption = "File caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customLinkPreview_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.link
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customMultiImageWithoutCaption_snapshot() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            author: .mock(id: Self.currentUserId, name: "Martin"),
+            attachments: ChatChannelTestHelpers.imageAttachments(
+                count: 2,
+                originalWidth: 1600,
+                originalHeight: 1200
+            ),
+            isSentByCurrentUser: true
+        )
+        let size = CGSize(width: defaultScreenSize.width, height: 300)
+
+        // When
+        let view = MessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            message: message,
+            contentWidth: size.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applySize(size)
+
+        // Then
+        AssertSnapshot(view, size: size)
     }
 
     func test_messageViewImage_snapshot2Images() {
@@ -117,7 +448,7 @@ class MessageView_Tests: StreamChatTestCase {
                 ChatChannelTestHelpers.imageAttachments[0]
             ]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -127,11 +458,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageViewImage_snapshot3Images() {
         // Given
         let imageMessage = ChatMessage.mock(
@@ -145,7 +476,7 @@ class MessageView_Tests: StreamChatTestCase {
                 ChatChannelTestHelpers.imageAttachments[0]
             ]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -155,7 +486,7 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -174,7 +505,7 @@ class MessageView_Tests: StreamChatTestCase {
                 ChatChannelTestHelpers.videoAttachments[0]
             ]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -184,18 +515,18 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageViewImage_snapshotQuoted() {
         // Given
         let quoted = ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "This is a quoted message",
-            author: .mock(id: .unique)
+            author: .mock(id: .unique, name: "John Wick")
         )
         let imageMessage = ChatMessage.mock(
             id: .unique,
@@ -205,7 +536,7 @@ class MessageView_Tests: StreamChatTestCase {
             quotedMessage: quoted,
             attachments: ChatChannelTestHelpers.imageAttachments
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -215,11 +546,73 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
 
+    func test_messageViewQuoted_singleImageAttachment_snapshot() {
+        // Given
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
+        )
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "test message",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: [ChatChannelTestHelpers.imageAttachments[0]]
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: message,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applyDefaultSize()
+
+        // Then
+        AssertSnapshot(view)
+    }
+
+    func test_messageViewQuoted_singleFileAttachment_snapshot() {
+        // Given
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
+        )
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "test message",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: [ChatChannelTestHelpers.fileAttachments[0]]
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: message,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applyDefaultSize()
+
+        // Then
+        AssertSnapshot(view)
+    }
+    
     func test_messageViewGiphy_snapshot() {
         // Given
         let giphyMessage = ChatMessage.mock(
@@ -229,7 +622,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             attachments: ChatChannelTestHelpers.giphyAttachments
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -239,9 +632,69 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_messageViewPendingGiphy_snapshot() {
+        // Given
+        let giphyAttachments: [AnyChatMessageAttachment] = [
+            ChatMessageGiphyAttachment(
+                id: .unique,
+                type: .giphy,
+                payload: GiphyAttachmentPayload(
+                    title: "test",
+                    previewURL: URL.localYodaImage,
+                    actions: [
+                        .init(
+                            name: "Send",
+                            value: "Send",
+                            style: .primary,
+                            type: .button,
+                            text: "Send"
+                        ),
+                        .init(
+                            name: "Shuffle",
+                            value: "Shuffle",
+                            style: .default,
+                            type: .button,
+                            text: "Shuffle"
+                        ),
+                        .init(
+                            name: "Cancel",
+                            value: "Cancel",
+                            style: .default,
+                            type: .button,
+                            text: "Cancel"
+                        )
+                    ]
+                ),
+                downloadingState: nil,
+                uploadingState: nil
+            )
+            .asAnyAttachment
+        ]
+        let giphyMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            author: .mock(id: .unique),
+            attachments: giphyAttachments
+        )
+        
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: giphyMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applyDefaultSize()
+        
+        // Then
+        AssertSnapshot(view)
     }
 
     func test_messageViewVideo_snapshot() {
@@ -253,7 +706,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             attachments: ChatChannelTestHelpers.videoAttachments
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -263,11 +716,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageViewFile_snapshot() {
         // Given
         let fileMessage = ChatMessage.mock(
@@ -277,7 +730,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             attachments: ChatChannelTestHelpers.fileAttachments
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -287,7 +740,7 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -302,7 +755,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
             isSentByCurrentUser: false
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -313,7 +766,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 130)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -331,7 +784,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
             isSentByCurrentUser: true
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -342,7 +795,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 130)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -360,7 +813,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
             isSentByCurrentUser: false
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -371,7 +824,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 130)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -389,7 +842,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
             isSentByCurrentUser: true
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -400,7 +853,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 130)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -418,7 +871,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments(count: 2),
             isSentByCurrentUser: false
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -429,7 +882,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 250)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -447,7 +900,7 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments(count: 2),
             isSentByCurrentUser: true
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -458,7 +911,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 250)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -476,16 +929,15 @@ class MessageView_Tests: StreamChatTestCase {
             attachments: ChatChannelTestHelpers.voiceRecordingAttachments(count: 2),
             isSentByCurrentUser: true
         )
-
+        
         // When
         adjustAppearance { appearance in
-            appearance.colors.messageCurrentUserBackground = [.orange]
-            appearance.colors.background8 = .yellow
-            appearance.colors.voiceMessageControlBackground = .cyan
-            appearance.colors.messageCurrentUserTextColor = .blue
-            appearance.colors.textLowEmphasis = .red
-            appearance.images.playFilled = UIImage(systemName: "star")!
-            appearance.images.fileAac = UIImage(systemName: "scribble")!
+            appearance.colorPalette.chatBackgroundOutgoing = .orange
+            appearance.colorPalette.backgroundCoreSurfaceStrong = .yellow
+            appearance.colorPalette.chatTextOutgoing = .blue
+            appearance.colorPalette.textTertiary = .red
+            appearance.images.playFill = UIImage(systemName: "star")!
+            appearance.images.fileIcons[.aac] = UIImage(systemName: "scribble")!
         }
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -496,7 +948,7 @@ class MessageView_Tests: StreamChatTestCase {
         )
         .frame(width: defaultScreenSize.width, height: 250)
         .padding()
-
+        
         // Then
         AssertSnapshot(
             view,
@@ -505,37 +957,183 @@ class MessageView_Tests: StreamChatTestCase {
         )
     }
 
-    func test_voiceRecordingViewPauseState_snapshot() {
+    func test_messageViewVoiceRecordingQuotedFromParticipant_snapshot() {
         // Given
-        let url = ChatChannelTestHelpers.testURL
-        let recording = AddedVoiceRecording(
-            url: url,
-            duration: 5.0,
-            waveform: [0, 0.1, 0.5, 1]
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
         )
-        let handler = VoiceRecordingHandler()
-        handler.context = AudioPlaybackContext(
-            assetLocation: url,
-            duration: 5.0,
-            currentTime: 2.0,
-            state: .playing,
-            rate: .normal,
-            isSeeking: false
+        let voiceMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
+            isSentByCurrentUser: false
         )
+
         // When
-        let view = VoiceRecordingView(
-            handler: handler,
-            textColor: .primary,
-            addedVoiceRecording: recording,
-            index: 0
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: voiceMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
         )
-        .frame(width: defaultScreenSize.width, height: 80)
+        .frame(width: defaultScreenSize.width, height: 200)
         .padding()
 
         // Then
         AssertSnapshot(
             view,
-            size: CGSize(width: defaultScreenSize.width, height: 250)
+            size: CGSize(width: defaultScreenSize.width, height: 200)
+        )
+    }
+
+    func test_messageViewVoiceRecordingQuotedFromMe_snapshot() {
+        // Given
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
+        )
+        let voiceMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: voiceMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .frame(width: defaultScreenSize.width, height: 200)
+        .padding()
+
+        // Then
+        AssertSnapshot(
+            view,
+            size: CGSize(width: defaultScreenSize.width, height: 200)
+        )
+    }
+
+    func test_messageViewVoiceRecordingQuotedWithTextFromParticipant_snapshot() {
+        // Given
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
+        )
+        let voiceMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Check this voice note",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
+            isSentByCurrentUser: false
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: voiceMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .frame(width: defaultScreenSize.width, height: 220)
+        .padding()
+
+        // Then
+        AssertSnapshot(
+            view,
+            size: CGSize(width: defaultScreenSize.width, height: 220)
+        )
+    }
+
+    func test_messageViewVoiceRecordingQuotedWithTextFromMe_snapshot() {
+        // Given
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "This is a quoted message",
+            author: .mock(id: .unique, name: "John Wick")
+        )
+        let voiceMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Check this voice note",
+            author: .mock(id: .unique),
+            quotedMessage: quoted,
+            attachments: ChatChannelTestHelpers.voiceRecordingAttachments,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: voiceMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .frame(width: defaultScreenSize.width, height: 220)
+        .padding()
+
+        // Then
+        AssertSnapshot(
+            view,
+            size: CGSize(width: defaultScreenSize.width, height: 220)
+        )
+    }
+
+    func test_voiceRecordingViewPlaying_snapshot() {
+        // Given
+        let url = URL(string: "https://example.com/recording.m4a")!
+        let recording = AddedVoiceRecording(
+            url: url,
+            duration: 10,
+            waveform: [0, 0.1, 0.4, 0.7, 1.0, 0.8, 0.5, 0.3, 0.6, 0.9]
+        )
+        let handler = VoiceRecordingHandler()
+        handler.isPlaying = true
+        handler.context = AudioPlaybackContext(
+            assetLocation: url,
+            duration: 10,
+            currentTime: 4.2,
+            state: .playing,
+            rate: .normal,
+            isSeeking: false
+        )
+
+        // When
+        let view = VoiceRecordingView(
+            handler: handler,
+            addedVoiceRecording: recording,
+            isSentByCurrentUser: true
+        )
+        .frame(width: defaultScreenSize.width - 60, height: 48)
+        .padding()
+
+        // Then
+        AssertSnapshot(
+            view,
+            variants: [.defaultLight],
+            size: CGSize(width: defaultScreenSize.width, height: 80)
         )
     }
 
@@ -548,7 +1146,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             attachments: ChatChannelTestHelpers.fileAttachments
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -558,11 +1156,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageViewJumboEmoji_snapshot() {
         // Given
         let emojiMessage = ChatMessage.mock(
@@ -571,7 +1169,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "😀",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -581,22 +1179,23 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_linkAttachmentView_snapshot() {
         // Given
         let message = ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "https://getstream.io",
-            author: .mock(id: .unique)
+            author: .mock(id: .unique),
+            attachments: ChatChannelTestHelpers.linkAttachments
         )
 
         // When
-        let view = LinkAttachmentContainer(
+        let view = MessageAttachmentsView(
             factory: DefaultViewFactory.shared,
             message: message,
             width: defaultScreenSize.width,
@@ -608,18 +1207,20 @@ class MessageView_Tests: StreamChatTestCase {
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_linkAttachmentView_customColors_snapshot() {
         // Given
-        var colorPalette = ColorPalette()
-        colorPalette.messageLinkAttachmentAuthorColor = .orange
-        colorPalette.messageLinkAttachmentTitleColor = .blue
-        colorPalette.messageLinkAttachmentTextColor = .red
+        let colorPalette = Appearance.ColorPalette()
+        colorPalette.textPrimary = .blue
+        colorPalette.chatTextIncoming = .orange
+        colorPalette.backgroundCoreElevation1 = .cyan
+        var appearance = Appearance()
+        appearance.colorPalette = colorPalette
         streamChat = StreamChat(
             chatClient: chatClient,
-            appearance: .init(colors: colorPalette)
+            appearance: appearance
         )
-
+        
         // When
         let view = LinkAttachmentView(
             linkAttachment: .mock(
@@ -633,14 +1234,15 @@ class MessageView_Tests: StreamChatTestCase {
                 previewURL: .localYodaImage
             ),
             width: 200,
-            isFirst: true
+            isFirst: true,
+            isRightAligned: false
         )
         .frame(width: 200, height: 140)
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_linkAttachmentView_shouldNotRenderLinkPreviewWithOtherAttachments() {
         // Given
         let messageWithLinkAndImages = ChatMessage.mock(
@@ -653,7 +1255,7 @@ class MessageView_Tests: StreamChatTestCase {
                 ChatChannelTestHelpers.videoAttachments[0]
             ]
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -663,11 +1265,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_deletedMessageView_snapshot() {
         // Given
         let message = ChatMessage.mock(
@@ -676,15 +1278,15 @@ class MessageView_Tests: StreamChatTestCase {
             text: "Deleted message",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = DeletedMessageView(message: message, isFirst: true)
             .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_deletedMessageViewContainer_snapshot() {
         // Given
         let message = ChatMessage.mock(
@@ -693,7 +1295,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "Deleted message",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -703,11 +1305,11 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applyDefaultSize()
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_messageRepliesView_snapshot() {
         // Given
         let channel = ChatChannel.mockDMChannel()
@@ -718,7 +1320,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             threadParticipants: [.mock(id: .unique)]
         )
-
+        
         // When
         let view = MessageRepliesView(
             factory: DefaultViewFactory.shared,
@@ -727,7 +1329,7 @@ class MessageView_Tests: StreamChatTestCase {
             replyCount: 3
         )
         .frame(width: 300, height: 60)
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -742,7 +1344,7 @@ class MessageView_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             threadParticipants: [.mock(id: .unique)]
         )
-
+        
         // When
         let view = MessageRepliesView(
             factory: DefaultViewFactory.shared,
@@ -752,21 +1354,21 @@ class MessageView_Tests: StreamChatTestCase {
             showReplyCount: false
         )
         .frame(width: 300, height: 60)
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-
+    
     func test_topLeftView_snapshot() {
         // Given
         let textView = Text("Test")
-
+        
         // Then
         let view = TopLeftView {
             textView
         }
         .applyDefaultSize()
-
+        
         // When
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -814,7 +1416,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "This is a **bold** text",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -827,7 +1429,7 @@ class MessageView_Tests: StreamChatTestCase {
             width: defaultScreenSize.width,
             height: 100
         )
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -847,7 +1449,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "Visit Apple, click [here](https://apple.com)",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -860,7 +1462,7 @@ class MessageView_Tests: StreamChatTestCase {
             width: defaultScreenSize.width,
             height: 100
         )
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -879,7 +1481,7 @@ class MessageView_Tests: StreamChatTestCase {
             text: "~~A strikethrough example~~",
             author: .mock(id: .unique)
         )
-
+        
         // When
         let view = MessageView(
             factory: DefaultViewFactory.shared,
@@ -892,7 +1494,7 @@ class MessageView_Tests: StreamChatTestCase {
             width: defaultScreenSize.width,
             height: 100
         )
-
+        
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -958,7 +1560,7 @@ class MessageView_Tests: StreamChatTestCase {
         let view = messageView(
             size: size,
             """
-            Unordered (nested)  
+            Unordered (nested)
             - First list item
                 - First nested
                     - Second nested
@@ -973,7 +1575,7 @@ class MessageView_Tests: StreamChatTestCase {
         let view = messageView(
             size: size,
             """
-            Unordered (wrapped text)  
+            Unordered (wrapped text)
             - First list item which has a very long text and when wrapped, should be aligned to the same item
                 - First nested which has a very long text and when wrapped, should be aligned to the same item
                     - Second nested
@@ -988,11 +1590,11 @@ class MessageView_Tests: StreamChatTestCase {
             size: size,
             """
             Ordered (no nesting)
-
+            
             Fruits:
             1. **Oranges** (bold)
             1. Apples
-
+            
             Animals:
             1. Cat
             2. _Dog_ (italic)
@@ -1007,7 +1609,7 @@ class MessageView_Tests: StreamChatTestCase {
         let view = messageView(
             size: size,
             """
-            Unordered (nested)  
+            Unordered (nested)
             1. First list item
                 1. First nested
                     1. Second nested
@@ -1022,7 +1624,7 @@ class MessageView_Tests: StreamChatTestCase {
         let view = messageView(
             size: size,
             """
-            Mixed (nested)  
+            Mixed (nested)
             1. First list item
                 - First nested
                     1. Second nested
@@ -1049,7 +1651,10 @@ class MessageView_Tests: StreamChatTestCase {
                 NSAttributedString.Key.foregroundColor: UIColor.red
             ]
         }
-        let config = MessageListConfig(messageDisplayOptions: displayOptions)
+        let config = MessageListConfig(
+            messageDisplayOptions: displayOptions,
+            markdownSupportEnabled: true
+        )
         let size = messageViewSize()
         let view = messageView(
             size: size,
@@ -1217,5 +1822,201 @@ class MessageView_Tests: StreamChatTestCase {
             scrolledId: .constant(nil)
         )
         .applySize(size)
+    }
+
+    private func attachmentBubbleMessageView<Factory: ViewFactory>(
+        factory: Factory,
+        attachment: AttachmentBubbleSnapshotAttachment,
+        caption: String?
+    ) -> some View {
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+        return MessageView(
+            factory: factory,
+            message: attachmentBubbleMessage(attachment: attachment, caption: caption),
+            contentWidth: size.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .applySize(size)
+    }
+
+    private func attachmentBubbleMessage(
+        attachment: AttachmentBubbleSnapshotAttachment,
+        caption: String?
+    ) -> ChatMessage {
+        return ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: caption ?? "",
+            author: .mock(id: Self.currentUserId, name: "Martin"),
+            attachments: attachment.attachments,
+            isSentByCurrentUser: true
+        )
+    }
+
+    private func attachmentBubbleSnapshotSize(
+        for attachment: AttachmentBubbleSnapshotAttachment,
+        caption: String?
+    ) -> CGSize {
+        let hasCaption = caption?.isEmpty == false
+        switch attachment {
+        case .image, .video:
+            return CGSize(width: defaultScreenSize.width, height: hasCaption ? 320 : 300)
+        case .link:
+            return CGSize(width: defaultScreenSize.width, height: 300)
+        case .file, .voice:
+            return CGSize(width: defaultScreenSize.width, height: hasCaption ? 220 : 180)
+        }
+    }
+}
+
+private enum AttachmentBubbleSnapshotAttachment {
+    case image
+    case video
+    case voice
+    case file
+    case link
+
+    var attachments: [AnyChatMessageAttachment] {
+        switch self {
+        case .image:
+            return ChatChannelTestHelpers.imageAttachments(
+                count: 1,
+                originalWidth: 1600,
+                originalHeight: 1200
+            )
+        case .video:
+            return ChatChannelTestHelpers.videoAttachments
+        case .voice:
+            return ChatChannelTestHelpers.voiceRecordingAttachments
+        case .file:
+            return ChatChannelTestHelpers.fileAttachments
+        case .link:
+            return ChatChannelTestHelpers.linkAttachments
+        }
+    }
+}
+
+private final class CustomAttachmentBubbleFactory: ViewFactory {
+    @Injected(\.chatClient) var chatClient
+    
+    var styles: CustomAttachmentBubbleStyles
+    
+    init(
+        stackedBubbleInsets: EdgeInsets = EdgeInsets(top: 8, leading: 12, bottom: 10, trailing: 14),
+        stackedBubbleCornerRadius: CGFloat = 6,
+        attachmentBubbleInsets: EdgeInsets = EdgeInsets(top: 3, leading: 5, bottom: 7, trailing: 9),
+        attachmentBubbleCornerRadius: CGFloat = 4
+    ) {
+        self.styles = CustomAttachmentBubbleStyles(
+            stackedBubbleInsets: stackedBubbleInsets,
+            stackedBubbleCornerRadius: stackedBubbleCornerRadius,
+            attachmentBubbleInsets: attachmentBubbleInsets,
+            attachmentBubbleCornerRadius: attachmentBubbleCornerRadius
+        )
+    }
+}
+
+private final class CustomAttachmentBubbleStyles: DefaultTestStyles {
+    let stackedBubbleInsets: EdgeInsets
+    let stackedBubbleCornerRadius: CGFloat
+    let attachmentBubbleInsets: EdgeInsets
+    let attachmentBubbleCornerRadius: CGFloat
+
+    init(
+        stackedBubbleInsets: EdgeInsets,
+        stackedBubbleCornerRadius: CGFloat,
+        attachmentBubbleInsets: EdgeInsets,
+        attachmentBubbleCornerRadius: CGFloat
+    ) {
+        self.stackedBubbleInsets = stackedBubbleInsets
+        self.stackedBubbleCornerRadius = stackedBubbleCornerRadius
+        self.attachmentBubbleInsets = attachmentBubbleInsets
+        self.attachmentBubbleCornerRadius = attachmentBubbleCornerRadius
+    }
+
+    func makeMessageAttachmentsViewModifier(
+        options: MessageAttachmentsViewModifierOptions
+    ) -> some ViewModifier {
+        CustomMessageAttachmentsViewModifier(
+            options: options,
+            bubbleInsets: stackedBubbleInsets,
+            cornerRadius: stackedBubbleCornerRadius
+        )
+    }
+
+    func makeMessageAttachmentItemViewModifier(
+        options: MessageAttachmentItemViewModifierOptions
+    ) -> some ViewModifier {
+        CustomMessageAttachmentItemViewModifier(
+            options: options,
+            bubbleInsets: attachmentBubbleInsets,
+            cornerRadius: attachmentBubbleCornerRadius
+        )
+    }
+}
+
+private struct CustomMessageAttachmentsViewModifier: ViewModifier {
+    let options: MessageAttachmentsViewModifierOptions
+    let bubbleInsets: EdgeInsets
+    let cornerRadius: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .padding(bubbleInsets)
+            .modifier(
+                MessageBubbleModifier(
+                    message: options.message,
+                    isFirst: options.isFirst,
+                    cornerRadius: cornerRadius
+                )
+            )
+    }
+}
+
+private struct CustomMessageAttachmentItemViewModifier: ViewModifier {
+    @Injected(\.colors) private var colors
+
+    let options: MessageAttachmentItemViewModifierOptions
+    let bubbleInsets: EdgeInsets
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content.modifier(
+            BubbleModifier(
+                corners: .allCorners,
+                backgroundColors: [Color(colors.backgroundCoreSurfaceDefault)],
+                borderColor: borderColor,
+                borderWidth: borderWidth,
+                cornerRadius: cornerRadius,
+                contentInsets: bubbleInsets
+            )
+        )
+    }
+
+    private var borderColor: Color {
+        switch options.attachmentType {
+        case .some(.file):
+            return .red
+        case .some(.voiceRecording):
+            return .green
+        case .some(.linkPreview):
+            return .purple
+        case .some(.image):
+            return .blue
+        case .some(.video):
+            return .orange
+        default:
+            return Color(colors.accentPrimary)
+        }
+    }
+
+    private var borderWidth: CGFloat {
+        switch options.attachmentType {
+        case .some(.linkPreview):
+            return 3
+        default:
+            return 2
+        }
     }
 }

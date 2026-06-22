@@ -18,11 +18,6 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
     override func setUp() {
         super.setUp()
 
-        let circleImage = UIImage.circleImage
-        streamChat?.utils.channelHeaderLoader.placeholder1 = circleImage
-        streamChat?.utils.channelHeaderLoader.placeholder2 = circleImage
-        streamChat?.utils.channelHeaderLoader.placeholder3 = circleImage
-        streamChat?.utils.channelHeaderLoader.placeholder4 = circleImage
         streamChat?.utils.messageListConfig = .init(draftMessagesEnabled: true)
 
         currentUser = ChatUser.mock(id: StreamChatTestCase.currentUserId, name: "Vader", imageURL: nil)
@@ -80,7 +75,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
 
     func test_threadListItem_withParentMessageDeleted() throws {
         let thread = mockThread
-            .with(parentMessage: .mock(text: "Parent Message", deletedAt: .unique))
+            .with(parentMessage: .mock(text: "Parent Message", author: mockYoda, deletedAt: .unique))
 
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
@@ -105,7 +100,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
     func test_threadListItem_whenAttachments() throws {
         let thread = mockThread
             .with(
-                parentMessage: .mock(text: "", attachments: [.dummy(type: .giphy)]),
+                parentMessage: .mock(text: "", author: mockYoda, attachments: [.dummy(type: .giphy)]),
                 latestReplies: [
                     .mock(text: "", author: mockYoda, attachments: [.dummy(type: .audio)])
                 ]
@@ -120,7 +115,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
     func test_threadListItem_whenAttachmentIsPoll() throws {
         let thread = mockThread
             .with(
-                parentMessage: .mock(text: "", poll: .mock(name: "Who is better?")),
+                parentMessage: .mock(text: "", author: mockYoda, poll: .mock(name: "Who is better?")),
                 latestReplies: [
                     .mock(text: "", author: mockYoda, poll: .mock(name: "Who is worse?"))
                 ]
@@ -143,7 +138,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
     }
 
     func test_threadListItem_whenDraftMessageHasAttachment() throws {
-        let message = DraftMessage.mock(text: "Draft message", attachments: [.dummy(payload: try JSONEncoder().encode(
+        let message = try DraftMessage.mock(text: "Draft message", attachments: [.dummy(payload: JSONEncoder().encode(
             ImageAttachmentPayload(
                 title: "Test",
                 imageRemoteURL: .localYodaImage,

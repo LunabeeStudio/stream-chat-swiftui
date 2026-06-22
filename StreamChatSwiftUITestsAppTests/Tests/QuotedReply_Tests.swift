@@ -8,9 +8,10 @@ import XCTest
 final class QuotedReply_Tests: StreamTestCase {
     let messageCount = 30
     let pageSize = 25
-    let quotedText = "1"
+    let quotedText = "2"
     let parentText = "some messsage text"
     let replyText = "quoted reply"
+    var firstParticipantsMessageIndex = 0
 
     func test_whenSwipingMessage_thenMessageIsQuotedReply() {
         linkToScenario(withId: 9854)
@@ -41,7 +42,11 @@ final class QuotedReply_Tests: StreamTestCase {
         WHEN("user adds a quoted reply to participant message") {
             userRobot
                 .scrollMessageListUp(times: 2)
-                .quoteMessage(replyText, messageCellIndex: messageCount - 1)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 2
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex)
         }
         THEN("user observes the quote reply in message list") {
             userRobot
@@ -54,7 +59,7 @@ final class QuotedReply_Tests: StreamTestCase {
         THEN("user is scrolled up to the quoted message") {
             userRobot
                 .assertScrollToBottomButton(isVisible: true)
-                .assertMessageIsVisible(at: messageCount - 1)
+                .assertMessageIsVisible(at: firstParticipantsMessageIndex)
         }
     }
 
@@ -62,6 +67,7 @@ final class QuotedReply_Tests: StreamTestCase {
         linkToScenario(withId: 369)
 
         let messageCount = 20
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
@@ -81,7 +87,7 @@ final class QuotedReply_Tests: StreamTestCase {
         THEN("user is scrolled up to the quoted message") {
             userRobot
                 .assertScrollToBottomButton(isVisible: true)
-                .assertMessageIsVisible(at: messageCount - 1)
+                .assertFirstMessageIsVisible(quotedText)
         }
     }
 
@@ -95,7 +101,11 @@ final class QuotedReply_Tests: StreamTestCase {
         WHEN("user adds a quoted reply to participant message") {
             userRobot
                 .scrollMessageListUp(times: 3)
-                .quoteMessage(replyText, messageCellIndex: messageCount - 1)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 2
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex)
         }
         THEN("user observes the quote reply in message list") {
             userRobot
@@ -108,12 +118,14 @@ final class QuotedReply_Tests: StreamTestCase {
         THEN("user is scrolled up to the quoted message") {
             userRobot
                 .assertScrollToBottomButton(isVisible: true)
-                .assertFirstMessageIsVisible("1")
+                .assertMessageIsVisible(at: firstParticipantsMessageIndex)
         }
     }
 
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_Message() {
         linkToScenario(withId: 1702)
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
@@ -139,6 +151,8 @@ final class QuotedReply_Tests: StreamTestCase {
 
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_File() {
         linkToScenario(withId: 1703)
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
@@ -165,6 +179,8 @@ final class QuotedReply_Tests: StreamTestCase {
 
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_Giphy() {
         linkToScenario(withId: 1704)
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
@@ -281,7 +297,11 @@ final class QuotedReply_Tests: StreamTestCase {
         WHEN("user adds a quoted reply to participant message") {
             userRobot
                 .scrollMessageListUp(times: 3)
-                .quoteMessage(replyText, messageCellIndex: messageCount - 1)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 2
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex)
         }
         AND("user quotes a message with invalid command") {
             userRobot.quoteMessage("/\(invalidCommand)", messageCellIndex: 0, waitForAppearance: false)
@@ -302,8 +322,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyInList_whenUserAddsQuotedReply_InThread() {
         linkToScenario(withId: 9857)
 
-        let messageCount = 10
-        let replyToMessageIndex = messageCount - 1
+        let messageCount = 9
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -317,8 +336,12 @@ final class QuotedReply_Tests: StreamTestCase {
         WHEN("user adds a quoted reply to participant message in thread") {
             userRobot
                 .openThread()
-                .scrollMessageListUp(times: 2)
-                .quoteMessage(replyText, messageCellIndex: replyToMessageIndex, waitForAppearance: false)
+                .scrollMessageListUp(times: 1)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 3
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex, waitForAppearance: false)
         }
         THEN("user observes the quote reply in thread") {
             userRobot
@@ -331,7 +354,7 @@ final class QuotedReply_Tests: StreamTestCase {
         THEN("user is scrolled up to the quoted message") {
             userRobot
                 .assertScrollToBottomButton(isVisible: true)
-                .assertMessageIsVisible(at: replyToMessageIndex)
+                .assertMessageIsVisible(at: firstParticipantsMessageIndex)
         }
     }
 
@@ -341,6 +364,7 @@ final class QuotedReply_Tests: StreamTestCase {
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
 
         let messageCount = 25
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -364,9 +388,10 @@ final class QuotedReply_Tests: StreamTestCase {
             userRobot.tapOnQuotedMessage(quotedText, at: 0)
         }
         THEN("user is scrolled up to the quoted message") {
+            let firstMessageIndex = MessageListPage.cells.count - 1
             userRobot
-                .assertMessage(quotedText, at: messageCount)
-                .assertMessageIsVisible(at: messageCount)
+                .assertMessage(quotedText, at: firstMessageIndex)
+                .assertMessageIsVisible(at: firstMessageIndex)
                 .assertScrollToBottomButton(isVisible: true)
         }
     }
@@ -375,8 +400,6 @@ final class QuotedReply_Tests: StreamTestCase {
         linkToScenario(withId: 9859)
         
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
-
-        let replyToMessageIndex = messageCount - 1
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -391,7 +414,11 @@ final class QuotedReply_Tests: StreamTestCase {
             userRobot
                 .openThread()
                 .scrollMessageListUp(times: 3)
-                .quoteMessage(replyText, messageCellIndex: replyToMessageIndex, waitForAppearance: false)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 3
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex, waitForAppearance: false)
                 .waitForMessageVisibility(at: 0)
         }
         THEN("user observes the quote reply") {
@@ -404,8 +431,8 @@ final class QuotedReply_Tests: StreamTestCase {
         }
         THEN("user is scrolled up to the quoted message") {
             userRobot
-                .assertMessage(quotedText, at: messageCount)
-                .assertMessageIsVisible(at: messageCount)
+                .assertMessage(quotedText, at: firstParticipantsMessageIndex)
+                .assertMessageIsVisible(at: firstParticipantsMessageIndex)
                 .assertScrollToBottomButton(isVisible: true)
         }
     }
@@ -414,6 +441,8 @@ final class QuotedReply_Tests: StreamTestCase {
         linkToScenario(withId: 9860)
         
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -437,9 +466,10 @@ final class QuotedReply_Tests: StreamTestCase {
             userRobot.tapOnQuotedMessage(quotedText, at: 0)
         }
         THEN("user is scrolled up to the quoted message") {
+            let firstMessageIndex = MessageListPage.cells.count - 1
             userRobot
-                .assertMessage(quotedText, at: pageSize)
-                .assertMessageIsVisible(at: pageSize)
+                .assertMessage(quotedText, at: firstMessageIndex)
+                .assertMessageIsVisible(at: firstMessageIndex)
                 .assertScrollToBottomButton(isVisible: true)
         }
     }
@@ -448,6 +478,8 @@ final class QuotedReply_Tests: StreamTestCase {
         linkToScenario(withId: 9861)
         
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -473,7 +505,7 @@ final class QuotedReply_Tests: StreamTestCase {
         }
         THEN("user is scrolled up to the quoted message") {
             userRobot
-                .assertFirstMessageIsVisible("1")
+                .assertFirstMessageIsVisible(quotedText)
                 .assertScrollToBottomButton(isVisible: true)
         }
     }
@@ -483,6 +515,8 @@ final class QuotedReply_Tests: StreamTestCase {
         linkToScenario(withId: 9862)
         
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        
+        let quotedText = "1"
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -507,9 +541,10 @@ final class QuotedReply_Tests: StreamTestCase {
             userRobot.tapOnQuotedMessage(quotedText, at: 0)
         }
         THEN("user is scrolled up to the quoted message") {
+            let firstMessageIndex = MessageListPage.cells.count - 1
             userRobot
                 .assertScrollToBottomButton(isVisible: true, timeout: 15)
-                .assertMessageIsVisible(at: pageSize)
+                .assertMessageIsVisible(at: firstMessageIndex)
         }
     }
 
@@ -519,7 +554,6 @@ final class QuotedReply_Tests: StreamTestCase {
         throw XCTSkip("https://linear.app/stream/issue/IOS-479")
 
         let invalidCommand = "invalid command"
-        let replyToMessageIndex = messageCount - 1
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -534,7 +568,11 @@ final class QuotedReply_Tests: StreamTestCase {
             userRobot
                 .openThread()
                 .scrollMessageListUp(times: 3)
-                .quoteMessage(replyText, messageCellIndex: replyToMessageIndex, waitForAppearance: false)
+            
+            firstParticipantsMessageIndex = MessageListPage.cells.count - 3
+            
+            userRobot
+                .quoteMessage(replyText, messageCellIndex: firstParticipantsMessageIndex, waitForAppearance: false)
         }
         AND("user quotes a message with invalid command") {
             userRobot.quoteMessage("/\(invalidCommand)", messageCellIndex: 0, waitForAppearance: false)

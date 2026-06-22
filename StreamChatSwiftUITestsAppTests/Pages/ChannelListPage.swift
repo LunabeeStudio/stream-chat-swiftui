@@ -39,28 +39,27 @@ enum ChannelListPage {
         }
 
         static func lastMessage(in cell: XCUIElement) -> XCUIElement {
-            cell.staticTexts["subtitleView"]
+            cell.staticTexts["previewView"]
         }
 
         static func lastMessageText(in cell: XCUIElement) -> String {
-            let subtitleElements = cell.staticTexts.matching(identifier: "subtitleView")
-            _ = subtitleElements.firstMatch.wait()
+            let previewElements = cell.staticTexts.matching(identifier: "previewView")
+            _ = previewElements.firstMatch.wait()
             var combinedText = ""
-            for i in 0..<subtitleElements.count {
-                let element = subtitleElements.element(boundBy: i)
+            for i in 0..<previewElements.count {
+                let element = previewElements.element(boundBy: i)
                 if element.exists {
-                    combinedText += " \(element.label)"
+                    combinedText += element.label
                 }
             }
             return combinedText
+                .components(separatedBy: .whitespaces)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
         }
 
         static func avatar(in cell: XCUIElement) -> XCUIElement {
-            cell.images["ChannelAvatarView"].firstMatch
-        }
-
-        static func readCount(in cell: XCUIElement) -> XCUIElement {
-            cell.staticTexts["UnreadIndicatorView"]
+            cell.images["ChannelAvatar"].firstMatch
         }
 
         static func statusCheckmark(

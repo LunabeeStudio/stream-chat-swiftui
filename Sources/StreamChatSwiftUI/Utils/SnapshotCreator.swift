@@ -5,7 +5,7 @@
 import SwiftUI
 
 /// Helper for creating snapshot from SwiftUI Views.
-public protocol SnapshotCreator {
+@MainActor public protocol SnapshotCreator {
     /// Creates a snapshot of the provided SwiftUI view.
     ///  - Parameter view: the view whose snapshot would be created.
     ///  - Returns: `UIImage` representing the snapshot of the view.
@@ -20,12 +20,12 @@ public class DefaultSnapshotCreator: SnapshotCreator {
 
     public func makeSnapshot(for view: AnyView) -> UIImage {
         guard let uiView: UIView = topVC()?.view else {
-            return images.snapshot
+            return images.imagePlaceholder
         }
         return makeSnapshot(from: uiView)
     }
 
-    func makeSnapshot(from view: UIView) -> UIImage {
+    @MainActor func makeSnapshot(from view: UIView) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: view.bounds.size)
         return renderer.image { _ in
             view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)

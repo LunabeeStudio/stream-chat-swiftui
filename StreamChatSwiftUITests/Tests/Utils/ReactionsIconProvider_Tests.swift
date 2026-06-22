@@ -8,7 +8,7 @@ import Foundation
 import SwiftUI
 import XCTest
 
-final class ReactionsIconProvider_Tests: StreamChatTestCase {
+@MainActor final class ReactionsIconProvider_Tests: StreamChatTestCase {
     @Injected(\.colors) var colors
     
     func test_reactionsIconProvider_largeIcon() {
@@ -47,22 +47,22 @@ final class ReactionsIconProvider_Tests: StreamChatTestCase {
     func test_reactionsIconProvider_currentUserColor() {
         // Given
         let reaction = MessageReactionType(rawValue: "like")
-        
+
         // When
         let color = ReactionsIconProvider.color(for: reaction, userReactionIDs: [reaction])
-        
+
         // Then
-        XCTAssert(color == Color(colors.reactionCurrentUserColor!))
+        XCTAssert(color == Color(colors.backgroundUtilitySelected))
     }
-    
+
     func test_reactionsIconProvider_otherUserColor() {
         // Given
         let reaction = MessageReactionType(rawValue: "like")
-        
+
         // When
         let color = ReactionsIconProvider.color(for: reaction, userReactionIDs: [])
-        
+
         // Then
-        XCTAssert(color == Color(colors.reactionOtherUserColor!))
+        XCTAssert(color == Color(colors.backgroundUtilitySelected))
     }
 }

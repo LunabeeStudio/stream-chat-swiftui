@@ -6,10 +6,12 @@ import StreamChat
 import SwiftUI
 
 /// Default view for the channel more actions view.
-public struct MoreChannelActionsView: View {
+public struct MoreChannelActionsView<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
     @Injected(\.images) private var images
     @Injected(\.fonts) private var fonts
+    @Injected(\.tokens) private var tokens
+    @Injected(\.chatClient) private var chatClient
 
     @StateObject var viewModel: MoreChannelActionsViewModel
     @Binding var swipedChannelId: String?
@@ -23,7 +25,11 @@ public struct MoreChannelActionsView: View {
         }
     }
 
+    private let channel: ChatChannel
+    public let factory: Factory
+
     public init(
+        factory: Factory,
         channel: ChatChannel,
         channelActions: [ChannelAction],
         swipedChannelId: Binding<String?>,
@@ -36,67 +42,22 @@ public struct MoreChannelActionsView: View {
                 actions: channelActions
             )
         )
+        self.factory = factory
+        self.channel = channel
         self.onDismiss = onDismiss
         _swipedChannelId = swipedChannelId
         self.bundle = bundle
     }
 
     public var body: some View {
-        VStack {
-            Spacer()
-            VStack(spacing: 4) {
-                Text(viewModel.chatName)
-                    .font(fonts.bodyBold)
-
-                Text(viewModel.subtitleText)
-                    .font(fonts.footnote)
-                    .foregroundColor(Color(colors.textLowEmphasis))
-
-                memberList
-
-                ForEach(viewModel.channelActions) { action in
-                    VStack {
-                        Divider()
-                            .padding(.horizontal, -16)
-
-                        if let destination = action.navigationDestination {
-                            Button {
-                                presentedView = destination
-                            } label: {
-                                ActionItemView(
-                                    title: action.title,
-                                    iconName: action.iconName,
-                                    isDestructive: action.isDestructive,
-                                    bundle: bundle
-                                )
-                            }
-                        } else {
-                            Button {
-                                if action.confirmationPopup != nil {
-                                    viewModel.alertAction = action
-                                } else {
-                                    action.action()
-                                }
-                            } label: {
-                                ActionItemView(
-                                    title: action.title,
-                                    iconName: action.iconName,
-                                    isDestructive: action.isDestructive,
-                                    bundle: bundle
-                                )
-                            }
-                        }
-                    }
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                channelHeader
+                actionsListView
+                Spacer()
             }
-            .padding()
-            .background(Color(colors.background1))
-            .cornerRadius(16)
-            .padding(.all, 8)
-            .padding(.bottom, bottomSafeArea)
-            .foregroundColor(Color(colors.text))
-            .opacity(viewModel.alertShown ? 0 : 1)
         }
+        .background(colors.backgroundCoreElevation1.toColor.edgesIgnoringSafeArea(.all))
         .alert(isPresented: $viewModel.alertShown) {
             let title = viewModel.alertAction?.confirmationPopup?.title ?? ""
             let message = viewModel.alertAction?.confirmationPopup?.message ?? ""
@@ -111,10 +72,6 @@ public struct MoreChannelActionsView: View {
                 secondaryButton: .cancel()
             )
         }
-        .background(Color.black.opacity(0.3))
-        .onTapGesture {
-            onDismiss()
-        }
         .fullScreenCover(isPresented: $isPresented) {
             if let fullScreenView = presentedView {
                 MoreChannelActionsFullScreenWrappingView(presentedView: fullScreenView) {
@@ -125,58 +82,89 @@ public struct MoreChannelActionsView: View {
         .accessibilityIdentifier("MoreChannelActionsView")
     }
 
-    private var memberList: some View {
-        Group {
-            if viewModel.members.count == 1 {
-                let member = viewModel.members[0]
-                ChannelMemberView(
-                    avatar: viewModel.image(for: member),
-                    name: member.name ?? member.id,
-                    onlineIndicatorShown: member.isOnline
+    private var channelHeader: some View {
+        HStack(spacing: tokens.spacingMd) {
+            headerAvatar
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: tokens.spacingXxxs) {
+                Text(viewModel.chatName)
+                    .font(fonts.headline)
+                    .foregroundColor(Color(colors.textPrimary))
+
+                if !viewModel.subtitleText.isEmpty {
+                    Text(viewModel.subtitleText)
+                        .font(fonts.subheadline)
+                        .foregroundColor(Color(colors.textTertiary))
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, tokens.spacingMd)
+        .padding(.vertical, tokens.spacingLg)
+        .padding(.top, tokens.spacingXxs)
+    }
+
+    @ViewBuilder
+    private var headerAvatar: some View {
+        if channel.isDirectMessageChannel,
+           let otherMember = viewModel.members.first(where: { $0.id != chatClient.currentUserId }) {
+            factory.makeUserAvatarView(
+                options: UserAvatarViewOptions(
+                    user: otherMember,
+                    size: AvatarSize.large,
+                    showsIndicator: otherMember.isOnline
                 )
-            } else {
-                ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 16) {
-                        ForEach(viewModel.members) { member in
-                            ChannelMemberView(
-                                avatar: viewModel.image(for: member),
-                                name: member.name ?? member.id,
-                                onlineIndicatorShown: member.isOnline
-                            )
+            )
+        } else {
+            factory.makeChannelAvatarView(
+                options: ChannelAvatarViewOptions(
+                    channel: channel,
+                    size: AvatarSize.large,
+                    showsIndicator: false,
+                    showsBorder: false
+                )
+            )
+        }
+    }
+
+    private var actionsListView: some View {
+        VStack(spacing: 0) {
+            ForEach(viewModel.channelActions) { action in
+                if let destination = action.navigationDestination {
+                    Button {
+                        presentedView = destination
+                    } label: {
+                        ActionItemView(
+                            title: action.title,
+                            iconName: action.iconName,
+                            isDestructive: action.isDestructive,
+                            boldTitle: false,
+                            bundle: bundle
+                        )
+                        .padding(.horizontal, tokens.spacingMd)
+                    }
+                } else {
+                    Button {
+                        if action.confirmationPopup != nil {
+                            viewModel.alertAction = action
+                        } else {
+                            action.action()
                         }
+                    } label: {
+                        ActionItemView(
+                            title: action.title,
+                            iconName: action.iconName,
+                            isDestructive: action.isDestructive,
+                            boldTitle: false,
+                            bundle: bundle
+                        )
+                        .padding(.horizontal, tokens.spacingMd)
                     }
                 }
             }
         }
-        .padding(.vertical, 16)
-    }
-}
-
-/// View displaying channel members with image and name.
-public struct ChannelMemberView: View {
-    @Injected(\.fonts) private var fonts
-
-    let avatar: UIImage
-    let name: String
-    let onlineIndicatorShown: Bool
-
-    let memberSize = CGSize(width: 64, height: 64)
-
-    public var body: some View {
-        VStack(alignment: .center) {
-            ChannelAvatarView(
-                avatar: avatar,
-                showOnlineIndicator: onlineIndicatorShown,
-                size: memberSize
-            )
-            .accessibilityHidden(true)
-
-            Text(name)
-                .font(fonts.footnoteBold)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .frame(maxWidth: memberSize.width, maxHeight: 34, alignment: .top)
-                .accessibilityLabel(Text(name) + Text(onlineIndicatorShown ? ", \(L10n.Message.Title.online)" : ""))
-        }
+        .foregroundColor(Color(colors.textPrimary))
     }
 }

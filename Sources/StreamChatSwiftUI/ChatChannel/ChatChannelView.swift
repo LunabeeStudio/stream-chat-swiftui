@@ -18,7 +18,8 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     @State private var messageDisplayInfo: MessageDisplayInfo?
     @State private var keyboardShown = false
     @State private var tabBarAvailable: Bool = false
-
+    @State private var floatingComposerHeight: CGFloat
+    
     private var factory: Factory
 
     public init(
@@ -26,8 +27,10 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         viewModel: ChatChannelViewModel? = nil,
         channelController: ChatChannelController,
         messageController: ChatMessageController? = nil,
-        scrollToMessage: ChatMessage? = nil
+        scrollToMessage: ChatMessage? = nil,
+        composerPlacement: ComposerPlacement = .floating
     ) {
+        _floatingComposerHeight = State(initialValue: Self.defaultFloatingComposerHeight())
         _viewModel = StateObject(
             wrappedValue: viewModel ?? ViewModelsFactory.makeChannelViewModel(
                 with: channelController,
@@ -54,7 +57,8 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                             currentDateString: viewModel.currentDateString,
                             listId: viewModel.listId,
                             isMessageThread: viewModel.isMessageThread,
-                            shouldShowTypingIndicator: viewModel.shouldShowTypingIndicator,
+                            shouldShowTypingIndicator: viewModel.shouldShowInlineTypingIndicator,
+                            bottomInset: composerPlacement == .floating ? floatingComposerHeight - (keyboardShown ? bottomPadding : 0) : 0,
                             scrollPosition: $viewModel.scrollPosition,
                             loadingNextMessages: viewModel.loadingNextMessages,
                             firstUnreadMessageId: $viewModel.firstUnreadMessageId,
@@ -64,77 +68,82 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                                 let isBouncedAlertEnabled = utils.messageListConfig.bouncedMessagesAlertActionsEnabled
                                 if isBouncedAlertEnabled && displayInfo.message.isBounced {
                                     viewModel.showBouncedActionsView(for: displayInfo.message)
-                                } else {
+                                } else if displayInfo.showsMessageActions {
                                     messageDisplayInfo = displayInfo
                                     withAnimation {
                                         viewModel.showReactionOverlay(for: AnyView(self))
                                     }
+                                } else {
+                                    viewModel.reactionsDetailMessage = displayInfo.message
                                 }
                             },
                             onJumpToMessage: viewModel.jumpToMessage(messageId:)
                         )
+                        .edgesIgnoringSafeArea(.bottom)
                         .environment(\.highlightedMessageId, viewModel.highlightedMessageId)
                         .dismissKeyboardOnTap(enabled: true) {
                             hideComposerCommandsAndAttachmentsPicker()
                         }
                         .overlay(
                             viewModel.currentDateString != nil ?
-                                factory.makeDateIndicatorView(dateString: viewModel.currentDateString!)
+                                VStack {
+                                    factory.makeDateIndicatorView(options: DateIndicatorViewOptions(dateString: viewModel.currentDateString!))
+                                    Spacer()
+                                }
                                 : nil
                         )
                     } else {
                         ZStack {
-                            factory.makeEmptyMessagesView(for: channel, colors: colors)
+                            factory.makeEmptyMessagesView(options: EmptyMessagesViewOptions(channel: channel))
                                 .dismissKeyboardOnTap(enabled: keyboardShown) {
                                     hideComposerCommandsAndAttachmentsPicker()
                                 }
-                            if viewModel.shouldShowTypingIndicator {
-                                factory.makeTypingIndicatorBottomView(
-                                    channel: channel,
-                                    currentUserId: chatClient.currentUserId
+                            if viewModel.shouldShowInlineTypingIndicator {
+                                factory.makeInlineTypingIndicatorView(
+                                    options: TypingIndicatorViewOptions(
+                                        channel: channel,
+                                        currentUserId: chatClient.currentUserId
+                                    )
                                 )
                             }
                         }
                     }
 
                     Divider()
+                        .opacity(0)
                         .navigationBarBackButtonHidden(viewModel.reactionsShown)
                         .if(viewModel.reactionsShown, transform: { view in
-                            view.modifier(factory.makeChannelBarsVisibilityViewModifier(shouldShow: false))
+                            view.modifier(factory.makeChannelBarsVisibilityViewModifier(options: ChannelBarsVisibilityViewModifierOptions(shouldShow: false)))
                         })
                         .if(!viewModel.reactionsShown, transform: { view in
-                            view.modifier(factory.makeChannelBarsVisibilityViewModifier(shouldShow: true))
+                            view.modifier(factory.makeChannelBarsVisibilityViewModifier(options: ChannelBarsVisibilityViewModifierOptions(shouldShow: true)))
                         })
-                        .if(viewModel.channelHeaderType == .regular) { view in
-                            view.modifier(factory.makeChannelHeaderViewModifier(for: channel))
-                        }
-                        .if(viewModel.channelHeaderType == .typingIndicator) { view in
-                            view.modifier(factory.makeChannelHeaderViewModifier(for: channel))
+                        .if(viewModel.channelHeaderType != .messageThread) { view in
+                            view.modifier(factory.makeChannelHeaderViewModifier(
+                                options: ChannelHeaderViewModifierOptions(
+                                    channel: channel,
+                                    shouldShowTypingIndicator: viewModel.shouldShowNavigationBarTypingIndicator
+                                )
+                            ))
                         }
                         .if(viewModel.channelHeaderType == .messageThread) { view in
-                            view.modifier(factory.makeMessageThreadHeaderViewModifier())
+                            view.modifier(factory.makeMessageThreadHeaderViewModifier(options: MessageThreadHeaderViewModifierOptions()))
                         }
                         .animation(nil)
 
-                    factory.makeMessageComposerViewType(
-                        with: viewModel.channelController,
-                        messageController: viewModel.messageController,
-                        quotedMessage: $viewModel.quotedMessage,
-                        editedMessage: $viewModel.editedMessage,
-                        onMessageSent: {
-                            viewModel.messageSentTapped()
-                        }
-                    )
-                    .opacity((
-                        utils.messageListConfig.messagePopoverEnabled && messageDisplayInfo != nil && !viewModel
-                            .reactionsShown && viewModel.channel?.isFrozen == false
-                    ) ? 0 : 1)
+                    if composerPlacement == .docked {
+                        composerView
+                            .opacity((
+                                utils.messageListConfig.messagePopoverEnabled && messageDisplayInfo != nil && !viewModel
+                                    .reactionsShown && viewModel.channel?.isFrozen == false
+                            ) ? 0 : 1)
+                    }
 
                     NavigationLink(
                         isActive: $viewModel.threadMessageShown
                     ) {
                         if let message = viewModel.threadMessage {
-                            let threadDestination = factory.makeMessageThreadDestination()
+                            let threadDestination = factory.makeMessageThreadDestination(options: MessageThreadDestinationOptions())
                             threadDestination(channel, message)
                         } else {
                             EmptyView()
@@ -144,32 +153,52 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                     }
                     .opacity(0) // Fixes showing accessibility button shape
                 }
+                // While the reactions overlay is shown it acts as a modal: hide the
+                // chat content behind it so VoiceOver only exposes the overlay's
+                // reactions and message actions. Applied before `.overlay` so the
+                // overlay itself stays accessible.
+                .accessibilityHidden(viewModel.reactionsShown)
                 .overlay(
                     viewModel.currentSnapshot != nil && messageDisplayInfo != nil && viewModel.reactionsShown ?
                         factory.makeReactionsOverlayView(
-                            channel: channel,
-                            currentSnapshot: viewModel.currentSnapshot!,
-                            messageDisplayInfo: messageDisplayInfo!,
-                            onBackgroundTap: {
-                                viewModel.reactionsShown = false
-                                if messageDisplayInfo?.keyboardWasShown == true {
-                                    becomeFirstResponder()
+                            options: ReactionsOverlayViewOptions(
+                                channel: channel,
+                                currentSnapshot: viewModel.currentSnapshot!,
+                                messageDisplayInfo: messageDisplayInfo!,
+                                onBackgroundTap: {
+                                    viewModel.reactionsShown = false
+                                    if messageDisplayInfo?.keyboardWasShown == true {
+                                        becomeFirstResponder()
+                                    }
+                                    messageDisplayInfo = nil
+                                }, onActionExecuted: { actionInfo in
+                                    viewModel.messageActionExecuted(actionInfo)
+                                    messageDisplayInfo = nil
                                 }
-                                messageDisplayInfo = nil
-                            }, onActionExecuted: { actionInfo in
-                                viewModel.messageActionExecuted(actionInfo)
-                                messageDisplayInfo = nil
-                            }
+                            )
                         )
                         .transition(.identity)
                         .edgesIgnoringSafeArea(.all)
                         : nil
                 )
+                .modifier(FloatingComposerContainer(
+                    composerPlacement: composerPlacement,
+                    composer: {
+                        composerView
+                            .padding(.bottom, floatingComposerBottomPadding)
+                            .opacity(viewModel.reactionsShown ? 0 : 1)
+                            .accessibilityHidden(viewModel.reactionsShown)
+                    }
+                ))
             } else {
-                factory.makeChannelLoadingView()
+                factory.makeChannelLoadingView(options: ChannelLoadingViewOptions())
             }
         }
-        .navigationBarTitleDisplayMode(factory.navigationBarDisplayMode())
+        .onPreferenceChange(FloatingComposerHeightPreferenceKey.self) { value in
+            guard composerPlacement == .floating, value > 0 else { return }
+            floatingComposerHeight = value + bottomPadding
+        }
+        .navigationBarTitleDisplayMode(utils.messageListConfig.navigationBarDisplayMode)
         .onReceive(keyboardWillChangePublisher, perform: { visible in
             keyboardShown = visible
         })
@@ -190,33 +219,85 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
             messageDisplayInfo = nil
         }
         .background(
-            Color(colors.background).background(
-                TabBarAccessor { _ in
-                    self.tabBarAvailable = utils.messageListConfig.handleTabBarVisibility
-                }
-            )
-            .ignoresSafeArea(.keyboard)
-            .allowsHitTesting(false)
+            Color(factory.styles.composerPlacement == .docked ? colors.backgroundCoreElevation1 : .clear)
+                .background(
+                    TabBarAccessor { _ in
+                        tabBarAvailable = utils.messageListConfig.handleTabBarVisibility
+                    }
+                )
+                .ignoresSafeArea(.all)
+                .allowsHitTesting(false)
         )
-        .padding(.bottom, keyboardShown || !tabBarAvailable || generatingSnapshot ? 0 : bottomPadding)
+        .padding(.bottom, contentBottomPadding)
         .ignoresSafeArea(.container, edges: tabBarAvailable ? .bottom : [])
         .alertBanner(isPresented: $viewModel.showAlertBanner)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ChatChannelView")
-        .modifier(factory.makeBouncedMessageActionsModifier(viewModel: viewModel))
-        .accentColor(colors.tintColor)
+        .modifier(factory.styles.makeBouncedMessageActionsModifier(viewModel: viewModel))
+        .accentColor(Color(colors.accentPrimary))
+        .sheet(item: $viewModel.reactionsDetailMessage) { message in
+            factory.makeReactionsDetailView(
+                options: ReactionsDetailViewOptions(message: message)
+            )
+            .modifier(PresentationDetentsModifier(sheetSizes: [.medium, .large]))
+        }
+    }
+    
+    private var composerView: some View {
+        factory.makeMessageComposerViewType(
+            options: MessageComposerViewTypeOptions(
+                channelController: viewModel.channelController,
+                messageController: viewModel.messageController,
+                quotedMessage: $viewModel.quotedMessage,
+                editedMessage: $viewModel.editedMessage,
+                willSendMessage: {
+                    viewModel.messageSentTapped()
+                }
+            )
+        )
+    }
+    
+    private var composerPlacement: ComposerPlacement {
+        factory.styles.composerPlacement
     }
 
     private var generatingSnapshot: Bool {
         if #available(iOS 26, *) {
-            return false
+            false
         } else {
-            return tabBarAvailable && messageDisplayInfo != nil && !viewModel.reactionsShown
+            tabBarAvailable && messageDisplayInfo != nil && !viewModel.reactionsShown
         }
     }
 
     private var bottomPadding: CGFloat {
-        let bottomPadding = topVC()?.view.safeAreaInsets.bottom ?? 0
+        topVC()?.view.safeAreaInsets.bottom ?? 0
+    }
+
+    /// Whether bottom safe-area compensation is needed.
+    /// When the tab bar is visible the bottom safe area is ignored,
+    /// so we must add padding manually — unless the keyboard already provides it.
+    private var needsBottomSafeAreaPadding: Bool {
+        !keyboardShown && tabBarAvailable
+    }
+
+    /// Whether the floating composer should own the bottom safe-area padding
+    /// instead of the main content. This happens in threads and during
+    /// pre-iOS 26 snapshot generation, where the content skips its own padding.
+    private var floatingComposerOwnsBottomPadding: Bool {
+        composerPlacement == .floating && (viewModel.isMessageThread || generatingSnapshot)
+    }
+
+    /// Bottom padding for the main content area.
+    private var contentBottomPadding: CGFloat {
+        guard needsBottomSafeAreaPadding, !generatingSnapshot else { return 0 }
+        return floatingComposerOwnsBottomPadding ? 0 : bottomPadding
+    }
+
+    /// Bottom padding for the floating composer overlay.
+    /// In threads and during snapshot generation, the main content skips
+    /// its bottom padding, so the floating composer compensates.
+    private var floatingComposerBottomPadding: CGFloat {
+        guard needsBottomSafeAreaPadding, floatingComposerOwnsBottomPadding else { return 0 }
         return bottomPadding
     }
 
@@ -227,5 +308,45 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         NotificationCenter.default.post(
             name: .commandsOverlayHiddenNotification, object: nil
         )
+    }
+}
+
+public enum ComposerPlacement {
+    case docked
+    case floating
+}
+
+private extension ChatChannelView {
+    static func defaultFloatingComposerHeight() -> CGFloat {
+        let utils = InjectedValues[\.utils]
+        let baseHeight = utils.composerConfig.inputViewMinHeight
+        let spacing: CGFloat = 60
+        return baseHeight + spacing
+    }
+}
+
+private struct FloatingComposerContainer<Composer: View>: ViewModifier {
+    let composerPlacement: ComposerPlacement
+    let composer: () -> Composer
+
+    func body(content: Content) -> some View {
+        if composerPlacement == .docked {
+            content
+        } else {
+            if #available(iOS 15.0, *) {
+                content
+                    .overlay(alignment: .bottom) {
+                        composer()
+                    }
+            } else {
+                content
+                    .overlay(
+                        VStack {
+                            Spacer()
+                            composer()
+                        }
+                    )
+            }
+        }
     }
 }

@@ -11,126 +11,56 @@ import SwiftUI
 import XCTest
 
 class FileAttachmentView_Tests: StreamChatTestCase {
-    func test_fileAttachmentView_downloadButton() {
-        // Given
-        let utils = Utils(
-            messageListConfig: MessageListConfig(downloadFileAttachmentsEnabled: true)
-        )
-        streamChat = StreamChat(chatClient: chatClient, utils: utils)
-        
-        let attachment = createFileAttachment(downloadingState: nil, uploadingState: nil)
+    // MARK: - Upload States
 
-        // When
+    func test_fileAttachmentView_uploadingProgress_snapshot() {
+        let uploadingState = AttachmentUploadingState(
+            localFileURL: ChatChannelTestHelpers.testURL,
+            state: .uploading(progress: 0.5),
+            file: AttachmentFile(type: .pdf, size: 1024, mimeType: "application/pdf")
+        )
+        let attachment = createFileAttachment(downloadingState: nil, uploadingState: uploadingState)
         let view = FileAttachmentView(
             attachment: attachment,
             width: 300,
             isFirst: true
         )
         .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles)
     }
-    
-    func test_fileAttachmentView_downloadingState() {
-        // Given
-        let utils = Utils(
-            messageListConfig: MessageListConfig(downloadFileAttachmentsEnabled: true)
-        )
-        streamChat = StreamChat(chatClient: chatClient, utils: utils)
-        
-        let downloadingState = AttachmentDownloadingState(
-            localFileURL: nil,
-            state: .downloading(progress: 0.5),
-            file: nil
-        )
-        let attachment = createFileAttachment(downloadingState: downloadingState, uploadingState: nil)
 
-        // When
+    func test_fileAttachmentView_uploadingFailed_snapshot() {
+        let uploadingState = AttachmentUploadingState(
+            localFileURL: ChatChannelTestHelpers.testURL,
+            state: .uploadingFailed,
+            file: AttachmentFile(type: .pdf, size: 1024, mimeType: "application/pdf")
+        )
+        let attachment = createFileAttachment(downloadingState: nil, uploadingState: uploadingState)
         let view = FileAttachmentView(
             attachment: attachment,
             width: 300,
             isFirst: true
         )
         .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles)
     }
-    
-    func test_fileAttachmentView_downloadedState() {
-        // Given
-        let utils = Utils(
-            messageListConfig: MessageListConfig(downloadFileAttachmentsEnabled: true)
-        )
-        streamChat = StreamChat(chatClient: chatClient, utils: utils)
-        
-        let downloadingState = AttachmentDownloadingState(
-            localFileURL: URL(string: "file:///tmp/test.pdf")!,
-            state: .downloaded,
-            file: nil
-        )
-        let attachment = createFileAttachment(downloadingState: downloadingState, uploadingState: nil)
 
-        // When
+    func test_fileAttachmentView_uploaded_snapshot() {
+        let uploadingState = AttachmentUploadingState(
+            localFileURL: ChatChannelTestHelpers.testURL,
+            state: .uploaded,
+            file: AttachmentFile(type: .pdf, size: 1024, mimeType: "application/pdf")
+        )
+        let attachment = createFileAttachment(downloadingState: nil, uploadingState: uploadingState)
         let view = FileAttachmentView(
             attachment: attachment,
             width: 300,
             isFirst: true
         )
         .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-    
-    func test_fileAttachmentView_downloadFailedState() {
-        // Given
-        let utils = Utils(
-            messageListConfig: MessageListConfig(downloadFileAttachmentsEnabled: true)
-        )
-        streamChat = StreamChat(chatClient: chatClient, utils: utils)
-        
-        let downloadingState = AttachmentDownloadingState(
-            localFileURL: nil,
-            state: .downloadingFailed,
-            file: nil
-        )
-        let attachment = createFileAttachment(downloadingState: downloadingState, uploadingState: nil)
-
-        // When
-        let view = FileAttachmentView(
-            attachment: attachment,
-            width: 300,
-            isFirst: true
-        )
-        .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles)
     }
 
-    func test_fileAttachmentView_downloadDisabled() {
-        // Given
-        let utils = Utils(
-            messageListConfig: MessageListConfig(downloadFileAttachmentsEnabled: false)
-        )
-        streamChat = StreamChat(chatClient: chatClient, utils: utils)
-        
-        let attachment = createFileAttachment(downloadingState: nil, uploadingState: nil)
-
-        // When
-        let view = FileAttachmentView(
-            attachment: attachment,
-            width: 300,
-            isFirst: true
-        )
-        .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-    
     // MARK: - Helper Methods
     
     private func createFileAttachment(

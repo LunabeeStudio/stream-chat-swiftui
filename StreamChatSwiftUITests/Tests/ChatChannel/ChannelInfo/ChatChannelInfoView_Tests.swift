@@ -9,7 +9,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class ChatChannelInfoView_Tests: StreamChatTestCase {
+@MainActor class ChatChannelInfoView_Tests: StreamChatTestCase {
     func test_chatChannelInfoView_navigationBarAppearance() {
         // Given
         setThemedNavigationBarAppearance()
@@ -32,7 +32,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
         }.applyDefaultSize()
         
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_rtlSnapshot() {
@@ -78,7 +78,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_directChannelOnlineSnapshot() {
@@ -99,13 +99,13 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_directChannelMoreMembersSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
-            count: 4,
+            count: 3,
             currentUserId: chatClient.currentUserId!
         )
         let channel = ChatChannel.mockDMChannel(
@@ -119,7 +119,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_directChannelMutedSnapshot() {
@@ -140,7 +140,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_groupCollapsedSnapshot() {
@@ -163,7 +163,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_smallGroupSnapshot() {
@@ -186,7 +186,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_smallGroupDeactivatedSnapshot() {
@@ -210,7 +210,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_groupExpandedSnapshot() {
@@ -235,7 +235,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_groupCollapsedDeactivatedSnapshot() {
@@ -260,7 +260,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_groupCollapsedLargeDeactivatedSnapshot() {
@@ -285,7 +285,7 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
 
     func test_chatChannelInfoView_navBarSnapshot() {
@@ -339,13 +339,13 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_participantSelectedBasicActionsSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
-            count: 4,
+            count: 3,
             currentUserId: chatClient.currentUserId!,
             onlineUserIndexes: [0, 1]
         )
@@ -365,13 +365,13 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_participantSelectedWithMuteActionsSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
-            count: 4,
+            count: 3,
             currentUserId: chatClient.currentUserId!,
             onlineUserIndexes: [0, 1]
         )
@@ -393,13 +393,13 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_participantSelectedWithRemoveActionSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
-            count: 4,
+            count: 3,
             currentUserId: chatClient.currentUserId!,
             onlineUserIndexes: [0, 1]
         )
@@ -419,13 +419,13 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
     }
     
     func test_chatChannelInfoView_participantSelectedOfflineUserSnapshot() {
         // Given
         let members = ChannelInfoMockUtils.setupMockMembers(
-            count: 4,
+            count: 3,
             currentUserId: chatClient.currentUserId!,
             onlineUserIndexes: [0] // Only current user is online
         )
@@ -445,6 +445,76 @@ class ChatChannelInfoView_Tests: StreamChatTestCase {
             .applyDefaultSize()
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view)
+    }
+
+    func test_chatChannelInfoView_smallGroupWithLeaveButtonSnapshot() {
+        // Given - a small group (≤5 members) with leaveChannel capability shows the leave button
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 3,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0]
+        )
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Small Group",
+            ownCapabilities: [.leaveChannel, .updateChannel, .muteChannel],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+
+        // When
+        let view = ChatChannelInfoView(channel: group)
+            .applyDefaultSize()
+
+        // Then
+        AssertSnapshot(view)
+    }
+
+    func test_chatChannelInfoView_currentUserRowTappableSnapshot() {
+        // Given - current user (shown as "You") is visible and tappable in the member list
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 3,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0]
+        )
+        let group = ChatChannel.mock(
+            cid: .unique,
+            name: "Test Group",
+            ownCapabilities: [.leaveChannel, .updateChannelMembers, .muteChannel],
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+        let viewModel = ChatChannelInfoViewModel(channel: group)
+        // Current user is at index 0
+        viewModel.selectedParticipant = viewModel.displayedParticipants[0]
+
+        // When
+        let view = ChatChannelInfoView(viewModel: viewModel)
+            .applyDefaultSize()
+
+        // Then - current user row is tappable and shows leave group action
+        AssertSnapshot(view)
+    }
+
+    func test_chatChannelInfoView_multiPersonDMSnapshot() {
+        // Given - a DM channel with more than 2 members (multi-person DM)
+        let members = ChannelInfoMockUtils.setupMockMembers(
+            count: 3,
+            currentUserId: chatClient.currentUserId!,
+            onlineUserIndexes: [0, 1]
+        )
+        let channel = ChatChannel.mockDMChannel(
+            name: "Group DM",
+            lastActiveMembers: members,
+            memberCount: members.count
+        )
+
+        // When
+        let view = ChatChannelInfoView(channel: channel)
+            .applyDefaultSize()
+
+        // Then - shows group-style layout with member list, not single DM header
+        AssertSnapshot(view)
     }
 }

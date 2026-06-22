@@ -8,7 +8,7 @@
 import StreamSwiftTestHelpers
 import XCTest
 
-class MessageListViewAvatars_Tests: StreamChatTestCase {
+@MainActor class MessageListViewAvatars_Tests: StreamChatTestCase {
     override func setUp() {
         super.setUp()
         DelayedRenderingViewModifier.isEnabled = false
@@ -21,7 +21,7 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
     
     func test_messageListView_defaultDMChannel() {
         // Given
-        setupConfig(showAvatars: true, showAvatarsInGroups: nil)
+        setupConfig(showIncomingMessageAvatar: true)
         let channel = ChatChannel.mockDMChannel()
 
         // When
@@ -33,7 +33,7 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
 
     func test_messageListView_defaultGroupsChannel() {
         // Given
-        setupConfig(showAvatars: true, showAvatarsInGroups: nil)
+        setupConfig(showIncomingMessageAvatar: true)
         let channel = ChatChannel.mockNonDMChannel()
 
         // When
@@ -45,7 +45,7 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
 
     func test_messageListView_dmChannelAvatarsOff() {
         // Given
-        setupConfig(showAvatars: false, showAvatarsInGroups: nil)
+        setupConfig(showIncomingMessageAvatar: false)
         let channel = ChatChannel.mockDMChannel()
 
         // When
@@ -57,7 +57,7 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
 
     func test_messageListView_groupsChannelAvatarsOff() {
         // Given
-        setupConfig(showAvatars: true, showAvatarsInGroups: false)
+        setupConfig(showIncomingMessageAvatar: true, showAvatarsInGroups: false)
         let channel = ChatChannel.mockNonDMChannel()
 
         // When
@@ -67,9 +67,14 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
 
-    private func setupConfig(showAvatars: Bool, showAvatarsInGroups: Bool?) {
+    private func setupConfig(
+        showIncomingMessageAvatar: Bool = true,
+        showOutgoingMessageAvatar: Bool = false,
+        showAvatarsInGroups: Bool = true
+    ) {
         let messageDisplayOptions = MessageDisplayOptions(
-            showAvatars: showAvatars,
+            showIncomingMessageAvatar: showIncomingMessageAvatar,
+            showOutgoingMessageAvatar: showOutgoingMessageAvatar,
             showAvatarsInGroups: showAvatarsInGroups
         )
         let messageListConfig = MessageListConfig(messageDisplayOptions: messageDisplayOptions)
@@ -84,7 +89,7 @@ class MessageListViewAvatars_Tests: StreamChatTestCase {
             text: "Test",
             author: .mock(id: .unique)
         )]
-        let messages = LazyCachedMapCollection(source: temp, map: { $0 })
+        let messages = temp
         let messageListView = MessageListView(
             factory: DefaultViewFactory.shared,
             channel: channel,

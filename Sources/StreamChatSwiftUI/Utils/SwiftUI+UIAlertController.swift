@@ -14,7 +14,7 @@ extension View {
         message: String = "",
         text: Binding<String>,
         placeholder: String = "",
-        validation: @escaping (String) -> Bool = UIAlertControllerView.defaultActionValidation,
+        validation: @escaping (String) -> Bool = { UIAlertControllerView.defaultActionValidation($0) },
         cancel: String = L10n.Alert.Actions.cancel,
         accept: String,
         action: @escaping () -> Void
@@ -76,13 +76,13 @@ private struct UIAlertControllerView: UIViewControllerRepresentable {
                 }
             )
             let textField = alert.textFields?.first
-            alert.addAction(
-                UIAlertAction(title: accept, style: .default) { _ in
-                    text = textField?.text?.trimmed ?? ""
-                    isPresented = false
-                    action()
-                }
-            )
+            let acceptAction = UIAlertAction(title: accept, style: .default) { _ in
+                text = textField?.text?.trimmed ?? ""
+                isPresented = false
+                action()
+            }
+            alert.addAction(acceptAction)
+            alert.preferredAction = acceptAction
             DispatchQueue.main.async {
                 uiViewController.present(alert, animated: true)
             }

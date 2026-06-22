@@ -33,7 +33,7 @@ public struct CustomChannelHeader: ToolbarContent {
                     .frame(width: 24, height: 24)
                     .foregroundColor(Color(colors.navigationBarGlyph))
                     .padding(.all, 8)
-                    .background(colors.navigationBarTintColor)
+                    .background(Color(colors.navigationBarTintColor))
                     .clipShape(Circle())
             }
             .accessibilityLabel(Text("New Channel"))
@@ -42,12 +42,17 @@ public struct CustomChannelHeader: ToolbarContent {
             Button {
                 actionsPopupShown = true
             } label: {
-                StreamLazyImage(
-                    url: currentUserController.currentUser?.imageURL,
-                    size: CGSize(width: 36, height: 36)
-                )
-                .accessibilityLabel("Account Actions")
-                .accessibilityAddTraits(.isButton)
+                if let user = currentUserController.currentUser {
+                    UserAvatar(user: user, size: 36)
+                        .accessibilityLabel("Account Actions")
+                        .accessibilityAddTraits(.isButton)
+                } else {
+                    Circle()
+                        .fill(Color.gray)
+                        .frame(width: 36, height: 36)
+                        .accessibilityLabel("Account Actions")
+                        .accessibilityAddTraits(.isButton)
+                }
             }
         }
     }

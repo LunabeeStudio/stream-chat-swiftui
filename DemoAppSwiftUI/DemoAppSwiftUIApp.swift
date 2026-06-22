@@ -11,7 +11,6 @@ import SwiftUI
 struct DemoAppSwiftUIApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Injected(\.chatClient) public var chatClient: ChatClient
-    @ObservedObject private var appConfig = AppConfiguration.default
 
     @ObservedObject var appState = AppState.shared
     @ObservedObject var notificationsHandler = NotificationsHandler.shared
@@ -40,7 +39,6 @@ struct DemoAppSwiftUIApp: App {
                         .tabItem { Label("Threads", systemImage: "text.bubble") }
                         .badge(appState.unreadCount.threads)
                 }
-                .environment(\.layoutDirection, appConfig.forceRTL ? .rightToLeft : .leftToRight)
                 .id(appState.contentIdentifier)
             }
         }
@@ -73,7 +71,7 @@ struct DemoAppSwiftUIApp: App {
     }
 }
 
-class AppState: ObservableObject, CurrentChatUserControllerDelegate {
+@MainActor class AppState: ObservableObject, CurrentChatUserControllerDelegate {
     @Injected(\.chatClient) var chatClient: ChatClient
 
     // Recreate the content view when channel query changes.

@@ -5,31 +5,27 @@
 import AVKit
 import Foundation
 import StreamChat
+import StreamChatCommonUI
 
 /// Class providing implementations of several utilities used in the SDK.
 /// The default implementations can be replaced in the init method, or directly via the variables.
-public class Utils {
+@MainActor public class Utils {
     public var markdownFormatter: MarkdownFormatter
 
     public var dateFormatter: DateFormatter
     
     /// Date formatter where the format depends on the time passed.
-    ///
-    /// - SeeAlso: ``ChannelListConfig/messageRelativeDateFormatEnabled``.
-    public var messageRelativeDateFormatter: DateFormatter
-    public var galleryHeaderViewDateFormatter: DateFormatter
-    public var videoPreviewLoader: VideoPreviewLoader
-    public var imageLoader: ImageLoading
-    public var imageCDN: ImageCDN
-    public var imageProcessor: ImageProcessor
-    public var imageMerger: ImageMerging
-    public var fileCDN: FileCDN
+    public var messageTimestampFormatter: MessageTimestampFormatter
+    public var galleryHeaderViewDateFormatter: GalleryHeaderViewDateFormatter
+    public var messageDateSeparatorFormatter: MessageDateSeparatorFormatter
+    /// The object responsible for loading images, video previews, and resolving file URLs.
+    public var mediaLoader: MediaLoader
+    public var channelNameFormatter: ChannelNameFormatter
     public var avPlayerProvider: AVPlayerProvider
-    public var channelNamer: ChatChannelNamer
     public var chatUserNamer: ChatUserNamer
-    public var channelAvatarsMerger: ChannelAvatarsMerging
     public var messageTypeResolver: MessageTypeResolving
     public var messageActionsResolver: MessageActionsResolving
+    public var messageAttachmentPreviewIconProvider: MessageAttachmentPreviewIconProvider
     public var messagePreviewFormatter: MessagePreviewFormatter
     public var commandsConfig: CommandsConfig
     public var channelListConfig: ChannelListConfig
@@ -40,9 +36,10 @@ public class Utils {
     public var snapshotCreator: SnapshotCreator
     public var messageIdBuilder: MessageIdBuilder
     public var sortReactions: (MessageReactionType, MessageReactionType) -> Bool
-    public var channelHeaderLoader: ChannelHeaderLoader
     public var videoDurationFormatter: VideoDurationFormatter
+    public var mediaBadgeDurationFormatter: MediaBadgeDurationFormatter
     public var audioRecordingNameFormatter: AudioRecordingNameFormatter
+    public var messageRemindersFormatter: any MessageRemindersFormatter
     public var audioPlayerBuilder: () -> AudioPlaying = { StreamAudioPlayer() }
     public var audioPlayer: AudioPlaying {
         if let _audioPlayer {
@@ -65,65 +62,61 @@ public class Utils {
         }
     }
 
+    @MainActor
     public lazy var audioSessionFeedbackGenerator: AudioSessionFeedbackGenerator = StreamAudioSessionFeedbackGenerator()
 
     public var originalTranslationsStore = MessageOriginalTranslationsStore()
 
     var messageCachingUtils = MessageCachingUtils()
+    let channelPlaceholderAvatarUsersCache = ChannelPlaceholderAvatarUsersCache()
     var messageListDateUtils: MessageListDateUtils
     var channelControllerFactory = ChannelControllerFactory()
     
-    internal var _audioPlayer: AudioPlaying?
-    internal var _audioRecorder: AudioRecording?
-    internal var pollsDateFormatter = PollsDateFormatter()
+    var _audioPlayer: AudioPlaying?
+    var _audioRecorder: AudioRecording?
+    var linkDetector = TextLinkDetector()
+    var pollsDateFormatter: PollTimestampFormatter = DefaultPollTimestampFormatter()
 
     public init(
         markdownFormatter: MarkdownFormatter = DefaultMarkdownFormatter(),
         dateFormatter: DateFormatter = .makeDefault(),
-        messageRelativeDateFormatter: DateFormatter = MessageRelativeDateFormatter(),
-        galleryHeaderViewDateFormatter: DateFormatter = GalleryHeaderViewDateFormatter(),
-        videoPreviewLoader: VideoPreviewLoader = DefaultVideoPreviewLoader(),
-        imageLoader: ImageLoading = NukeImageLoader(),
-        imageCDN: ImageCDN = StreamImageCDN(),
-        imageProcessor: ImageProcessor = NukeImageProcessor(),
-        imageMerger: ImageMerging = DefaultImageMerger(),
-        fileCDN: FileCDN = DefaultFileCDN(),
+        messageTimestampFormatter: MessageTimestampFormatter = ChannelListMessageTimestampFormatter(),
+        galleryHeaderViewDateFormatter: GalleryHeaderViewDateFormatter = DefaultGalleryHeaderViewDateFormatter(),
+        messageDateSeparatorFormatter: MessageDateSeparatorFormatter = DefaultMessageDateSeparatorFormatter(),
+        mediaLoader: MediaLoader = StreamMediaLoader(downloader: StreamImageDownloader()),
         avPlayerProvider: AVPlayerProvider = DefaultAVPlayerProvider(),
-        channelAvatarsMerger: ChannelAvatarsMerging = ChannelAvatarsMerger(),
         messageTypeResolver: MessageTypeResolving = MessageTypeResolver(),
         messageActionResolver: MessageActionsResolving = MessageActionsResolver(),
+        messageAttachmentPreviewIconProvider: MessageAttachmentPreviewIconProvider = DefaultMessageAttachmentPreviewIconProvider(),
         messagePreviewFormatter: MessagePreviewFormatter = MessagePreviewFormatter(),
         commandsConfig: CommandsConfig = DefaultCommandsConfig(),
         channelListConfig: ChannelListConfig = ChannelListConfig(),
         messageListConfig: MessageListConfig = MessageListConfig(),
         composerConfig: ComposerConfig = ComposerConfig(),
         pollsConfig: PollsConfig = PollsConfig(),
-        channelNamer: @escaping ChatChannelNamer = DefaultChatChannelNamer(),
+        channelNameFormatter: ChannelNameFormatter = DefaultChannelNameFormatter(),
         chatUserNamer: ChatUserNamer = DefaultChatUserNamer(),
         snapshotCreator: SnapshotCreator = DefaultSnapshotCreator(),
         messageIdBuilder: MessageIdBuilder = DefaultMessageIdBuilder(),
-        channelHeaderLoader: ChannelHeaderLoader = ChannelHeaderLoader(),
         videoDurationFormatter: VideoDurationFormatter = DefaultVideoDurationFormatter(),
+        mediaBadgeDurationFormatter: MediaBadgeDurationFormatter = DefaultMediaBadgeDurationFormatter(),
         audioRecordingNameFormatter: AudioRecordingNameFormatter = DefaultAudioRecordingNameFormatter(),
+        messageRemindersFormatter: any MessageRemindersFormatter = DefaultMessageRemindersFormatter(),
         sortReactions: @escaping (MessageReactionType, MessageReactionType) -> Bool = Utils.defaultSortReactions,
         shouldSyncChannelControllerOnAppear: @escaping (ChatChannelController) -> Bool = { _ in true }
     ) {
         self.markdownFormatter = markdownFormatter
         self.dateFormatter = dateFormatter
-        self.messageRelativeDateFormatter = messageRelativeDateFormatter
+        self.messageTimestampFormatter = messageTimestampFormatter
         self.galleryHeaderViewDateFormatter = galleryHeaderViewDateFormatter
-        self.videoPreviewLoader = videoPreviewLoader
-        self.imageLoader = imageLoader
-        self.imageCDN = imageCDN
-        self.imageProcessor = imageProcessor
-        self.imageMerger = imageMerger
-        self.fileCDN = fileCDN
+        self.messageDateSeparatorFormatter = messageDateSeparatorFormatter
+        self.mediaLoader = mediaLoader
+        self.channelNameFormatter = channelNameFormatter
         self.avPlayerProvider = avPlayerProvider
-        self.channelNamer = channelNamer
         self.chatUserNamer = chatUserNamer
-        self.channelAvatarsMerger = channelAvatarsMerger
         self.messageTypeResolver = messageTypeResolver
         messageActionsResolver = messageActionResolver
+        self.messageAttachmentPreviewIconProvider = messageAttachmentPreviewIconProvider
         self.messagePreviewFormatter = messagePreviewFormatter
         self.commandsConfig = commandsConfig
         self.channelListConfig = channelListConfig
@@ -133,9 +126,10 @@ public class Utils {
         self.messageIdBuilder = messageIdBuilder
         self.shouldSyncChannelControllerOnAppear = shouldSyncChannelControllerOnAppear
         self.sortReactions = sortReactions
-        self.channelHeaderLoader = channelHeaderLoader
         self.videoDurationFormatter = videoDurationFormatter
+        self.mediaBadgeDurationFormatter = mediaBadgeDurationFormatter
         self.audioRecordingNameFormatter = audioRecordingNameFormatter
+        self.messageRemindersFormatter = messageRemindersFormatter
         self.pollsConfig = pollsConfig
         messageListDateUtils = MessageListDateUtils(messageListConfig: messageListConfig)
     }
@@ -145,32 +139,31 @@ public class Utils {
     }
 }
 
-/// Provides a custom `AVPlayer` for a given video URL.
+/// Provides a custom `AVPlayer` from a `MediaLoaderVideoAsset`.
 ///
-/// Conform to this protocol to provide a custom player configuration,
-/// such as injecting authentication headers via a custom `AVURLAsset`.
-///
-/// The URL passed to ``player(for:completion:)`` has already been resolved
-/// through ``FileCDN/adjustedURL(for:completion:)``.
+/// Conform to this protocol to provide a custom player configuration.
+/// The video asset already contains CDN headers baked into its `AVURLAsset`,
+/// resolved through ``MediaLoader/videoAsset(at:options:completion:)``.
 public protocol AVPlayerProvider {
-    /// Creates and returns an `AVPlayer` for the given video URL.
+    /// Creates and returns an `AVPlayer` from the given video asset.
     /// - Parameters:
-    ///   - url: A video URL already resolved through `FileCDN`.
+    ///   - videoAsset: A video asset already resolved through the `MediaLoader`.
     ///   - completion: A completion that is called when the player is ready or an error occurred.
     func player(
-        for url: URL,
-        completion: @escaping ((Result<AVPlayer, Error>) -> Void)
+        from videoAsset: MediaLoaderVideoAsset,
+        completion: @escaping (Result<AVPlayer, Error>) -> Void
     )
 }
 
-/// The default implementation that creates an `AVPlayer` directly from the provided URL.
+/// The default implementation that creates an `AVPlayer` from a `MediaLoaderVideoAsset`.
 public final class DefaultAVPlayerProvider: AVPlayerProvider {
     public init() {}
 
     public func player(
-        for url: URL,
-        completion: @escaping ((Result<AVPlayer, Error>) -> Void)
+        from videoAsset: MediaLoaderVideoAsset,
+        completion: @escaping (Result<AVPlayer, Error>) -> Void
     ) {
-        completion(.success(AVPlayer(url: url)))
+        let playerItem = AVPlayerItem(asset: videoAsset.asset)
+        completion(.success(AVPlayer(playerItem: playerItem)))
     }
 }

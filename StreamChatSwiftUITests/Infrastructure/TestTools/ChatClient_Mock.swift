@@ -10,10 +10,10 @@ public extension ChatClient {
     /// Create a new instance of mock `ChatClient`
     static func mock(
         isLocalStorageEnabled: Bool = false,
-        customCDNClient: CDNClient? = nil
+        customCDNStorage: CDNStorage? = nil
     ) -> ChatClient_Mock {
         var config = ChatClientConfig(apiKey: .init("--== Mock ChatClient ==--"))
-        config.customCDNClient = customCDNClient
+        config.cdnStorage = customCDNStorage
         config.isLocalStorageEnabled = isLocalStorageEnabled
         config.isClientInActiveMode = false
         config.maxAttachmentCountPerMessage = 10
@@ -22,13 +22,20 @@ public extension ChatClient {
             config: config,
             workerBuilders: [],
             environment: .init(
-                apiClientBuilder: APIClient_Spy.init,
+                apiClientBuilder: {
+                    APIClient_Spy(
+                        sessionConfiguration: $0,
+                        requestEncoder: $1,
+                        requestDecoder: $2,
+                        attachmentDownloader: $3,
+                        cdnStorage: $4
+                    )
+                },
                 webSocketClientBuilder: {
                     WebSocketClient_Mock(
                         sessionConfiguration: $0,
-                        requestEncoder: $1,
-                        eventDecoder: $2,
-                        eventNotificationCenter: $3
+                        eventDecoder: $1,
+                        eventNotificationCenter: $2
                     )
                 },
                 databaseContainerBuilder: {
@@ -38,7 +45,15 @@ public extension ChatClient {
                         chatClientConfig: $1
                     )
                 },
-                authenticationRepositoryBuilder: AuthenticationRepository_Mock.init
+                authenticationRepositoryBuilder: {
+                    AuthenticationRepository_Mock(
+                        apiClient: $0,
+                        databaseContainer: $1,
+                        connectionRepository: $2,
+                        tokenExpirationRetryStrategy: $3,
+                        timerType: $4
+                    )
+                }
             )
         )
     }

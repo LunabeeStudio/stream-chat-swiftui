@@ -10,7 +10,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class MessageListViewLastGroupHeader_Tests: StreamChatTestCase {
+@MainActor class MessageListViewLastGroupHeader_Tests: StreamChatTestCase {
     override func setUp() {
         super.setUp()
         let messageDisplayOptions = MessageDisplayOptions(
@@ -71,12 +71,13 @@ class MessageListViewLastGroupHeader_Tests: StreamChatTestCase {
 
 class CustomHeaderViewFactory: ViewFactory {
     @Injected(\.chatClient) var chatClient: ChatClient
+    var styles = LiquidGlassStyles()
 
-    func makeLastInGroupHeaderView(for message: ChatMessage) -> some View {
+    func makeLastInGroupHeaderView(options: LastInGroupHeaderViewOptions) -> some View {
         HStack {
-            MessageAuthorView(message: message)
+            MessageAuthorView(message: options.message)
             Spacer()
         }
-        .padding(.leading, CGSize.messageAvatarSize.width + 24)
+        .padding(.leading, AvatarSize.medium + 24)
     }
 }

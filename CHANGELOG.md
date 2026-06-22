@@ -5,10 +5,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### 🔄 Changed
 
-# [4.101.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.101.1)
+# [5.5.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.5.1)
 _June 11, 2026_
 
+### 🐞 Fixed
+- Keep group channel avatars stable in the channel list instead of changing as members' activity updates [#1492](https://github.com/GetStream/stream-chat-swiftui/pull/1492)
 ### 🔄 Changed
+- Improve VoiceOver support for the message reactions and actions overlay [#1491](https://github.com/GetStream/stream-chat-swiftui/pull/1491)
+### 🎭 New Localizations
+- `message.reactions.more` — VoiceOver label for the "more reactions" button in the reactions overlay
+
+# [5.5.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.5.0)
+_June 03, 2026_
+
+### ✅ Added
+- Expose `ChatChannelListItemViewModel` and reusable sub-views for the channel list item [#1482](https://github.com/GetStream/stream-chat-swiftui/pull/1482)
+- Open `ChatThreadListItemViewModel` for subclassing [#1482](https://github.com/GetStream/stream-chat-swiftui/pull/1482)
+- Allow injecting a custom channel list item view into `ChatChannelNavigatableListItem` to reuse the navigation logic [#1482](https://github.com/GetStream/stream-chat-swiftui/pull/1482)
 
 # [4.101.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.101.0)
 _June 03, 2026_
@@ -16,26 +29,165 @@ _June 03, 2026_
 ### 🐞 Fixed
 - Fix `SystemMessageView` not expanding to full width, causing misaligned text in the message list [#1474](https://github.com/GetStream/stream-chat-swiftui/pull/1474)
 
-# [4.100.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.100.1)
-_May 22, 2026_
+# [5.4.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.4.0)
+_May 28, 2026_
+
+- Add message attachment bubble customisation via `Styles.makeMessageAttachmentsViewModifier(options:)` and `Styles.makeMessageAttachmentItemViewModifier(options:)` [#1477](https://github.com/GetStream/stream-chat-swiftui/pull/1477)
+- Make `VoiceRecordingGestureOverlay` and `VoiceRecordingLockView` public [#1481](https://github.com/GetStream/stream-chat-swiftui/pull/1481)
+
+### 🐞 Fixed
+- Fix index out of range crash when loading more messages [#1476](https://github.com/GetStream/stream-chat-swiftui/pull/1476)
+- Fix `SystemMessageView` not expanding to full width, causing misaligned text in the message list [#1475](https://github.com/GetStream/stream-chat-swiftui/pull/1475)
+- Show trailing spaces in the composer text input in RTL languages [#1478](https://github.com/GetStream/stream-chat-swiftui/pull/1478)
+- Fix the voice recording slide-to-cancel label moving in the wrong direction in RTL languages [#1478](https://github.com/GetStream/stream-chat-swiftui/pull/1478)
+- Fix attachments shifting when adding attachments to the composer in RTL languages [#1478](https://github.com/GetStream/stream-chat-swiftui/pull/1478)
+
+### ⚠️ Deprecated
+- Deprecate `ViewFactory.makeVideoPlayerHeaderView(options:)` and `ViewFactory.makeVideoPlayerFooterView(options:)`, plus the `VideoPlayerHeaderViewOptions` and `VideoPlayerFooterViewOptions` types. Override `makeMediaViewer(options:)` for a custom full-screen video player, or `makeMediaViewerToolbarModifier`/`makeMediaViewerFooterView` to customize just the toolbar/bottom bar. [#1472](https://github.com/GetStream/stream-chat-swiftui/pull/1472)
+
+# [5.3.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.3.0)
+_May 21, 2026_
+
+### ✅ Added
+- Improve VoiceOver experience for the attachment picker [#1456](https://github.com/GetStream/stream-chat-swiftui/pull/1456) [#1457](https://github.com/GetStream/stream-chat-swiftui/pull/1457)
+- Improve keyboard handling in the Create Poll sheet so the `Next` return key advances between fields [#1464](https://github.com/GetStream/stream-chat-swiftui/pull/1464)
+
+### 🐞 Fixed
+- Fix RTL layout issues in the channel list swipe actions and channel preview [#1459](https://github.com/GetStream/stream-chat-swiftui/pull/1459)
+- Restore `open` access on `ChatChannelInfoViewModel` so it can be subclassed again [#1460](https://github.com/GetStream/stream-chat-swiftui/pull/1460)
+- Fix RTL layout issues across all poll views [#1462](https://github.com/GetStream/stream-chat-swiftui/pull/1462)
 
 ### 🔄 Changed
 
-# [4.100.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.100.0)
+# [5.2.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.2.0)
 _May 13, 2026_
 
-### 🔄 Changed
+### ✅ Added
+- Improve VoiceOver experience for the Create Poll sheet [#1451](https://github.com/GetStream/stream-chat-swiftui/pull/1451)
+- Make the scroll-to-bottom button reachable from VoiceOver without swiping through every message in between [#1449](https://github.com/GetStream/stream-chat-swiftui/pull/1449)
+- Improve VoiceOver experience for composer instant commands and user mentions [#1450](https://github.com/GetStream/stream-chat-swiftui/pull/1450)
+- VoiceOver now announces Giphy message bubbles with the Giphy title instead of just "Giphy" [#1448](https://github.com/GetStream/stream-chat-swiftui/pull/1448)
 
-# [4.99.2](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.2)
-_May 06, 2026_
+### 🐞 Fixed
+- Avoid marking the channel as read while the latest message is still being sent [#1452](https://github.com/GetStream/stream-chat-swiftui/pull/1452)
+
+# [5.1.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.1.1)
+_May 11, 2026_
+
+### 🐞 Fixed
+- Fix poll relative-date strings in `PollResultsView` not being correctly localized [#1445](https://github.com/GetStream/stream-chat-swiftui/pull/1445)
+- Fix custom `Appearance.localizationProvider` not applying to shared formatters [#1445](https://github.com/GetStream/stream-chat-swiftui/pull/1445)
+- Fix channel list preview showing "No messages" after a mid-page jump [#1442](https://github.com/GetStream/stream-chat-swiftui/pull/1442)
+- Avoid an extra channel-fetch request when leaving a channel [#1442](https://github.com/GetStream/stream-chat-swiftui/pull/1442)
+- Fix message list vertical scrolling not working on iOS 17 [#1441](https://github.com/GetStream/stream-chat-swiftui/pull/1441)
+- Fix tapping image attachments, quoted messages, and link previews not working on iOS 17 [#1443](https://github.com/GetStream/stream-chat-swiftui/pull/1443)
+- Fix attachment picker re-presenting after navigating back to the channel [#1434](https://github.com/GetStream/stream-chat-swiftui/pull/1434)
+- Fix voice message playback breaking after sending while previewing a recording [#1438](https://github.com/GetStream/stream-chat-swiftui/pull/1438)
+- Fix Send button briefly flashing before the mic when confirming an edit [#1438](https://github.com/GetStream/stream-chat-swiftui/pull/1438)
+- Fix gray flash on the voice recording play/pause button [#1438](https://github.com/GetStream/stream-chat-swiftui/pull/1438)
+- Fix attachments being interactive in the long-press message preview [#1438](https://github.com/GetStream/stream-chat-swiftui/pull/1438)
+- Fix image attachments flickering when adding or removing a reaction [#1439](https://github.com/GetStream/stream-chat-swiftui/pull/1439)
+
+# [5.1.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.1.0)
+_April 23, 2026_
 
 ### 🔄 Changed
+- `CDNRequester` is now passed in the constructor of `StreamMediaLoader` instead of `Utils` [#1425](https://github.com/GetStream/stream-chat-swiftui/pull/1425)
+
+### 🐞 Fixed
+- Fix voice recording gesture and "hold to record" tip firing while the mic button is hidden [#1433](https://github.com/GetStream/stream-chat-swiftui/pull/1433)
+- Fix swipe-to-reply gesture conflicting with message list scrolling [#1431](https://github.com/GetStream/stream-chat-swiftui/pull/1431)
+- Fix double grey checkmarks not showing for delivered messages in the message list [#1432](https://github.com/GetStream/stream-chat-swiftui/pull/1432)
+- Fix SDK not compiling with Xcode 16 [#1430](https://github.com/GetStream/stream-chat-swiftui/pull/1430)
+- Fix show/hide message translation animation [#1426](https://github.com/GetStream/stream-chat-swiftui/pull/1426)
+- Fix tapping a media attachment in the reactions overlay opening the fullscreen gallery [#1424](https://github.com/GetStream/stream-chat-swiftui/pull/1424)
+- Fix empty space around the previewed message in the reactions overlay not dismissing the overlay [#1424](https://github.com/GetStream/stream-chat-swiftui/pull/1424)
+- Fix long-pressing a message with attachments occasionally opening the fullscreen gallery [#1424](https://github.com/GetStream/stream-chat-swiftui/pull/1424)
+- Fix image attachments briefly showing a loading indicator when reopening a cached image [#1424](https://github.com/GetStream/stream-chat-swiftui/pull/1424)
+
+# [5.0.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.0.0)
+_April 16, 2026_
+
+### ✅ Added
+- Redesign attachment uploading progress and error state indicators [#1408](https://github.com/GetStream/stream-chat-swiftui/pull/1408)
+- Add inline upload progress and retry UI for file attachments [#1408](https://github.com/GetStream/stream-chat-swiftui/pull/1408)
+- Add `RetryBadgeView` for failed uploads and thumbnail loads [#1408](https://github.com/GetStream/stream-chat-swiftui/pull/1408)
+- Add `ComposerConfig.isVoiceRecordingAutoSendEnabled` to support sending a recording instantly on release [#1362](https://github.com/GetStream/stream-chat-swiftui/pull/1362)
+- Redesign `JumpToUnreadButton` [#1351](https://github.com/GetStream/stream-chat-swiftui/pull/1351)
+- Show deleted messages in channel list preview [#1338](https://github.com/GetStream/stream-chat-swiftui/pull/1338)
+- Update deleted message design in the message list [#1349](https://github.com/GetStream/stream-chat-swiftui/pull/1349)
+- Redesign new messages divider in the message list [#1354](https://github.com/GetStream/stream-chat-swiftui/pull/1354)
+- Redesign the thread replies divider in the message replies list [#1354](https://github.com/GetStream/stream-chat-swiftui/pull/1354)
+
+### 🐞 Fixed
+- Fix attachment downloads not using CDN requester for URL signing and custom headers [#1399](https://github.com/GetStream/stream-chat-swiftui/pull/1399)
+- Fix empty share sheet when sharing a video from the full-screen media viewer [#1418](https://github.com/GetStream/stream-chat-swiftui/pull/1418)
+- Fix swipe-to-reply icon layout for outgoing messages and RTL [#1402](https://github.com/GetStream/stream-chat-swiftui/pull/1402)
+- Fix unwanted border on the Edit button in Channel Info [#1402](https://github.com/GetStream/stream-chat-swiftui/pull/1402)
+- Fix send button icon not mirroring in RTL layouts [#1397](https://github.com/GetStream/stream-chat-swiftui/pull/1397)
+- Fix composer attachment picker prompt views layout to center all content vertically [#1397](https://github.com/GetStream/stream-chat-swiftui/pull/1397)
+- Fix poll icon inconsistency in the attachment type picker and attachment previews [#1397](https://github.com/GetStream/stream-chat-swiftui/pull/1397)
+- Fix voice recording attachment container rendering when quoting a message [#1388](https://github.com/GetStream/stream-chat-swiftui/pull/1388)
+- Fix annotation button colors in the reactions overlay [#1386](https://github.com/GetStream/stream-chat-swiftui/pull/1386)
+- Fix error indicator position and styling to match v5 design [#1383](https://github.com/GetStream/stream-chat-swiftui/pull/1383)
+- Fix scroll to bottom button not working when the message list is actively scrolling [#1380](https://github.com/GetStream/stream-chat-swiftui/pull/1380)
+- Fix timestamp snapping back faster than delivery indicator on swipe-to-reply [#1360](https://github.com/GetStream/stream-chat-swiftui/pull/1360)
+- Fix tapping a non-first media attachment always opening the first item on initial tap [#1359](https://github.com/GetStream/stream-chat-swiftui/pull/1359)
+- Pinned message label now shows "Pinned by you" when the current user pinned the message [#1329](https://github.com/GetStream/stream-chat-swiftui/pull/1329)
+- Fix single media attachment without sharp tail corner when no caption [#1330](https://github.com/GetStream/stream-chat-swiftui/pull/1330)
+- Fix editing a voice message removing the voice recording attachment [#1327](https://github.com/GetStream/stream-chat-swiftui/pull/1327)
+- Fix hold-and-release mic gesture not sending the voice message immediately [#1327](https://github.com/GetStream/stream-chat-swiftui/pull/1327)
+- Fix voice message playback state and waveform slider updates [#1327](https://github.com/GetStream/stream-chat-swiftui/pull/1327)
+- Fix split view navigation on iPad [#1320](https://github.com/GetStream/stream-chat-swiftui/pull/1320)
+- Fix rendering 1:1 direct message avatars and presence indicators [#1332](https://github.com/GetStream/stream-chat-swiftui/pull/1332)
+- Fix giphy previews in the channel list and quote replies [#1333](https://github.com/GetStream/stream-chat-swiftui/pull/1333)
+- Fix black borders on image preview in composer when editing or quoting a message [#1334](https://github.com/GetStream/stream-chat-swiftui/pull/1334)
+- Fix quoted image preview not updating when switching to a different quoted message [#1334](https://github.com/GetStream/stream-chat-swiftui/pull/1334)
+- Use fixed width for attachment previews [#1335](https://github.com/GetStream/stream-chat-swiftui/pull/1335)
+- Fix showing bubble for quoted message and file or image attachment [#1335](https://github.com/GetStream/stream-chat-swiftui/pull/1335)
+- Fix scaling of giphy attachments [#1335](https://github.com/GetStream/stream-chat-swiftui/pull/1335)
+- Fix spacings in message annotations [#1403](https://github.com/GetStream/stream-chat-swiftui/pull/1403)
+
+### 🔄 Changed
+- Rename `AddUsersView`/`AddUsersViewModel` to `MemberAddView`/`MemberAddViewModel` [#1402](https://github.com/GetStream/stream-chat-swiftui/pull/1402)
+- Unify Channel Info navigation headers styling [#1402](https://github.com/GetStream/stream-chat-swiftui/pull/1402)
+- Renamed the `onMessageSent` callback to `willSendMessage` in `MessageComposerViewModel`, `ViewModelsFactory`, and `ComposerViewFactoryOptions` [#1327](https://github.com/GetStream/stream-chat-swiftui/pull/1327)
+- Remove `InjectedChannelInfo` from `ChatChannelListItemView` [#1338](https://github.com/GetStream/stream-chat-swiftui/pull/1338)
+- Rename empty state views from `No` prefix to `Empty` prefix [#1345](https://github.com/GetStream/stream-chat-swiftui/pull/1345)
+- Migrate all the old color tokens to new color tokens [#1350](https://github.com/GetStream/stream-chat-swiftui/pull/1350)
+- Replace `LinkDetectionTextView` with `StreamTextView` that uses `ChatMessage.attributedTextContent(layoutDirection:translationLanguage:)` [#1411](https://github.com/GetStream/stream-chat-swiftui/pull/1411)
 
 # [4.99.1](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.1)
 _April 01, 2026_
 
 ### 🐞 Fixed
 - Fix pause button size in voice recording view [#1344](https://github.com/GetStream/stream-chat-swiftui/pull/1344)
+
+# [5.0.0-beta](https://github.com/GetStream/stream-chat-swiftui/releases/tag/5.0.0-beta)
+_March 23, 2026_
+
+This is our first beta V5 release. For more detailed overview of the changes, please check our [migration guide](https://getstream.io/chat/docs/sdk/ios/v5/guides/migrating-from-4-to-5/).
+
+### ✅ Added
+- Added a new v5 design system with tokens, colors, fonts and images exposed through `InjectedValues` and `Appearance`.
+- Added a redesigned `ChatComposer` experience with a new layout and 2 different modes (docked and floating).
+- Added a redesigned reactions experience with refreshed overlays, more reactions UI and a new reactions detail view.
+- Added a new avatar system with `ChannelAvatar`, `UserAvatar`, `AvatarStack`, avatar badges and stacked placeholders.
+- Added a dedicated voice recording composer flow with lock/gesture handling and redesigned voice recording attachments.
+- Introduced a `Styles` protocol for easier customization of the UI components.
+- Redesigned all the UI components with the new design system.
+
+### 🔄 Changed
+- All the `ViewFactory` methods now take a single options object instead of many individual parameters
+- Changed the package to Swift 6 / `swift-tools-version: 6.0` and enabled the v5 codebase to work with complete concurrency checking.
+- Changed the package dependencies to pull in `StreamChatCommonUI`, which now backs shared appearance and UI infrastructure between our SwiftUI and UIKit SDKs.
+- `supportedMoreChannelActions`, `supportedMessageActions`, and `navigationBarDisplayMode` moved to config objects
+
+### ❌ Removed
+- Removed legacy screen wrappers such as `ChatChannelScreen` and `ChatChannelListScreen` as part of the v5 API cleanup.
+- Removed older composer, message list, reactions and poll view implementations that were replaced by the new v5 component structure.
+- Removed duplicated SwiftUI assets and old avatar/image merger utilities that are no longer needed in the redesigned SDK.
+- Removed CocoaPods support in favor of the current Swift Package Manager based distribution.
 
 # [4.99.0](https://github.com/GetStream/stream-chat-swiftui/releases/tag/4.99.0)
 _March 16, 2026_

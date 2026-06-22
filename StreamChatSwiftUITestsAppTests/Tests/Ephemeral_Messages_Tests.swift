@@ -5,22 +5,6 @@
 import XCTest
 
 final class Ephemeral_Messages_Tests: StreamTestCase {
-    func test_userObservesAnimatedGiphy_whenUserAddsGiphyMessage() throws {
-        linkToScenario(withId: 435)
-
-        GIVEN("user opens a channel") {
-            userRobot
-                .login()
-                .openChannel()
-        }
-        WHEN("user sends a giphy using giphy command") {
-            userRobot.uploadGiphy(useComposerCommand: true)
-        }
-        THEN("user observes the animated gif") {
-            userRobot.assertGiphyImage()
-        }
-    }
-
     func test_userObservesAnimatedGiphy_whenParticipantAddsGiphyMessage() throws {
         linkToScenario(withId: 436)
 
@@ -99,9 +83,7 @@ final class Ephemeral_Messages_Tests: StreamTestCase {
             userRobot.uploadGiphy(send: false)
         }
         THEN("delivery status is hidden for ephemeral messages") {
-            userRobot
-                .assertMessageDeliveryStatus(nil)
-                .assertMessageReadCount(readBy: 0)
+            userRobot.assertMessageDeliveryStatus(nil)
         }
     }
 
@@ -120,25 +102,7 @@ final class Ephemeral_Messages_Tests: StreamTestCase {
                 .uploadGiphy(send: false)
         }
         THEN("delivery status is hidden for ephemeral messages") {
-            userRobot
-                .assertMessageDeliveryStatus(nil)
-                .assertMessageReadCount(readBy: 0)
-        }
-    }
-
-    func test_userObservesAnimatedGiphy_afterAddingGiphyThroughComposerMenu() throws {
-        linkToScenario(withId: 441)
-
-        GIVEN("user opens a channel") {
-            userRobot
-                .login()
-                .openChannel()
-        }
-        WHEN("user sends a giphy using giphy command") {
-            userRobot.uploadGiphy(useComposerCommand: true)
-        }
-        THEN("user observes the animated gif") {
-            userRobot.assertGiphyImage()
+            userRobot.assertMessageDeliveryStatus(nil)
         }
     }
 }

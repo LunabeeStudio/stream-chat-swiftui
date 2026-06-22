@@ -4,8 +4,9 @@
 
 import Foundation
 @testable import StreamChat
+@testable import StreamCore
 
-class WebSocketEngineMock: WebSocketEngine {
+class WebSocketEngineMock: WebSocketEngine, @unchecked Sendable {
     var request: URLRequest
     var sessionConfiguration: URLSessionConfiguration
     var isConnected: Bool = false
@@ -38,7 +39,15 @@ class WebSocketEngineMock: WebSocketEngine {
     func disconnect() {
         disconnect_calledCount += 1
     }
+    
+    func disconnect(with code: URLSessionWebSocketTask.CloseCode) {
+        disconnect_calledCount += 1
+    }
 
+    func send(message: any SendableEvent) {}
+    
+    func send(jsonMessage: any Codable) {}
+    
     func sendPing() {
         sendPing_calledCount += 1
     }
@@ -56,7 +65,7 @@ class WebSocketEngineMock: WebSocketEngine {
     }
 
     func simulateMessageReceived(_ data: Data) {
-        delegate?.webSocketDidReceiveMessage(String(data: data, encoding: .utf8)!)
+        delegate?.webSocketDidReceiveMessage(data)
     }
 
     func simulatePong() {

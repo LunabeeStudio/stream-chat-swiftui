@@ -11,14 +11,15 @@ extension Poll {
         allowUserSuggestedOptions: Bool = true,
         enforceUniqueVote: Bool = false,
         isClosed: Bool = false,
-        name: String = "Test poll"
+        name: String = "Test poll",
+        createdBy: ChatUser = .mock(id: "test", name: "test")
     ) -> Poll {
         let pollId = "123"
         let voteId = "456"
         let voter = ChatUser.mock(id: "voter", name: "voter")
         let vote = PollVote(
             id: voteId,
-            createdAt: Date(),
+            createdAt: Date(timeIntervalSince1970: 100),
             updatedAt: Date(),
             pollId: pollId,
             optionId: "test",
@@ -48,7 +49,7 @@ extension Poll {
             isClosed: isClosed,
             maxVotesAllowed: nil,
             votingVisibility: .public,
-            createdBy: .mock(id: "test", name: "test"),
+            createdBy: createdBy,
             latestAnswers: [],
             options: [option],
             latestVotesByOption: [option],
@@ -60,11 +61,13 @@ extension Poll {
     
     static func mock(
         pollId: String = .unique,
+        name: String = "Test poll",
         allowAnswers: Bool = true,
         allowUserSuggestedOptions: Bool = true,
         enforceUniqueVote: Bool = false,
         isClosed: Bool = false,
-        options: [PollOption] = []
+        options: [PollOption] = [],
+        createdBy: ChatUser = .mock(id: "test", name: "test")
     ) -> Poll {
         let voteCountsByOption = Dictionary(grouping: options, by: { $0.id })
             .mapValues { options in
@@ -80,7 +83,7 @@ extension Poll {
             pollDescription: "Test",
             enforceUniqueVote: enforceUniqueVote,
             id: pollId,
-            name: "Test poll",
+            name: name,
             updatedAt: Date(),
             voteCount: voteCountsByOption.values.reduce(0, +),
             extraData: [:],
@@ -88,7 +91,7 @@ extension Poll {
             isClosed: isClosed,
             maxVotesAllowed: nil,
             votingVisibility: .public,
-            createdBy: .mock(id: "test", name: "test"),
+            createdBy: createdBy,
             latestAnswers: [],
             options: options,
             latestVotesByOption: options,
@@ -116,18 +119,18 @@ extension PollOption {
 extension PollVote {
     static func mock(
         id: String = .unique,
-        createdAt: Date = .unique,
-        updatedAt: Date = .unique,
         pollId: String,
         optionId: String?,
         isAnswer: Bool = false,
         answerText: String? = nil,
-        user: ChatUser? = nil
+        user: ChatUser? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
     ) -> PollVote {
         PollVote(
-            id: .unique,
-            createdAt: Date(),
-            updatedAt: Date(),
+            id: id,
+            createdAt: createdAt ?? Date(timeIntervalSince1970: 100),
+            updatedAt: updatedAt ?? Date(),
             pollId: pollId,
             optionId: optionId,
             isAnswer: isAnswer,
@@ -147,13 +150,13 @@ extension Poll {
                     .map { voteIndex in
                         PollVote.mock(
                             id: String(format: "vote_%03d", voteIndex),
-                            createdAt: Date(timeIntervalSinceReferenceDate: TimeInterval(voteIndex)),
-                            updatedAt: Date(timeIntervalSinceReferenceDate: TimeInterval(voteIndex) + 0.5),
                             pollId: pollId,
                             optionId: optionId,
                             isAnswer: false,
                             answerText: nil,
-                            user: nil
+                            user: nil,
+                            createdAt: Date(timeIntervalSinceReferenceDate: TimeInterval(voteIndex)),
+                            updatedAt: Date(timeIntervalSinceReferenceDate: TimeInterval(voteIndex) + 0.5)
                         )
                     }
                 return PollOption.mock(

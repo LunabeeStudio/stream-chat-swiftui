@@ -7,11 +7,7 @@ import StreamChatSwiftUI
 import SwiftUI
 
 struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
-    @State var text = ""
-    @State var shouldShow = false
-    
     @Injected(\.colors) private var colors
-    @Injected(\.fonts) private var fonts
 
     // Initial popup size, before the keyboard is shown.
     @State private var popupSize: CGFloat = 350
@@ -23,9 +19,11 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
     private var channelConfig: ChannelConfig?
     @Binding var quotedMessage: ChatMessage?
     @Binding var editedMessage: ChatMessage?
-    
+
     @State private var state: AnimationState = .initial
     @State private var listScale: CGFloat = 0
+
+    @StateObject var viewModel: MessageComposerViewModel
 
     public init(
         viewFactory: Factory,
@@ -34,27 +32,22 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
         messageController: ChatMessageController? = nil,
         quotedMessage: Binding<ChatMessage?>,
         editedMessage: Binding<ChatMessage?>,
-        onMessageSent: @escaping () -> Void
+        willSendMessage: @escaping () -> Void
     ) {
         factory = viewFactory
         channelConfig = channelController.channel?.config
         let vm = viewModel ?? ViewModelsFactory.makeMessageComposerViewModel(
             with: channelController,
             messageController: messageController,
-            quotedMessage: quotedMessage
+            quotedMessage: quotedMessage,
+            editedMessage: editedMessage,
+            willSendMessage: willSendMessage
         )
-        _viewModel = StateObject(
-            wrappedValue: vm
-        )
+        _viewModel = StateObject(wrappedValue: vm)
         _quotedMessage = quotedMessage
         _editedMessage = editedMessage
-        self.onMessageSent = onMessageSent
     }
 
-    @StateObject var viewModel: MessageComposerViewModel
-
-    var onMessageSent: () -> Void
-    
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .bottom) {
@@ -71,61 +64,102 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
                     }
                 } label: {
                     Image(systemName: "plus")
-                        .padding(.all, 8)
+                        .padding(.all, 12)
                         .foregroundColor(Color.gray)
-                        .background(Color(colors.background1))
+                        .background(Color(colors.backgroundCoreSurfaceSubtle))
                         .clipShape(Circle())
                 }
                 .padding(.bottom, 4)
 
-                ComposerInputView(
-                    factory: DefaultViewFactory.shared,
-                    text: $viewModel.text,
-                    selectedRangeLocation: $viewModel.selectedRangeLocation,
-                    command: $viewModel.composerCommand,
-                    addedAssets: viewModel.addedAssets,
-                    addedFileURLs: viewModel.addedFileURLs,
-                    addedCustomAttachments: viewModel.addedCustomAttachments,
-                    quotedMessage: $quotedMessage,
-                    maxMessageLength: channelConfig?.maxMessageLength,
-                    cooldownDuration: viewModel.cooldownDuration,
-                    onCustomAttachmentTap: viewModel.customAttachmentTapped(_:),
-                    removeAttachmentWithId: viewModel.removeAttachment(with:)
-                )
-                .overlay(
-                    viewModel.sendButtonEnabled ? sendButton : nil
+                factory.makeComposerInputView(
+                    options: ComposerInputViewOptions(
+                        channelController: viewModel.channelController,
+                        text: $viewModel.text,
+                        selectedRangeLocation: $viewModel.selectedRangeLocation,
+                        command: $viewModel.composerCommand,
+                        recordingState: $viewModel.recordingState,
+                        recordingGestureLocation: $viewModel.recordingGestureLocation,
+                        composerAssets: viewModel.composerAssets,
+                        addedCustomAttachments: viewModel.addedCustomAttachments,
+                        addedVoiceRecordings: viewModel.addedVoiceRecordings,
+                        quotedMessage: $quotedMessage,
+                        editedMessage: $editedMessage,
+                        maxMessageLength: channelConfig?.maxMessageLength,
+                        cooldownDuration: viewModel.cooldownDuration,
+                        hasContent: viewModel.hasContent,
+                        canSendMessage: viewModel.canSendMessage,
+                        audioRecordingInfo: viewModel.audioRecordingInfo,
+                        pendingAudioRecordingURL: viewModel.pendingAudioRecording?.url,
+                        onCustomAttachmentTap: viewModel.customAttachmentTapped(_:),
+                        removeAttachmentWithId: viewModel.removeAttachment(with:),
+                        sendMessage: sendMessage,
+                        onImagePasted: viewModel.imagePasted,
+                        startRecording: viewModel.startRecording,
+                        stopRecording: viewModel.stopRecording,
+                        confirmRecording: viewModel.confirmRecording,
+                        discardRecording: viewModel.discardRecording,
+                        previewRecording: viewModel.previewRecording,
+                        showRecordingTip: viewModel.showRecordingTip,
+                        sendInChannelShown: viewModel.sendInChannelShown,
+                        showReplyInChannel: $viewModel.showReplyInChannel
+                    )
                 )
             }
             .padding(.all, 8)
 
             factory.makeAttachmentPickerView(
-                attachmentPickerState: $viewModel.pickerState,
-                filePickerShown: $viewModel.filePickerShown,
-                cameraPickerShown: $viewModel.cameraPickerShown,
-                addedFileURLs: $viewModel.addedFileURLs,
-                onPickerStateChange: viewModel.change(pickerState:),
-                photoLibraryAssets: viewModel.imageAssets,
-                onAssetTap: viewModel.imageTapped(_:),
-                onCustomAttachmentTap: viewModel.customAttachmentTapped(_:),
-                isAssetSelected: viewModel.isImageSelected(with:),
-                addedCustomAttachments: viewModel.addedCustomAttachments,
-                cameraImageAdded: viewModel.cameraImageAdded(_:),
-                askForAssetsAccessPermissions: viewModel.askForPhotosPermission,
-                isDisplayed: viewModel.overlayShown,
-                height: viewModel.overlayShown ? popupSize : 0,
-                popupHeight: popupSize
+                options: AttachmentPickerViewOptions(
+                    attachmentPickerState: $viewModel.pickerState,
+                    filePickerShown: $viewModel.filePickerShown,
+                    cameraPickerShown: $viewModel.cameraPickerShown,
+                    onFilesPicked: viewModel.addFileURLs,
+                    onPickerStateChange: viewModel.change(pickerState:),
+                    photoLibraryAssets: viewModel.imageAssets,
+                    onAssetTap: viewModel.imageTapped(_:),
+                    onCustomAttachmentTap: viewModel.customAttachmentTapped(_:),
+                    isAssetSelected: viewModel.isImageSelected(with:),
+                    addedCustomAttachments: viewModel.addedCustomAttachments,
+                    cameraImageAdded: viewModel.cameraImageAdded(_:),
+                    askForAssetsAccessPermissions: viewModel.askForPhotosPermission,
+                    isDisplayed: viewModel.overlayShown,
+                    height: viewModel.overlayShown ? popupSize : 0,
+                    popupHeight: popupSize,
+                    selectedAssetIds: viewModel.composerAssets.compactMap {
+                        if case .addedAsset(let asset) = $0 { return asset.id }
+                        return nil
+                    },
+                    channelController: viewModel.channelController,
+                    messageController: viewModel.messageController,
+                    canSendPoll: viewModel.canSendPoll,
+                    instantCommands: viewModel.instantCommands,
+                    onCommandSelected: { command in
+                        viewModel.pickerTypeState = .expanded(.none)
+                        viewModel.composerCommand = command
+                        viewModel.handleCommand(
+                            for: $viewModel.text,
+                            selectedRangeLocation: $viewModel.selectedRangeLocation,
+                            command: $viewModel.composerCommand,
+                            extraData: ["instantCommand": command]
+                        )
+                        becomeFirstResponder()
+                    }
+                )
             )
+            .offset(y: viewModel.overlayShown ? 0 : popupSize)
+            .opacity(viewModel.overlayShown ? 1 : 0)
+            .animation(.easeInOut(duration: 0.25))
         }
         .background(
             GeometryReader { proxy in
-                let frame = proxy.frame(in: .local)
-                let height = frame.height
+                let height = proxy.frame(in: .local).height
                 Color.clear.preference(key: HeightPreferenceKey.self, value: height)
             }
         )
         .onPreferenceChange(HeightPreferenceKey.self) { value in
-            if let value = value, value != composerHeight {
-                self.composerHeight = value
+            Task { @MainActor in
+                if let value, value != composerHeight {
+                    composerHeight = value
+                }
             }
         }
         .onReceive(keyboardWillChangePublisher) { visible in
@@ -141,32 +175,36 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
         }
         .onReceive(keyboardHeight) { height in
             if height > 0 && height != popupSize {
-                self.popupSize = height - bottomSafeArea
+                popupSize = height - bottomSafeArea
             }
         }
-        .overlay(
-            viewModel.showCommandsOverlay ?
-                factory.makeCommandsContainerView(
-                    suggestions: viewModel.suggestions,
-                    handleCommand: { commandInfo in
-                        viewModel.handleCommand(
-                            for: $viewModel.text,
-                            selectedRangeLocation: $viewModel.selectedRangeLocation,
-                            command: $viewModel.composerCommand,
-                            extraData: commandInfo
+        .modifier(factory.styles.makeComposerViewModifier(options: ComposerViewModifierOptions()))
+        .background(
+            Group {
+                if viewModel.showSuggestionsOverlay {
+                    factory.makeSuggestionsContainerView(
+                        options: SuggestionsContainerViewOptions(
+                            suggestions: viewModel.suggestions,
+                            handleCommand: { commandInfo in
+                                viewModel.handleCommand(
+                                    for: $viewModel.text,
+                                    selectedRangeLocation: $viewModel.selectedRangeLocation,
+                                    command: $viewModel.composerCommand,
+                                    extraData: commandInfo
+                                )
+                            }
                         )
-                    }
-                )
-                .offset(y: -composerHeight)
-                .animation(nil) : nil,
+                    )
+                }
+            }
+            .offset(y: -composerHeight),
             alignment: .bottom
         )
-        .modifier(factory.makeComposerViewModifier())
         .onChange(of: editedMessage) { _ in
-            viewModel.text = editedMessage?.text ?? ""
+            viewModel.fillEditedMessage(editedMessage)
             if editedMessage != nil {
+                becomeFirstResponder()
                 editedMessageWillShow = true
-                viewModel.selectedRangeLocation = editedMessage?.text.count ?? 0
             }
         }
         .accessibilityElement(children: .contain)
@@ -176,23 +214,9 @@ struct AppleMessageComposerView<Factory: ViewFactory>: View, KeyboardReadable {
                 .allowsHitTesting(state == .expanded)
         )
     }
-    
-    private var sendButton: some View {
-        BottomRightView {
-            Button {
-                viewModel.sendMessage(quotedMessage: nil, editedMessage: nil) {
-                    onMessageSent()
-                }
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 24)
-                    .foregroundColor(.blue)
-            }
-            .padding(.trailing, 4)
-            .padding(.bottom, !viewModel.addedAssets.isEmpty ? 16 : 8)
-        }
+
+    private func sendMessage() {
+        viewModel.sendMessage()
     }
 }
 
@@ -211,7 +235,7 @@ struct BlurredBackground: View {
 }
 
 struct HeightPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat?
+    static var defaultValue: CGFloat? { nil }
 
     static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
         value = value ?? nextValue()
@@ -226,7 +250,7 @@ struct ComposerAction: Equatable, Identifiable {
     static func == (lhs: ComposerAction, rhs: ComposerAction) -> Bool {
         lhs.id == rhs.id
     }
-    
+
     var imageName: String
     var text: String
     var color: Color
@@ -238,19 +262,19 @@ struct ComposerAction: Equatable, Identifiable {
 
 struct ComposerActionsView: View {
     @ObservedObject var viewModel: MessageComposerViewModel
-    
+
     @State var composerActions: [ComposerAction] = []
-    
+
     @Binding var state: AnimationState
     @Binding var listScale: CGFloat
-    
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Color.white.opacity(state == .initial ? 0.2 : 0.5)
-            
+
             BlurredBackground()
                 .opacity(state == .initial ? 0.0 : 1)
-            
+
             VStack(alignment: .leading, spacing: 30) {
                 ForEach(composerActions) { composerAction in
                     Button {
@@ -293,7 +317,7 @@ struct ComposerActionsView: View {
             }
         }
     }
-    
+
     private func setupComposerActions() {
         let imageAction: () -> Void = {
             viewModel.pickerTypeState = .expanded(.media)
@@ -342,9 +366,9 @@ struct ComposerActionsView: View {
 
 struct ComposerActionView: View {
     private let imageSize: CGFloat = 34
-    
+
     var composerAction: ComposerAction
-    
+
     var body: some View {
         HStack(spacing: 20) {
             Image(systemName: composerAction.imageName)
@@ -352,7 +376,7 @@ struct ComposerActionView: View {
                 .scaledToFit()
                 .foregroundColor(composerAction.color)
                 .frame(width: imageSize, height: imageSize)
-            
+
             Text(composerAction.text)
                 .foregroundColor(.primary)
                 .font(.title2)

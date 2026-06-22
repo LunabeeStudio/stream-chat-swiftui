@@ -4,29 +4,6 @@
 
 import SwiftUI
 
-/// Modifier for adding shadow and corner radius to a view.
-struct ShadowViewModifier: ViewModifier {
-    @Injected(\.colors) private var colors
-
-    var backgroundColor: UIColor = .systemBackground
-    var cornerRadius: CGFloat = 16
-    var firstRadius: CGFloat = 10
-    var firstY: CGFloat = 12
-    
-    func body(content: Content) -> some View {
-        content.background(Color(backgroundColor))
-            .cornerRadius(cornerRadius)
-            .modifier(ShadowModifier(firstRadius: firstRadius, firstY: firstY))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(
-                        Color(colors.innerBorder),
-                        lineWidth: 0.5
-                    )
-            )
-    }
-}
-
 /// Modifier for adding shadow to a view.
 public struct ShadowModifier: ViewModifier {
     public init(
@@ -63,7 +40,7 @@ struct RoundedBorderModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(
             RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(Color(colors.innerBorder), lineWidth: 1)
+                .stroke(Color(colors.borderCoreDefault), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
@@ -74,7 +51,7 @@ struct IconOverImageModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .foregroundColor(Color(colors.staticColorText))
+            .foregroundColor(Color(colors.backgroundCoreElevation0))
             .padding(.all, 4)
     }
 }
@@ -116,5 +93,11 @@ extension Image {
         renderingMode(.template)
             .resizable()
             .scaledToFit()
+    }
+}
+
+extension Animation {
+    static var composerVoiceRecordingSpring: Animation {
+        .interactiveSpring(response: 0.35, dampingFraction: 0.88)
     }
 }

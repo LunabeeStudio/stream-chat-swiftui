@@ -17,16 +17,6 @@ public struct DefaultChatChannelHeader<Factory: ViewFactory>: ToolbarContent {
     @Injected(\.colors) private var colors
     @Injected(\.chatClient) private var chatClient
 
-    private var currentUserId: String {
-        chatClient.currentUserId ?? ""
-    }
-
-    private var shouldShowTypingIndicator: Bool {
-        !channel.currentlyTypingUsersFiltered(currentUserId: currentUserId).isEmpty
-            && utils.messageListConfig.typingIndicatorPlacement == .navigationBar
-            && channel.config.typingEventsEnabled
-    }
-
     private var onlineIndicatorShown: Bool {
         !channel.lastActiveMembers.filter { member in
             member.id != chatClient.currentUserId && member.isOnline
@@ -36,24 +26,25 @@ public struct DefaultChatChannelHeader<Factory: ViewFactory>: ToolbarContent {
 
     private var factory: Factory
     public var channel: ChatChannel
-    public var headerImage: UIImage
+    public var shouldShowTypingIndicator: Bool
     @Binding public var isActive: Bool
 
     public init(
         factory: Factory = DefaultViewFactory.shared,
         channel: ChatChannel,
-        headerImage: UIImage,
+        shouldShowTypingIndicator: Bool,
         isActive: Binding<Bool>
     ) {
         self.factory = factory
         self.channel = channel
-        self.headerImage = headerImage
+        self.shouldShowTypingIndicator = shouldShowTypingIndicator
         _isActive = isActive
     }
 
     public var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             ChannelTitleView(
+                factory: factory,
                 channel: channel,
                 shouldShowTypingIndicator: shouldShowTypingIndicator
             )
@@ -68,11 +59,9 @@ public struct DefaultChatChannelHeader<Factory: ViewFactory>: ToolbarContent {
                     isActive = true
                 } label: {
                     factory.makeChannelAvatarView(
-                        for: channel,
-                        with: .init(
-                            showOnlineIndicator: onlineIndicatorShown,
-                            size: CGSize(width: 36, height: 36),
-                            avatar: headerImage
+                        options: ChannelAvatarViewOptions(
+                            channel: channel,
+                            size: AvatarSize.large
                         )
                     )
                     .offset(x: 4)
@@ -86,25 +75,27 @@ public struct DefaultChatChannelHeader<Factory: ViewFactory>: ToolbarContent {
                 }
                 .accessibilityHidden(true)
             }
-            .accessibilityIdentifier("ChannelAvatarView")
+            .accessibilityIdentifier("ChannelAvatar")
         }
     }
 }
 
 /// The default header modifier.
 public struct DefaultChannelHeaderModifier<Factory: ViewFactory>: ChatChannelHeaderViewModifier {
-    @ObservedObject private var channelHeaderLoader = InjectedValues[\.utils].channelHeaderLoader
     @State private var isActive: Bool = false
 
     private var factory: Factory
     public var channel: ChatChannel
+    public var shouldShowTypingIndicator: Bool
     
     public init(
         factory: Factory = DefaultViewFactory.shared,
-        channel: ChatChannel
+        channel: ChatChannel,
+        shouldShowTypingIndicator: Bool
     ) {
         self.factory = factory
         self.channel = channel
+        self.shouldShowTypingIndicator = shouldShowTypingIndicator
     }
 
     public func body(content: Content) -> some View {
@@ -114,7 +105,7 @@ public struct DefaultChannelHeaderModifier<Factory: ViewFactory>: ChatChannelHea
                     DefaultChatChannelHeader(
                         factory: factory,
                         channel: channel,
-                        headerImage: channelHeaderLoader.image(for: channel),
+                        shouldShowTypingIndicator: shouldShowTypingIndicator,
                         isActive: $isActive
                     )
                     #if compiler(>=6.2)
@@ -127,7 +118,7 @@ public struct DefaultChannelHeaderModifier<Factory: ViewFactory>: ChatChannelHea
                     DefaultChatChannelHeader(
                         factory: factory,
                         channel: channel,
-                        headerImage: channelHeaderLoader.image(for: channel),
+                        shouldShowTypingIndicator: shouldShowTypingIndicator,
                         isActive: $isActive
                     )
                 }
@@ -135,16 +126,22 @@ public struct DefaultChannelHeaderModifier<Factory: ViewFactory>: ChatChannelHea
     }
 }
 
-public struct ChannelTitleView: View {
+public struct ChannelTitleView<Factory: ViewFactory>: View {
     @Injected(\.fonts) private var fonts
     @Injected(\.utils) private var utils
     @Injected(\.colors) private var colors
     @Injected(\.chatClient) private var chatClient
 
+    private var factory: Factory
     let channel: ChatChannel
     let shouldShowTypingIndicator: Bool
 
-    public init(channel: ChatChannel, shouldShowTypingIndicator: Bool) {
+    public init(
+        factory: Factory = DefaultViewFactory.shared,
+        channel: ChatChannel,
+        shouldShowTypingIndicator: Bool
+    ) {
+        self.factory = factory
         self.channel = channel
         self.shouldShowTypingIndicator = shouldShowTypingIndicator
     }
@@ -153,22 +150,19 @@ public struct ChannelTitleView: View {
         chatClient.currentUserId ?? ""
     }
 
-    private var channelNamer: ChatChannelNamer {
-        utils.channelNamer
-    }
-
     public var body: some View {
         VStack(spacing: 2) {
-            Text(channelNamer(channel, currentUserId) ?? "")
+            Text(name(for: channel))
                 .font(fonts.bodyBold)
                 .foregroundColor(Color(colors.navigationBarTitle))
                 .accessibilityIdentifier("chatName")
 
             if shouldShowTypingIndicator {
-                HStack {
-                    TypingIndicatorView()
-                    SubtitleText(text: channel.typingIndicatorString(currentUserId: currentUserId))
-                }
+                factory.makeSubtitleTypingIndicatorView(
+                    options: SubtitleTypingIndicatorViewOptions(
+                        channel: channel
+                    )
+                )
             } else {
                 Text(channel.onlineInfoText(currentUserId: currentUserId))
                     .font(fonts.footnote)
@@ -176,5 +170,12 @@ public struct ChannelTitleView: View {
                     .accessibilityIdentifier("chatOnlineInfo")
             }
         }
+    }
+    
+    private func name(for channel: ChatChannel) -> String {
+        utils.channelNameFormatter.format(
+            channel: channel,
+            forCurrentUserId: chatClient.currentUserId
+        ) ?? ""
     }
 }

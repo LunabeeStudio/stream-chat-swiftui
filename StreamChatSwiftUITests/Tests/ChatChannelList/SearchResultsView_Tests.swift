@@ -7,7 +7,7 @@ import SnapshotTesting
 @testable import StreamChatSwiftUI
 import XCTest
 
-class SearchResultsView_Tests: StreamChatTestCase {
+@MainActor class SearchResultsView_Tests: StreamChatTestCase {
     func test_searchResultsView_snapshotResults() {
         // Given
         let channel1 = ChatChannel.mock(cid: .unique, name: "Test 1")
@@ -40,9 +40,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
             selectedChannel: .constant(nil),
             searchResults: searchResults,
             loadingSearchResults: false,
-            onlineIndicatorShown: { _ in false },
             channelNaming: { $0.name ?? "" },
-            imageLoader: { _ in UIImage(systemName: "person.circle")! },
             onSearchResultTap: { _ in },
             onItemAppear: { _ in }
         )
@@ -86,9 +84,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
             selectedChannel: .constant(nil),
             searchResults: searchResults,
             loadingSearchResults: false,
-            onlineIndicatorShown: { _ in false },
             channelNaming: { $0.name ?? "" },
-            imageLoader: { _ in UIImage(systemName: "person.circle")! },
             onSearchResultTap: { _ in },
             onItemAppear: { _ in }
         )
@@ -108,9 +104,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
             selectedChannel: .constant(nil),
             searchResults: searchResults,
             loadingSearchResults: false,
-            onlineIndicatorShown: { _ in false },
             channelNaming: { $0.name ?? "" },
-            imageLoader: { _ in UIImage(systemName: "person.circle")! },
             onSearchResultTap: { _ in },
             onItemAppear: { _ in }
         )
@@ -130,9 +124,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
             selectedChannel: .constant(nil),
             searchResults: searchResults,
             loadingSearchResults: true,
-            onlineIndicatorShown: { _ in false },
             channelNaming: { $0.name ?? "" },
-            imageLoader: { _ in UIImage(systemName: "person.circle")! },
             onSearchResultTap: { _ in },
             onItemAppear: { _ in }
         )
@@ -141,7 +133,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-    
+
     func test_searchResultsView_channelAvatarUpdated() {
         // Given
         let channel1 = ChatChannel.mock(cid: .unique, name: "Test 1")
@@ -163,9 +155,7 @@ class SearchResultsView_Tests: StreamChatTestCase {
             selectedChannel: .constant(nil),
             searchResults: searchResults,
             loadingSearchResults: false,
-            onlineIndicatorShown: { _ in false },
             channelNaming: { $0.name ?? "" },
-            imageLoader: { _ in UIImage(systemName: "person.circle")! },
             onSearchResultTap: { _ in },
             onItemAppear: { _ in }
         )

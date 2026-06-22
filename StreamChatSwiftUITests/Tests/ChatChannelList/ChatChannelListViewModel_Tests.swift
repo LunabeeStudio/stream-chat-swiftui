@@ -7,7 +7,7 @@
 @testable import StreamChatTestTools
 import XCTest
 
-class ChatChannelListViewModel_Tests: StreamChatTestCase {
+@MainActor class ChatChannelListViewModel_Tests: StreamChatTestCase {
     override open func setUp() {
         super.setUp()
         let utils = Utils(
@@ -135,30 +135,55 @@ class ChatChannelListViewModel_Tests: StreamChatTestCase {
         XCTAssert(name == expectedName)
     }
 
-    func test_channelListVM_onlineIndicatorShown() {
+    func test_channelListVM_onMuteTapped() {
         // Given
-        let channel = ChatChannel.mockDMChannel(
-            lastActiveMembers: [.mock(id: .unique, isOnline: true)]
-        )
-        let viewModel = makeDefaultChannelListVM(channels: [channel])
+        let viewModel = makeDefaultChannelListVM()
+        let channel = ChatChannel.mockDMChannel()
 
         // When
-        let onlineIndicatorShown = viewModel.onlineIndicatorShown(for: channel)
+        viewModel.onMuteTapped(channel: channel)
 
         // Then
-        XCTAssert(onlineIndicatorShown == true)
+        XCTAssert(viewModel.channelAlertType == .muteChannel(channel))
+        XCTAssert(viewModel.alertShown == true)
     }
 
-    func test_channelListVM_onlineIndicatorNotShown() {
+    func test_channelListVM_mute_resetsSwipedChannelId() {
         // Given
         let channel = ChatChannel.mockDMChannel()
-        let viewModel = makeDefaultChannelListVM(channels: [channel])
+        let channelListController = makeChannelListController(channels: [channel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.swipedChannelId = channel.id
 
         // When
-        let onlineIndicatorShown = viewModel.onlineIndicatorShown(for: channel)
+        viewModel.mute(channel: channel)
 
         // Then
-        XCTAssert(onlineIndicatorShown == false)
+        XCTAssertNil(viewModel.swipedChannelId)
+    }
+
+    func test_channelListVM_muteChannel_onError_showsErrorAlert() {
+        // Given
+        let channel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [channel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        let error = NSError(domain: "test", code: 1, userInfo: nil)
+
+        // When
+        viewModel.mute(channel: channel)
+        chatClient.mockAPIClient.test_simulateResponse(
+            Result<MutedChannelPayloadResponse, Error>.failure(error)
+        )
+
+        // Then
+        XCTAssert(viewModel.channelAlertType == .error)
+        XCTAssert(viewModel.alertShown == true)
     }
 
     func test_channelListVM_onMoreTapped() {
@@ -170,8 +195,8 @@ class ChatChannelListViewModel_Tests: StreamChatTestCase {
         viewModel.onMoreTapped(channel: channel)
 
         // Then
-        XCTAssert(viewModel.customChannelPopupType == .moreActions(channel))
-        XCTAssert(viewModel.customAlertShown == true)
+        XCTAssert(viewModel.channelPopupType == .moreActions(channel))
+        XCTAssert(viewModel.channelPopupShown == true)
     }
 
     func test_channelListVM_deleteChannel() {
@@ -225,33 +250,8 @@ class ChatChannelListViewModel_Tests: StreamChatTestCase {
         viewModel.checkForChannels(index: 0)
 
         // Then
-        let injectedChannelInfo = viewModel.selectedChannel?.injectedChannelInfo!
-        let presentedSubtitle = injectedChannelInfo!.subtitle!
-        let unreadCount = injectedChannelInfo!.unreadCount
-        XCTAssert(presentedSubtitle == channel.subtitleText)
-        XCTAssert(viewModel.channels[0].subtitleText == "No messages")
-        XCTAssert(unreadCount == 0)
-        XCTAssert(channel.shouldShowTypingIndicator == false)
-    }
-
-    func test_channelListVM_badgeCountUpdate() {
-        // Given
-        let channelId = ChannelId.unique
-        let channel = ChatChannel.mock(cid: channelId, unreadCount: .mock(messages: 1))
-        let channelListController = makeChannelListController(channels: [channel])
-        let viewModel = ChatChannelListViewModel(
-            channelListController: channelListController,
-            selectedChannelId: nil
-        )
-        viewModel.selectedChannel = ChannelSelectionInfo(channel: channel, message: nil)
-
-        // When
-        viewModel.checkForChannels(index: 0)
-
-        // Then
-        let injectedChannelInfo = viewModel.selectedChannel?.injectedChannelInfo!
-        let unreadCount = injectedChannelInfo!.unreadCount
-        XCTAssert(unreadCount == 0)
+        XCTAssertEqual(viewModel.channels.count, 1)
+        XCTAssertEqual(viewModel.channels.first?.latestMessages.first?.text, "Test message")
     }
 
     func test_channelListVM_channelDismiss() {

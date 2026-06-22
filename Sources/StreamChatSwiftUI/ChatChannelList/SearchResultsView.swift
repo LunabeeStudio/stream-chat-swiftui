@@ -13,30 +13,24 @@ public struct SearchResultsView<Factory: ViewFactory>: View {
     @Binding var selectedChannel: ChannelSelectionInfo?
     var searchResults: [ChannelSelectionInfo]
     var loadingSearchResults: Bool
-    var onlineIndicatorShown: (ChatChannel) -> Bool
-    var channelNaming: (ChatChannel) -> String
-    var imageLoader: (ChatChannel) -> UIImage
-    var onSearchResultTap: (ChannelSelectionInfo) -> Void
-    var onItemAppear: (Int) -> Void
+    var channelNaming: @MainActor (ChatChannel) -> String
+    var onSearchResultTap: @MainActor (ChannelSelectionInfo) -> Void
+    var onItemAppear: @MainActor (Int) -> Void
     
     public init(
         factory: Factory,
         selectedChannel: Binding<ChannelSelectionInfo?>,
         searchResults: [ChannelSelectionInfo],
         loadingSearchResults: Bool,
-        onlineIndicatorShown: @escaping (ChatChannel) -> Bool,
-        channelNaming: @escaping (ChatChannel) -> String,
-        imageLoader: @escaping (ChatChannel) -> UIImage,
-        onSearchResultTap: @escaping (ChannelSelectionInfo) -> Void,
-        onItemAppear: @escaping (Int) -> Void
+        channelNaming: @escaping @MainActor (ChatChannel) -> String,
+        onSearchResultTap: @escaping @MainActor (ChannelSelectionInfo) -> Void,
+        onItemAppear: @escaping @MainActor (Int) -> Void
     ) {
         self.factory = factory
         _selectedChannel = selectedChannel
         self.searchResults = searchResults
         self.loadingSearchResults = loadingSearchResults
-        self.onlineIndicatorShown = onlineIndicatorShown
         self.channelNaming = channelNaming
-        self.imageLoader = imageLoader
         self.onSearchResultTap = onSearchResultTap
         self.onItemAppear = onItemAppear
     }
@@ -45,7 +39,7 @@ public struct SearchResultsView<Factory: ViewFactory>: View {
         VStack(spacing: 0) {
             HStack {
                 Text(L10n.Message.Search.numberOfResults(searchResults.count))
-                    .foregroundColor(Color(colors.textLowEmphasis))
+                    .foregroundColor(Color(colors.textTertiary))
                     .standardPadding()
                 Spacer()
             }
@@ -57,11 +51,9 @@ public struct SearchResultsView<Factory: ViewFactory>: View {
                             factory: factory,
                             selectedChannel: $selectedChannel,
                             searchResult: searchResult,
-                            onlineIndicatorShown: onlineIndicatorShown(searchResult.channel),
                             channelName: channelNaming(searchResult.channel),
-                            avatar: imageLoader(searchResult.channel),
                             onSearchResultTap: onSearchResultTap,
-                            channelDestination: factory.makeChannelDestination()
+                            channelDestination: factory.makeChannelDestination(options: ChannelDestinationOptions())
                         )
                         .onAppear {
                             if let index = searchResults.firstIndex(where: { result in
@@ -77,7 +69,7 @@ public struct SearchResultsView<Factory: ViewFactory>: View {
         .overlay(
             loadingSearchResults ? ProgressView() : nil
         )
-        .background(Color(colors.background))
+        .background(Color(colors.backgroundCoreApp))
     }
 }
 
@@ -86,21 +78,19 @@ struct SearchResultView<Factory: ViewFactory>: View {
     var factory: Factory
     @Binding var selectedChannel: ChannelSelectionInfo?
     var searchResult: ChannelSelectionInfo
-    var onlineIndicatorShown: Bool
     var channelName: String
-    var avatar: UIImage
-    var onSearchResultTap: (ChannelSelectionInfo) -> Void
-    var channelDestination: (ChannelSelectionInfo) -> Factory.ChannelDestination
+    var onSearchResultTap: @MainActor (ChannelSelectionInfo) -> Void
+    var channelDestination: @MainActor (ChannelSelectionInfo) -> Factory.ChannelDestination
 
     var body: some View {
         ZStack {
             factory.makeChannelListSearchResultItem(
-                searchResult: searchResult,
-                onlineIndicatorShown: onlineIndicatorShown,
-                channelName: channelName,
-                avatar: avatar,
-                onSearchResultTap: onSearchResultTap,
-                channelDestination: channelDestination
+                options: ChannelListSearchResultItemOptions(
+                    searchResult: searchResult,
+                    channelName: channelName,
+                    onSearchResultTap: onSearchResultTap,
+                    channelDestination: channelDestination
+                )
             )
 
             NavigationLink(
@@ -122,9 +112,7 @@ struct SearchResultItem<Factory: ViewFactory, ChannelDestination: View>: View {
 
     var factory: Factory
     var searchResult: ChannelSelectionInfo
-    var onlineIndicatorShown: Bool
     var channelName: String
-    var avatar: UIImage
     var onSearchResultTap: (ChannelSelectionInfo) -> Void
     var channelDestination: (ChannelSelectionInfo) -> ChannelDestination
 
@@ -134,8 +122,10 @@ struct SearchResultItem<Factory: ViewFactory, ChannelDestination: View>: View {
         } label: {
             HStack {
                 factory.makeChannelAvatarView(
-                    for: searchResult.channel,
-                    with: .init(showOnlineIndicator: onlineIndicatorShown, avatar: avatar)
+                    options: ChannelAvatarViewOptions(
+                        channel: searchResult.channel,
+                        size: AvatarSize.large
+                    )
                 )
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -155,10 +145,8 @@ struct SearchResultItem<Factory: ViewFactory, ChannelDestination: View>: View {
 
     private var timestampText: String {
         if let lastMessageAt = searchResult.channel.lastMessageAt {
-            let formatter = utils.channelListConfig.messageRelativeDateFormatEnabled ?
-                utils.messageRelativeDateFormatter :
-                utils.dateFormatter
-            return formatter.string(from: lastMessageAt)
+            let formatter = utils.messageTimestampFormatter
+            return formatter.format(lastMessageAt)
         } else {
             return ""
         }

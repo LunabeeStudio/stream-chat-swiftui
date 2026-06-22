@@ -70,22 +70,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         
         let utils = Utils(
-            channelListConfig: ChannelListConfig(
-                messageRelativeDateFormatEnabled: true,
-                channelItemMutedStyle: .afterChannelName
-            ),
-            messageListConfig: MessageListConfig(
-                messageDisplayOptions: .init(showOriginalTranslatedButton: true),
-                dateIndicatorPlacement: .messageList,
-                userBlockingEnabled: true,
-                bouncedMessagesAlertActionsEnabled: true,
-                skipEditedMessageLabel: { message in
-                    message.extraData["ai_generated"]?.boolValue == true
-                },
-                draftMessagesEnabled: true,
-                downloadFileAttachmentsEnabled: true
-            ),
-            composerConfig: ComposerConfig(isVoiceRecordingEnabled: true)
+            messageListConfig: AppConfiguration.makeMessageListConfig(),
+            composerConfig: AppConfiguration.makeComposerConfig()
         )
         streamChat = StreamChat(chatClient: chatClient, utils: utils)
         
@@ -135,7 +121,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
 
         chatClient.currentUserController().addDevice(.apn(token: deviceToken)) { error in
-            if let error = error {
+            if let error {
                 log.error("adding a device failed with an error \(error)")
                 return
             }

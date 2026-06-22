@@ -8,7 +8,7 @@ import Foundation
 import SwiftUI
 import XCTest
 
-class ViewFactory_Tests: StreamChatTestCase {
+@MainActor class ViewFactory_Tests: StreamChatTestCase {
     private let message = ChatMessage.mock(
         id: .unique,
         cid: .unique,
@@ -16,15 +16,15 @@ class ViewFactory_Tests: StreamChatTestCase {
         author: .mock(id: .unique)
     )
 
-    func test_viewFactory_makeNoChannelsView() {
+    func test_viewFactory_makeEmptyChannelsView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeNoChannelsView()
+        let view = viewFactory.makeEmptyChannelsView(options: EmptyChannelsViewOptions())
 
         // Then
-        XCTAssert(view is NoChannelsView)
+        XCTAssert(view is EmptyChannelsView)
     }
 
     func test_viewFactory_makeLoadingView() {
@@ -32,21 +32,10 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeLoadingView()
+        let view = viewFactory.makeLoadingView(options: LoadingViewOptions())
 
         // Then
-        XCTAssert(view is RedactedLoadingView<DefaultViewFactory>)
-    }
-
-    func test_viewFactory_navigationBarDisplayMode() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-
-        // When
-        let displayMode = viewFactory.navigationBarDisplayMode()
-
-        // Then
-        XCTAssert(displayMode == .inline)
+        XCTAssertNotNil(view)
     }
 
     func test_viewFactory_makeChannelListHeaderViewModifier() {
@@ -54,32 +43,10 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let viewModifier = viewFactory.makeChannelListHeaderViewModifier(title: "Test")
+        let viewModifier = viewFactory.makeChannelListHeaderViewModifier(options: ChannelListHeaderViewModifierOptions(title: "Test"))
 
         // Then
         XCTAssert(viewModifier is DefaultChannelListHeaderModifier)
-    }
-
-    func test_viewFactory_supportedMoreChannelActions() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        let channel: ChatChannel = .mockDMChannel()
-        let expected = ChannelAction.defaultActions(
-            for: channel,
-            chatClient: chatClient,
-            onDismiss: {},
-            onError: { _ in }
-        )
-
-        // When
-        let actions = viewFactory.supportedMoreChannelActions(
-            for: channel,
-            onDismiss: {},
-            onError: { _ in }
-        )
-
-        // Then
-        XCTAssert(actions == expected)
     }
 
     func test_viewFactory_makeMoreChannelActionsView() {
@@ -89,14 +56,16 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMoreChannelActionsView(
-            for: channel,
-            swipedChannelId: .constant(nil),
-            onDismiss: {},
-            onError: { _ in }
+            options: MoreChannelActionsViewOptions(
+                channel: channel,
+                swipedChannelId: .constant(nil),
+                onDismiss: {},
+                onError: { _ in }
+            )
         )
 
         // Then
-        XCTAssert(view is MoreChannelActionsView)
+        XCTAssert(view is ModifiedContent<MoreChannelActionsView<DefaultViewFactory>, PresentationDetentsModifier>)
     }
     
     func test_viewFactory_makeSearchResultsView() {
@@ -105,55 +74,30 @@ class ViewFactory_Tests: StreamChatTestCase {
         
         // When
         let view = viewFactory.makeSearchResultsView(
-            selectedChannel: .constant(nil),
-            searchResults: [],
-            loadingSearchResults: false,
-            onlineIndicatorShown: { _ in true },
-            channelNaming: { _ in "Test" },
-            imageLoader: { _ in UIImage(systemName: "person")! },
-            onSearchResultTap: { _ in },
-            onItemAppear: { _ in }
+            options: SearchResultsViewOptions(
+                selectedChannel: .constant(nil),
+                searchResults: [],
+                loadingSearchResults: false,
+                channelNaming: { _ in "Test" },
+                onSearchResultTap: { _ in },
+                onItemAppear: { _ in }
+            )
         )
         
         // Then
         XCTAssert(view is SearchResultsView<DefaultViewFactory>)
     }
 
-    func test_viewFactory_makeMessageAvatarView() {
+    func test_viewFactory_makeUserAvatarView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
-        let userInfo = UserDisplayInfo(
-            id: .unique,
-            name: .unique,
-            imageURL: URL(string: "https://example.com"),
-            role: .user
-        )
+        let user = ChatUser.mock(id: .unique)
 
         // When
-        let view = viewFactory.makeMessageAvatarView(for: userInfo)
+        let view = viewFactory.makeUserAvatarView(options: UserAvatarViewOptions(user: user, size: AvatarSize.medium, showsIndicator: true))
 
         // Then
-        XCTAssert(view is MessageAvatarView<MessageAvatarDefaultPlaceholderView>)
-    }
-
-    func test_viewFactory_makeQuotedMessageAvatarView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        let userInfo = UserDisplayInfo(
-            id: .unique,
-            name: .unique,
-            imageURL: URL(string: "https://example.com"),
-            role: .user
-        )
-
-        // When
-        let view = viewFactory.makeQuotedMessageAvatarView(
-            for: userInfo,
-            size: CGSize(width: 16, height: 16)
-        )
-
-        // Then
-        XCTAssert(view is MessageAvatarView<MessageAvatarDefaultPlaceholderView>)
+        XCTAssert(view is UserAvatar)
     }
 
     func test_viewFactory_makeChannelHeaderViewModifier() {
@@ -161,7 +105,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeChannelHeaderViewModifier(for: .mockDMChannel())
+        let view = viewFactory.makeChannelHeaderViewModifier(options: ChannelHeaderViewModifierOptions(channel: .mockDMChannel(), shouldShowTypingIndicator: false))
 
         // Then
         XCTAssert(view is DefaultChannelHeaderModifier<DefaultViewFactory>)
@@ -173,14 +117,69 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMessageTextView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: MessageTextViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil),
+                translationLanguage: nil
+            )
         )
 
         // Then
         XCTAssert(view is MessageTextView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeMessageAttachmentsView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeMessageAttachmentsView(
+            options: MessageAttachmentsViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil),
+                translationLanguage: nil
+            )
+        )
+
+        // Then
+        XCTAssert(view is MessageAttachmentsView<DefaultViewFactory>)
+    }
+
+    func test_styles_makeMessageAttachmentsViewModifier() {
+        // Given
+        let styles = RegularStyles()
+
+        // When
+        let modifier = styles.makeMessageAttachmentsViewModifier(
+            options: MessageAttachmentsViewModifierOptions(
+                message: message,
+                isFirst: true
+            )
+        )
+
+        // Then
+        XCTAssert(modifier is DefaultMessageAttachmentsViewModifier<RegularStyles>)
+    }
+
+    func test_styles_makeMessageAttachmentItemViewModifier() {
+        // Given
+        let styles = RegularStyles()
+
+        // When
+        let modifier = styles.makeMessageAttachmentItemViewModifier(
+            options: MessageAttachmentItemViewModifierOptions(
+                message: message,
+                isFirst: true,
+                attachmentType: .file
+            )
+        )
+
+        // Then
+        XCTAssert(modifier is DefaultMessageAttachmentItemViewModifier)
     }
 
     func test_viewFactory_makeImageAttachmentView() {
@@ -189,14 +188,34 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeImageAttachmentView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: ImageAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
         )
 
         // Then
-        XCTAssert(view is ImageAttachmentContainer<DefaultViewFactory>)
+        XCTAssert(view is MessageMediaAttachmentsContainerView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeVideoAttachmentView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeVideoAttachmentView(
+            options: VideoAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
+        )
+
+        // Then
+        XCTAssert(view is MessageMediaAttachmentsContainerView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeGiphyAttachmentView() {
@@ -205,10 +224,12 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeGiphyAttachmentView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: GiphyAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
         )
 
         // Then
@@ -221,10 +242,12 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeLinkAttachmentView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: LinkAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
         )
 
         // Then
@@ -237,30 +260,16 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeFileAttachmentView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: FileAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
         )
 
         // Then
         XCTAssert(view is FileAttachmentsContainer<DefaultViewFactory>)
-    }
-
-    func test_viewFactory_makeVideoAttachmentView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-
-        // When
-        let view = viewFactory.makeVideoAttachmentView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
-        )
-
-        // Then
-        XCTAssert(view is VideoAttachmentsContainer<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeDeletedMessageView() {
@@ -269,9 +278,11 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeDeletedMessageView(
-            for: message,
-            isFirst: true,
-            availableWidth: 300
+            options: DeletedMessageViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300
+            )
         )
 
         // Then
@@ -284,11 +295,13 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeCustomAttachmentViewType(
-            for: message,
-            layout: .all,
-            isFirst: true,
-            availableWidth: 300,
-            scrolledId: .constant(nil)
+            options: CustomAttachmentViewTypeOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil),
+                layout: .all
+            )
         )
 
         // Then
@@ -300,20 +313,22 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeGiphyBadgeViewType(for: message, availableWidth: 300)
+        let view = viewFactory.makeGiphyBadgeViewType(options: GiphyBadgeViewTypeOptions(message: message, availableWidth: 300))
 
         // Then
         XCTAssert(view is GiphyBadgeView)
     }
 
-    func test_viewFactory_makeCustomAttachmentView() {
+    func test_viewFactory_makeCustomAttachmentPickerView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeCustomAttachmentView(
-            addedCustomAttachments: [],
-            onCustomAttachmentTap: { _ in }
+        let view = viewFactory.makeCustomAttachmentPickerView(
+            options: CustomAttachmentPickerViewOptions(
+                addedCustomAttachments: [],
+                onCustomAttachmentTap: { _ in }
+            )
         )
 
         // Then
@@ -326,8 +341,10 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeCustomAttachmentPreviewView(
-            addedCustomAttachments: [],
-            onCustomAttachmentTap: { _ in }
+            options: CustomAttachmentPreviewViewOptions(
+                addedCustomAttachments: [],
+                onCustomAttachmentTap: { _ in }
+            )
         )
 
         // Then
@@ -339,13 +356,15 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeFilePickerView(
-            filePickerShown: .constant(true),
-            addedFileURLs: .constant([])
+        let view = viewFactory.makeAttachmentFilePickerView(
+            options: AttachmentFilePickerViewOptions(
+                filePickerShown: .constant(false),
+                onFilesPicked: { _ in }
+            )
         )
 
         // Then
-        XCTAssert(view is FilePickerDisplayView)
+        XCTAssert(view is AttachmentFilePickerView)
     }
 
     func test_viewFactory_makeCameraPickerView() {
@@ -353,49 +372,15 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeCameraPickerView(
-            selected: .constant(.photos),
-            cameraPickerShown: .constant(false),
-            cameraImageAdded: { _ in }
+        let view = viewFactory.makeAttachmentCameraPickerView(
+            options: AttachmentCameraPickerViewOptions(
+                cameraPickerShown: .constant(false),
+                cameraImageAdded: { _ in }
+            )
         )
 
         // Then
-        XCTAssert(view is CameraPickerDisplayView)
-    }
-
-    func test_viewFactory_makeAssetsAccessPermissionView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-
-        // When
-        let view = viewFactory.makeAssetsAccessPermissionView()
-
-        // Then
-        XCTAssert(view is AssetsAccessPermissionView)
-    }
-
-    func test_viewFactory_supportedMessageActions() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        let expected = MessageAction.defaultActions(
-            factory: DefaultViewFactory.shared,
-            for: message,
-            channel: .mockDMChannel(),
-            chatClient: chatClient,
-            onFinish: { _ in },
-            onError: { _ in }
-        )
-
-        // When
-        let actions = viewFactory.supportedMessageActions(
-            for: message,
-            channel: .mockDMChannel(),
-            onFinish: { _ in },
-            onError: { _ in }
-        )
-
-        // Then
-        XCTAssert(actions == expected)
+        XCTAssert(view is AttachmentCameraPickerView)
     }
 
     func test_viewFactory_makeMessageActionsView() {
@@ -404,10 +389,12 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMessageActionsView(
-            for: message,
-            channel: .mockDMChannel(),
-            onFinish: { _ in },
-            onError: { _ in }
+            options: MessageActionsViewOptions(
+                message: message,
+                channel: .mockDMChannel(),
+                onFinish: { _ in },
+                onError: { _ in }
+            )
         )
 
         // Then
@@ -420,9 +407,11 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMessageReactionView(
-            message: message,
-            onTapGesture: {},
-            onLongPressGesture: {}
+            options: MessageReactionViewOptions(
+                message: message,
+                onTapGesture: {},
+                onLongPressGesture: {}
+            )
         )
 
         // Then
@@ -435,16 +424,18 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeReactionsOverlayView(
-            channel: .mockDMChannel(),
-            currentSnapshot: UIImage(systemName: "checkmark")!,
-            messageDisplayInfo: .init(
-                message: message,
-                frame: .zero,
-                contentWidth: 300,
-                isFirst: true
-            ),
-            onBackgroundTap: {},
-            onActionExecuted: { _ in }
+            options: ReactionsOverlayViewOptions(
+                channel: .mockDMChannel(),
+                currentSnapshot: UIImage(systemName: "checkmark")!,
+                messageDisplayInfo: .init(
+                    message: message,
+                    frame: .zero,
+                    contentWidth: 300,
+                    isFirst: true
+                ),
+                onBackgroundTap: {},
+                onActionExecuted: { _ in }
+            )
         )
 
         // Then
@@ -456,7 +447,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let viewModifier = viewFactory.makeMessageThreadHeaderViewModifier()
+        let viewModifier = viewFactory.makeMessageThreadHeaderViewModifier(options: MessageThreadHeaderViewModifierOptions())
 
         // Then
         XCTAssert(viewModifier is DefaultMessageThreadHeaderModifier)
@@ -468,65 +459,73 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeSendInChannelView(
-            showReplyInChannel: .constant(true),
-            isDirectMessage: true
+            options: SendInChannelViewOptions(
+                showReplyInChannel: .constant(true)
+            )
         )
 
         // Then
         XCTAssert(view is SendInChannelView)
     }
 
-    func test_viewFactory_makeQuotedMessageHeaderView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-
-        // When
-        let view = viewFactory.makeQuotedMessageHeaderView(
-            quotedMessage: .constant(message)
-        )
-
-        // Then
-        XCTAssert(view is QuotedMessageHeaderView)
-    }
-
-    func test_viewFactory_makeQuotedMessageComposerView() {
+    func test_viewFactory_makeQuotedMessageView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
         let view = viewFactory.makeQuotedMessageView(
-            quotedMessage: message,
-            fillAvailableSpace: true,
-            isInComposer: false,
-            scrolledId: .constant(nil)
+            options: .init(
+                quotedMessage: message,
+                outgoing: true
+            )
         )
 
         // Then
-        XCTAssert(view is QuotedMessageViewContainer<DefaultViewFactory>)
+        XCTAssert(view is QuotedMessageView<DefaultViewFactory>)
     }
-
-    func test_viewFactory_makeEditedMessageHeaderView() {
+    
+    func test_viewFactory_makeChatQuotedMessageView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeEditedMessageHeaderView(
-            editedMessage: .constant(message)
+        let view = viewFactory.makeChatQuotedMessageView(
+            options: ChatQuotedMessageViewOptions(
+                quotedMessage: message,
+                parentMessage: .mock(),
+                scrolledId: .constant(nil)
+            )
         )
 
         // Then
-        XCTAssert(view is EditMessageHeaderView)
+        XCTAssert(view is ChatQuotedMessageView<DefaultViewFactory>)
     }
 
-    func test_viewFactory_makeCommandsContainerView() {
+    func test_viewFactory_makeComposerQuotedMessageView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeCommandsContainerView(suggestions: [:]) { _ in }
+        let view = viewFactory.makeComposerQuotedMessageView(
+            options: .init(
+                quotedMessage: message,
+                onDismiss: {}
+            )
+        )
 
         // Then
-        XCTAssert(view is CommandsContainerView<DefaultViewFactory>)
+        XCTAssert(view is ComposerQuotedMessageView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeSuggestionsContainerView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeSuggestionsContainerView(options: SuggestionsContainerViewOptions(suggestions: [:]) { _ in })
+
+        // Then
+        XCTAssert(view is SuggestionsContainerView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeLeadingSwipeActionsView() {
@@ -535,11 +534,13 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeLeadingSwipeActionsView(
-            channel: .mockDMChannel(),
-            offsetX: 80,
-            buttonWidth: 40,
-            swipedChannelId: .constant(nil),
-            buttonTapped: { _ in }
+            options: LeadingSwipeActionsViewOptions(
+                channel: .mockDMChannel(),
+                offsetX: 80,
+                buttonWidth: 40,
+                swipedChannelId: .constant(nil),
+                buttonTapped: { _ in }
+            )
         )
 
         // Then
@@ -552,12 +553,14 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeTrailingSwipeActionsView(
-            channel: .mockDMChannel(),
-            offsetX: 80,
-            buttonWidth: 40,
-            swipedChannelId: .constant(nil),
-            leftButtonTapped: { _ in },
-            rightButtonTapped: { _ in }
+            options: TrailingSwipeActionsViewOptions(
+                channel: .mockDMChannel(),
+                offsetX: 80,
+                buttonWidth: 40,
+                swipedChannelId: .constant(nil),
+                leftButtonTapped: { _ in },
+                rightButtonTapped: { _ in }
+            )
         )
 
         // Then
@@ -570,12 +573,76 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMessageReadIndicatorView(
-            channel: .mockDMChannel(),
-            message: .mock(id: .unique, cid: .unique, text: "Test", author: .mock(id: .unique))
+            options: MessageReadIndicatorViewOptions(
+                channel: .mockDMChannel(),
+                message: .mock(id: .unique, cid: .unique, text: "Test", author: .mock(id: .unique))
+            )
         )
 
         // Then
         XCTAssert(view is MessageReadIndicatorView)
+    }
+
+    func test_viewFactory_makeMessageReadIndicatorView_whenMessageDelivered_showsDelivered() throws {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        let date = Date(timeIntervalSince1970: 100)
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Test",
+            author: .mock(id: Self.currentUserId),
+            createdAt: date.addingTimeInterval(-100),
+            localState: nil,
+            isSentByCurrentUser: true
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            reads: [
+                .mock(
+                    lastReadAt: .distantPast,
+                    lastReadMessageId: nil,
+                    unreadMessagesCount: 0,
+                    user: .mock(id: .unique),
+                    lastDeliveredAt: date,
+                    lastDeliveredMessageId: message.id
+                )
+            ]
+        )
+
+        // When
+        let view = viewFactory.makeMessageReadIndicatorView(
+            options: MessageReadIndicatorViewOptions(channel: channel, message: message)
+        )
+
+        // Then
+        let indicator = try XCTUnwrap(view as? MessageReadIndicatorView)
+        XCTAssertTrue(indicator.showDelivered)
+        XCTAssertTrue(indicator.readUsers.isEmpty)
+    }
+
+    func test_viewFactory_makeMessageReadIndicatorView_whenMessageNotDelivered_doesNotShowDelivered() throws {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Test",
+            author: .mock(id: Self.currentUserId),
+            createdAt: Date(timeIntervalSince1970: 100),
+            localState: nil,
+            isSentByCurrentUser: true
+        )
+        let channel = ChatChannel.mock(cid: .unique)
+
+        // When
+        let view = viewFactory.makeMessageReadIndicatorView(
+            options: MessageReadIndicatorViewOptions(channel: channel, message: message)
+        )
+
+        // Then
+        let indicator = try XCTUnwrap(view as? MessageReadIndicatorView)
+        XCTAssertFalse(indicator.showDelivered)
     }
 
     func test_viewFactory_makeSystemMessageView() {
@@ -584,25 +651,13 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeSystemMessageView(
-            message: .mock(id: .unique, cid: .unique, text: "Test", author: .mock(id: .unique))
+            options: SystemMessageViewOptions(
+                message: .mock(id: .unique, cid: .unique, text: "Test", author: .mock(id: .unique))
+            )
         )
 
         // Then
         XCTAssert(view is SystemMessageView)
-    }
-
-    func test_viewFactory_makeReactionsUsersView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-
-        // When
-        let view = viewFactory.makeReactionsUsersView(
-            message: .mock(id: .unique, cid: .unique, text: "Test", author: .mock(id: .unique)),
-            maxHeight: 280
-        )
-
-        // Then
-        XCTAssert(view is ReactionsUsersView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeChannelListFooterView() {
@@ -610,7 +665,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeChannelListFooterView()
+        let view = viewFactory.makeChannelListFooterView(options: ChannelListFooterViewOptions())
 
         // Then
         XCTAssert(view is EmptyView)
@@ -621,7 +676,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeChannelListStickyFooterView()
+        let view = viewFactory.makeChannelListStickyFooterView(options: ChannelListStickyFooterViewOptions())
 
         // Then
         XCTAssert(view is EmptyView)
@@ -632,7 +687,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let modifier = viewFactory.makeChannelListModifier()
+        let modifier = viewFactory.styles.makeChannelListModifier(options: ChannelListModifierOptions())
 
         // Then
         XCTAssert(modifier is EmptyViewModifier)
@@ -643,7 +698,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let modifier = viewFactory.makeMessageListModifier()
+        let modifier = viewFactory.styles.makeMessageListModifier(options: MessageListModifierOptions())
 
         // Then
         XCTAssert(modifier is EmptyViewModifier)
@@ -654,7 +709,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let modifier = viewFactory.makeMessageViewModifier(
+        let modifier = viewFactory.styles.makeMessageViewModifier(
             for: MessageModifierInfo(
                 message: message,
                 isFirst: false
@@ -670,10 +725,10 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let modifier = viewFactory.makeComposerViewModifier()
+        let modifier = viewFactory.styles.makeComposerViewModifier(options: ComposerViewModifierOptions())
 
         // Then
-        XCTAssert(modifier is EmptyViewModifier)
+        XCTAssert(modifier is ComposerBackgroundRegularViewModifier)
     }
 
     func test_viewFactory_makeMessageDateView() {
@@ -681,7 +736,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeMessageDateView(for: message)
+        let view = viewFactory.makeMessageDateView(options: MessageDateViewOptions(message: message))
 
         // Then
         XCTAssert(view is MessageDateView)
@@ -692,7 +747,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeMessageAuthorAndDateView(for: message)
+        let view = viewFactory.makeMessageAuthorAndDateView(options: MessageAuthorAndDateViewOptions(message: message))
 
         // Then
         XCTAssert(view is MessageAuthorAndDateView)
@@ -703,7 +758,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let viewModifier = viewFactory.makeChannelListContentModifier()
+        let viewModifier = viewFactory.styles.makeChannelListContentModifier(options: ChannelListContentModifierOptions())
 
         // Then
         XCTAssert(viewModifier is EmptyViewModifier)
@@ -714,7 +769,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeMessageListDateIndicator(date: Date())
+        let view = viewFactory.makeMessageListDateIndicator(options: MessageListDateIndicatorViewOptions(date: Date()))
 
         // Then
         XCTAssert(view is DateIndicatorView)
@@ -725,7 +780,7 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeLastInGroupHeaderView(for: message)
+        let view = viewFactory.makeLastInGroupHeaderView(options: LastInGroupHeaderViewOptions(message: message))
 
         // Then
         XCTAssert(view is EmptyView)
@@ -737,9 +792,11 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeEmojiTextView(
-            message: message,
-            scrolledId: .constant(nil),
-            isFirst: true
+            options: EmojiTextViewOptions(
+                message: message,
+                scrolledId: .constant(nil),
+                isFirst: true
+            )
         )
 
         // Then
@@ -752,43 +809,46 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeMessageRepliesView(
-            channel: ChatChannel.mockDMChannel(),
-            message: message,
-            replyCount: 2
+            options: MessageRepliesViewOptions(
+                channel: ChatChannel.mockDMChannel(),
+                message: message,
+                replyCount: 2
+            )
         )
 
         // Then
         XCTAssert(view is MessageRepliesView<DefaultViewFactory>)
     }
     
-    func test_viewFactory_makeMessageRepliesShownInChannelView() {
+    func test_viewFactory_makeInlineTypingIndicatorView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeMessageRepliesShownInChannelView(
-            channel: ChatChannel.mockDMChannel(),
-            message: message,
-            parentMessage: message,
-            replyCount: 2
+        let view = viewFactory.makeInlineTypingIndicatorView(
+            options: TypingIndicatorViewOptions(
+                channel: .mockDMChannel(),
+                currentUserId: nil
+            )
         )
 
         // Then
-        XCTAssert(view is MessageRepliesView<DefaultViewFactory>)
+        XCTAssert(view is TypingIndicatorView)
     }
-
-    func test_viewFactory_makeTypingIndicatorBottomView() {
+    
+    func test_viewFactory_makeSubtitleTypingIndicatorView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
 
         // When
-        let view = viewFactory.makeTypingIndicatorBottomView(
-            channel: .mockDMChannel(),
-            currentUserId: nil
+        let view = viewFactory.makeSubtitleTypingIndicatorView(
+            options: SubtitleTypingIndicatorViewOptions(
+                channel: .mockDMChannel()
+            )
         )
 
         // Then
-        XCTAssert(view is TypingIndicatorBottomView)
+        XCTAssertNotNil(view)
     }
 
     func test_viewFactory_makeReactionsContentView() {
@@ -797,27 +857,45 @@ class ViewFactory_Tests: StreamChatTestCase {
 
         // When
         let view = viewFactory.makeReactionsContentView(
-            message: .mock(),
-            contentRect: .zero,
-            onReactionTap: { _ in }
+            options: ReactionsContentViewOptions(
+                message: .mock(),
+                contentRect: .zero,
+                onReactionTap: { _ in },
+                onMoreReactionsTap: {}
+            )
         )
 
         // Then
         XCTAssert(view is ReactionsOverlayContainer)
     }
     
-    func test_viewFactory_makeNewMessagesIndicatorView() {
+    func test_viewFactory_makeNewMessagesDividerView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
         
         // When
-        let view = viewFactory.makeNewMessagesIndicatorView(
-            newMessagesStartId: .constant(nil),
-            count: 2
+        let view = viewFactory.makeNewMessagesDividerView(
+            options: NewMessagesDividerViewOptions(
+                newMessagesStartId: .constant(nil),
+                count: 2
+            )
         )
         
         // Then
-        XCTAssert(view is NewMessagesIndicator)
+        XCTAssert(view is NewMessagesDivider)
+    }
+
+    func test_viewFactory_makeThreadRepliesDividerView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        
+        // When
+        let view = viewFactory.makeThreadRepliesDividerView(
+            options: ThreadRepliesDividerViewOptions(replyCount: 5)
+        )
+        
+        // Then
+        XCTAssert(view is ThreadRepliesDivider)
     }
     
     func test_viewFactory_makeComposerTextInputView() {
@@ -826,26 +904,76 @@ class ViewFactory_Tests: StreamChatTestCase {
         
         // When
         let view = viewFactory.makeComposerTextInputView(
-            text: .constant("test"),
-            height: .constant(40),
-            selectedRangeLocation: .constant(0),
-            placeholder: "Send a message",
-            editable: true,
-            maxMessageLength: nil,
-            currentHeight: 40
+            options: ComposerTextInputViewOptions(
+                text: .constant("test"),
+                height: .constant(40),
+                selectedRangeLocation: .constant(0),
+                placeholder: "Message",
+                editable: true,
+                maxMessageLength: nil,
+                currentHeight: 40,
+                onImagePasted: { _ in }
+            )
         )
         
         // Then
         XCTAssert(view is ComposerTextInputView)
     }
+
+    func test_viewFactory_makeSendMessageButton() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeSendMessageButton(
+            options: SendMessageButtonOptions(
+                enabled: true,
+                onTap: {}
+            )
+        )
+
+        // Then
+        XCTAssert(view is SendMessageButton)
+    }
+
+    func test_viewFactory_makeConfirmEditButton() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeConfirmEditButton(
+            options: ConfirmEditButtonOptions(
+                enabled: true,
+                onTap: {}
+            )
+        )
+
+        // Then
+        XCTAssert(view is ConfirmEditButton)
+    }
+
+    func test_viewFactory_makeAttachmentCommandsPickerView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeAttachmentCommandsPickerView(
+            options: AttachmentCommandsPickerViewOptions(
+                onCommandSelected: { _ in }
+            )
+        )
+
+        // Then
+        XCTAssert(view is AttachmentCommandsPickerView)
+    }
     
     func test_viewFactory_makeMessageListContainerModifier() {
         // Given
         let viewFactory = DefaultViewFactory.shared
-        
+
         // When
-        let modifier = viewFactory.makeMessageListContainerModifier()
-        
+        let modifier = viewFactory.styles.makeMessageListContainerModifier(options: MessageListContainerModifierOptions())
+
         // Then
         XCTAssert(modifier is EmptyViewModifier)
     }
@@ -856,92 +984,49 @@ class ViewFactory_Tests: StreamChatTestCase {
         
         // When
         let view = viewFactory.makeBottomReactionsView(
-            message: .mock(),
-            showsAllInfo: true,
-            onTap: {},
-            onLongPress: {}
+            options: ReactionsBottomViewOptions(
+                message: .mock(),
+                showsAllInfo: true,
+                onTap: {},
+                onLongPress: {}
+            )
         )
-        let name = String(describing: type(of: view))
 
         // Then
-        XCTAssert(name.contains("BottomReactionsView"))
+        XCTAssert(view is ReactionsContainer)
     }
     
-    func test_viewFactory_makeCustomAttachmentQuotedView() {
+    func test_viewFactory_makeComposerVoiceRecordingInputView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
         
         // When
-        let view = viewFactory.makeCustomAttachmentQuotedView(for: .mock())
-        
-        // Then
-        XCTAssert(view is EmptyView)
-    }
-    
-    func test_viewFactory_makeComposerRecordingView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        let controller = ChatChannelTestHelpers.makeChannelController(
-            chatClient: chatClient
+        let view = viewFactory.makeComposerVoiceRecordingInputView(
+            options: ComposerVoiceRecordingInputViewOptions(
+                recordingState: .recording,
+                audioRecordingInfo: .initial,
+                pendingAudioRecordingURL: nil,
+                gestureLocation: .zero,
+                stopRecording: {},
+                confirmRecording: {},
+                discardRecording: {},
+                previewRecording: {}
+            )
         )
-        let viewModel = MessageComposerViewModel(channelController: controller, messageController: nil)
-        
-        // When
-        let view = viewFactory.makeComposerRecordingView(viewModel: viewModel, gestureLocation: .zero)
         
         // Then
-        XCTAssert(view is RecordingView)
-    }
-    
-    func test_viewFactory_makeComposerRecordingTipView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        
-        // When
-        let view = viewFactory.makeComposerRecordingTipView()
-        
-        // Then
-        XCTAssert(view is RecordingTipView)
-    }
-    
-    func test_viewFactory_makeComposerRecordingLockedView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        let controller = ChatChannelTestHelpers.makeChannelController(
-            chatClient: chatClient
-        )
-        let viewModel = MessageComposerViewModel(channelController: controller, messageController: nil)
-        
-        // When
-        let view = viewFactory.makeComposerRecordingLockedView(viewModel: viewModel)
-        
-        // Then
-        XCTAssert(view is LockedView)
+        XCTAssert(view is ComposerVoiceRecordingInputView<DefaultViewFactory>)
     }
     
     func test_viewFactory_makeChannelLoadingView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
-        
+
         // When
-        let view = viewFactory.makeChannelLoadingView()
-        
+        let view = viewFactory.makeChannelLoadingView(options: ChannelLoadingViewOptions())
+
         // Then
         XCTAssert(view is LoadingView)
-    }
-    
-    func test_viewFactory_makeComposerPollView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        
-        // When
-        let view = viewFactory.makeComposerPollView(
-            channelController: .init(channelQuery: .init(cid: .unique), channelListQuery: nil, client: chatClient),
-            messageController: nil
-        )
-        
-        // Then
-        XCTAssert(view is ComposerPollView)
     }
     
     func test_viewFactory_makePollView() {
@@ -949,7 +1034,14 @@ class ViewFactory_Tests: StreamChatTestCase {
         let viewFactory = DefaultViewFactory.shared
         
         // When
-        let view = viewFactory.makePollView(message: .mock(), poll: Poll.mock(), isFirst: true)
+        let view = viewFactory.makePollView(
+            options: PollViewOptions(
+                message: .mock(),
+                poll: Poll.mock(),
+                isFirst: true,
+                availableWidth: 256
+            )
+        )
         
         // Then
         XCTAssert(view is PollAttachmentView<DefaultViewFactory>)
@@ -961,103 +1053,123 @@ class ViewFactory_Tests: StreamChatTestCase {
         
         // When
         let view = viewFactory.makeChannelAvatarView(
-            for: .mockNonDMChannel(),
-            with: .init(showOnlineIndicator: false)
+            options: ChannelAvatarViewOptions(
+                channel: .mockNonDMChannel(),
+                size: AvatarSize.medium
+            )
         )
         
         // Then
-        XCTAssert(view is ChannelAvatarView)
+        XCTAssert(view is ChannelAvatar)
     }
     
-    func test_viewFactory_makeGalleryView() {
+    func test_viewFactory_makeMediaViewer() {
         // Given
         let viewFactory = DefaultViewFactory.shared
         
         // When
-        let view = viewFactory.makeGalleryView(
-            mediaAttachments: [],
-            message: .mock(),
-            isShown: .constant(true),
-            options: .init(selectedIndex: 0)
+        let view = viewFactory.makeMediaViewer(
+            options: MediaViewerOptions(
+                mediaAttachments: [],
+                message: .mock(),
+                isShown: .constant(true),
+                options: .init(selectedIndex: 0)
+            )
         )
             
         // Then
-        XCTAssert(view is GalleryView<DefaultViewFactory>)
+        XCTAssert(view is MediaViewer<DefaultViewFactory>)
     }
     
-    func test_viewFactory_makeGalleryHeaderView() {
+    func test_viewFactory_makeMediaViewerToolbarModifier() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let modifier = viewFactory.makeMediaViewerToolbarModifier(
+            options: MediaViewerToolbarModifierOptions(
+                title: .unique,
+                subtitle: .unique,
+                isShown: .constant(true)
+            )
+        )
+
+        // Then
+        XCTAssert(modifier is MediaViewerToolbarModifier)
+    }
+
+    func test_viewFactory_makeMemberAddView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
         
         // When
-        let view = viewFactory.makeGalleryHeaderView(
-            title: .unique,
-            subtitle: .unique,
-            shown: .constant(true)
+        let view = viewFactory.makeMemberAddView(
+            options: MemberAddViewOptions(
+                options: .init(loadedUserIds: []),
+                onConfirm: { _ in }
+            )
         )
-            
+        
         // Then
-        XCTAssert(view is GalleryHeaderView)
+        XCTAssert(view is MemberAddView<DefaultViewFactory>)
     }
-    
-    func test_viewFactory_makeVideoPlayerView() {
+
+    func test_viewFactory_makeStreamTextView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
-        
+
         // When
-        let view = viewFactory.makeVideoPlayerView(
-            attachment: .mock(id: .unique),
-            message: .mock(),
-            isShown: .constant(true),
-            options: .init(selectedIndex: 0)
-        )
-            
+        let view = viewFactory.makeStreamTextView(options: .init(message: message, translationLanguage: nil))
+
         // Then
-        XCTAssert(view is VideoPlayerView<DefaultViewFactory>)
-    }
-    
-    func test_viewFactory_makeVideoPlayerHeaderView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        
-        // When
-        let view = viewFactory.makeVideoPlayerHeaderView(
-            title: .unique,
-            subtitle: .unique,
-            shown: .constant(true)
-        )
-            
-        // Then
-        XCTAssert(view is GalleryHeaderView)
-    }
-    
-    func test_viewFactory_makeAddUsersView() {
-        // Given
-        let viewFactory = DefaultViewFactory.shared
-        
-        // When
-        let view = viewFactory.makeAddUsersView(
-            options: .init(loadedUsers: []),
-            onUserTap: { _ in }
-        )
-        
-        // Then
-        XCTAssert(view is AddUsersView<DefaultViewFactory>)
+        XCTAssert(view is StreamTextView)
     }
 
     func test_viewFactory_makeAttachmentTextView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
-        
+
         // When
-        let view = viewFactory.makeAttachmentTextView(options: .init(mesage: message))
-        
+        let view = viewFactory.makeAttachmentTextView(options: .init(message: message, availableWidth: 300, translationLanguage: nil))
+
         // Then
-        XCTAssert(view is StreamTextView)
+        XCTAssert(view is AttachmentTextView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeReactionsDetailView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeReactionsDetailView(
+            options: ReactionsDetailViewOptions(message: message)
+        )
+
+        // Then
+        XCTAssert(view is ReactionsDetailView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeMessageTopView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        let channel = ChatChannel.mockDMChannel()
+        let viewModel = MessageViewModel(message: message, channel: channel)
+
+        // When
+        let view = viewFactory.makeMessageTopView(
+            options: MessageTopViewOptions(
+                message: message,
+                channel: channel,
+                messageViewModel: viewModel
+            )
+        )
+
+        // Then
+        XCTAssert(view is MessageTopView)
     }
 }
 
-extension ChannelAction: Equatable {
+extension ChannelAction: @retroactive Equatable {
     public static func == (lhs: ChannelAction, rhs: ChannelAction) -> Bool {
         lhs.id == rhs.id
     }

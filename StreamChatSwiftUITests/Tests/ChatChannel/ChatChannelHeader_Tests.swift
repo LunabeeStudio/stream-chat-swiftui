@@ -9,7 +9,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class ChatChannelHeader_Tests: StreamChatTestCase {
+@MainActor class ChatChannelHeader_Tests: StreamChatTestCase {
     func test_chatChannelHeaderModifier_snapshot() {
         // Given
         let channel = ChatChannel.mockDMChannel(name: "Test channel")
@@ -18,14 +18,14 @@ class ChatChannelHeader_Tests: StreamChatTestCase {
         let view = NavigationView {
             Text("Test")
                 .applyDefaultSize()
-                .modifier(DefaultChannelHeaderModifier(channel: channel))
+                .modifier(DefaultChannelHeaderModifier(channel: channel, shouldShowTypingIndicator: false))
         }
         .applyDefaultSize()
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-    
+
     func test_chatChannelHeaderModifier_channelAvatarUpdated() {
         // Given
         let channel = ChatChannel.mockDMChannel(name: "Test channel")
@@ -37,7 +37,8 @@ class ChatChannelHeader_Tests: StreamChatTestCase {
                 .modifier(
                     DefaultChannelHeaderModifier(
                         factory: ChannelAvatarViewFactory(),
-                        channel: channel
+                        channel: channel,
+                        shouldShowTypingIndicator: false
                     )
                 )
         }
@@ -56,7 +57,7 @@ class ChatChannelHeader_Tests: StreamChatTestCase {
             Text("Test")
                 .applyDefaultSize()
                 .toolbar {
-                    DefaultChatChannelHeader(channel: channel, headerImage: .circleImage, isActive: .constant(false))
+                    DefaultChatChannelHeader(channel: channel, shouldShowTypingIndicator: false, isActive: .constant(false))
                 }
         }
         .applyDefaultSize()
@@ -83,8 +84,8 @@ class ChatChannelHeader_Tests: StreamChatTestCase {
 
         // When
         adjustAppearance { appearance in
-            appearance.colors.text = .red
-            appearance.colors.subtitleText = .blue
+            appearance.colorPalette.textPrimary = .red
+            appearance.colorPalette.textSecondary = .blue
         }
         let size = CGSize(width: 300, height: 100)
         let view = ChannelTitleView(channel: channel, shouldShowTypingIndicator: true)

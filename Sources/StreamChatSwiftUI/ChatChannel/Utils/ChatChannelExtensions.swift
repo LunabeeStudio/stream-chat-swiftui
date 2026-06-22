@@ -45,7 +45,7 @@ extension ChatChannel {
     /// - Parameters:
     ///  - currentUserId: the id of the current user.
     /// - Returns: the typing indicator string.
-    public func typingIndicatorString(currentUserId: UserId?) -> String {
+    @MainActor public func typingIndicatorString(currentUserId: UserId?) -> String {
         let chatUserNamer = InjectedValues[\.utils].chatUserNamer
         let typingUsers = currentlyTypingUsersFiltered(currentUserId: currentUserId)
         if let user = typingUsers.first(where: { user in user.name != nil }), let name = chatUserNamer.name(forUser: user) {
@@ -62,7 +62,7 @@ extension ChatChannel {
     ///  - message: the current message.
     /// - Returns: The list of users that read the channel.
     public func readUsers(currentUserId: UserId?, message: ChatMessage?) -> [ChatUser] {
-        guard let message = message else {
+        guard let message else {
             return []
         }
         let readUsers = reads.filter {
@@ -79,10 +79,10 @@ extension ChatChannel {
 
 extension ChatUser {
     var mentionText: String {
-        if let name = self.name, !name.isEmpty {
-            return name
+        if let name, !name.isEmpty {
+            name
         } else {
-            return id
+            id
         }
     }
 }

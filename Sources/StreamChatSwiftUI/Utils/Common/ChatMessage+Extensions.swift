@@ -4,6 +4,7 @@
 
 import Foundation
 import StreamChat
+import SwiftUI
 
 public extension ChatMessage {
     /// A boolean value that checks if actions are available on the message (e.g. `edit`, `delete`, `resend`, etc.).
@@ -45,7 +46,7 @@ public extension ChatMessage {
     }
 
     /// The text which should be shown in a text view inside the message bubble.
-    var textContent: String? {
+    @MainActor var textContent: String? {
         guard type != .ephemeral else {
             return nil
         }
@@ -89,22 +90,100 @@ public extension ChatMessage {
     /// By default, any string which comprises of ONLY emojis of length 3 or less is displayed as large emoji
     ///
     /// Note that for messages sent with attachments, large emojis aren's rendered
-    var shouldRenderAsJumbomoji: Bool {
-        guard let textContent = textContent, !textContent.isEmpty else { return false }
+    @MainActor var shouldRenderAsJumbomoji: Bool {
+        guard let textContent, !textContent.isEmpty else { return false }
         return textContent.count <= 3 && textContent.containsOnlyEmoji
     }
 
-    var adjustedText: String {
+    @MainActor var adjustedText: String {
         InjectedValues[\.utils].composerConfig.adjustMessageOnRead(text)
     }
     
-    var isRightAligned: Bool {
+    @MainActor var isRightAligned: Bool {
         let config = InjectedValues[\.utils].messageListConfig
         let messageListAlignment = config.messageListAlignment
         if messageListAlignment == .leftAligned {
             return false
         }
         return isSentByCurrentUser
+    }
+}
+
+@available(iOS 15, *)
+extension ChatMessage {
+    /// Returns the message text as a styled `AttributedString` with markdown, mentions, and links applied.
+    ///
+    /// Behavior is controlled by `MessageListConfig.markdownSupportEnabled`, `MessageListConfig.localLinkDetectionEnabled`,
+    /// and `MessageDisplayOptions.messageLinkDisplayResolver`.
+    @MainActor public func attributedTextContent(
+        layoutDirection: LayoutDirection,
+        translationLanguage: TranslationLanguage?
+    ) -> AttributedString {
+        @Injected(\.utils) var utils
+        @Injected(\.colors) var colors
+        @Injected(\.fonts) var fonts
+
+        let text: String
+        if let translationLanguage, let translatedText = textContent(for: translationLanguage) {
+            text = translatedText
+        } else {
+            text = textContent ?? ""
+        }
+
+        let foregroundColor: Color = isSentByCurrentUser
+            ? Color(colors.chatTextOutgoing)
+            : Color(colors.chatTextIncoming)
+
+        // Markdown
+        let attributes = AttributeContainer()
+            .foregroundColor(foregroundColor)
+            .font(fonts.body)
+        var attributedString: AttributedString
+        if utils.messageListConfig.markdownSupportEnabled {
+            attributedString = utils.markdownFormatter.format(
+                text,
+                attributes: attributes,
+                layoutDirection: layoutDirection
+            )
+        } else {
+            attributedString = AttributedString(text, attributes: attributes)
+        }
+
+        // Links and mentions
+        if utils.messageListConfig.localLinkDetectionEnabled {
+            for user in mentionedUsers {
+                let mention = "@\(user.name ?? user.id)"
+                let ranges = attributedString.ranges(of: mention, options: [.caseInsensitive])
+                for range in ranges {
+                    if let messageId = messageId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                       let url = URL(string: "getstream://mention/\(messageId)/\(user.id)") {
+                        attributedString[range].link = url
+                    }
+                }
+            }
+            for link in utils.linkDetector.links(in: String(attributedString.characters)) {
+                if let attributedStringRange = Range(link.range, in: attributedString) {
+                    attributedString[attributedStringRange].link = link.url
+                }
+            }
+        }
+
+        // Link styling
+        var linkAttributes = utils.messageListConfig.messageDisplayOptions.messageLinkDisplayResolver(self)
+        if !linkAttributes.isEmpty {
+            var linkAttributeContainer = AttributeContainer()
+            if let uiColor = linkAttributes[.foregroundColor] as? UIColor {
+                linkAttributeContainer = linkAttributeContainer.foregroundColor(Color(uiColor: uiColor))
+                linkAttributes.removeValue(forKey: .foregroundColor)
+            }
+            linkAttributeContainer.merge(AttributeContainer(linkAttributes))
+            for (value, range) in attributedString.runs[\.link] {
+                guard value != nil else { continue }
+                attributedString[range].mergeAttributes(linkAttributeContainer)
+            }
+        }
+
+        return attributedString
     }
 }
 

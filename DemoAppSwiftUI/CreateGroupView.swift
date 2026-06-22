@@ -84,11 +84,7 @@ struct SelectedUserGroupView: View {
 
     var body: some View {
         VStack {
-            MessageAvatarView(
-                avatarURL: user.imageURL,
-                size: CGSize(width: avatarSize, height: avatarSize)
-            )
-
+            UserAvatar(user: user, size: avatarSize)
             Text(user.name ?? user.id)
                 .lineLimit(1)
                 .font(fonts.footnote)
@@ -129,7 +125,7 @@ struct SearchBar: View {
             TextField("Search ...", text: $text)
                 .padding(7)
                 .padding(.horizontal, 25)
-                .background(Color(colors.background1))
+                .background(Color(colors.backgroundCoreSurfaceSubtle))
                 .cornerRadius(16)
                 .overlay(
                     HStack {
@@ -140,7 +136,7 @@ struct SearchBar: View {
 
                         if isEditing {
                             Button(action: {
-                                self.text = ""
+                                text = ""
 
                             }) {
                                 Image(systemName: "multiply.circle.fill")
@@ -152,13 +148,13 @@ struct SearchBar: View {
                 )
                 .padding(.horizontal, 10)
                 .onTapGesture {
-                    self.isEditing = true
+                    isEditing = true
                 }
 
             if isEditing {
                 Button(action: {
-                    self.isEditing = false
-                    self.text = ""
+                    isEditing = false
+                    text = ""
 
                     // Dismiss the keyboard
                     UIApplication.shared.sendAction(
@@ -172,7 +168,7 @@ struct SearchBar: View {
                 }
                 .padding(.trailing, 10)
                 .transition(.move(edge: .trailing))
-                .animation(.default)
+                .animation(.default, value: isEditing)
             }
         }
     }

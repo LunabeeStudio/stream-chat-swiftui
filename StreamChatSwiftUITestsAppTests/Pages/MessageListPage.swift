@@ -11,11 +11,18 @@ import XCTest
 
 class MessageListPage {
     static var cells: XCUIElementQuery {
-        app.otherElements.matching(identifier: "MessageContainerView")
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format:
+                "(elementType == %d or elementType == %d) and identifier LIKE 'MessageItemView'",
+                XCUIElement.ElementType.button.rawValue,
+                XCUIElement.ElementType.other.rawValue
+            )
+        )
     }
 
     static func messageView(for cell: XCUIElement) -> XCUIElement {
-        cell.otherElements.matching(identifier: "MessageView").firstMatch
+        cell.buttons.matching(identifier: "MessageView").firstMatch
     }
 
     static var messages: XCUIElementQuery {
@@ -31,7 +38,7 @@ class MessageListPage {
     }
 
     static var typingIndicator: XCUIElement {
-        app.staticTexts["TypingIndicatorBottomView"].firstMatch
+        app.descendants(matching: .any)["TypingIndicatorView"].firstMatch
     }
 
     static var scrollToBottomButton: XCUIElement {
@@ -39,12 +46,12 @@ class MessageListPage {
     }
     
     static var scrollToBottomButtonUnreadCount: XCUIElement {
-        app.staticTexts["ScrollToBottomButton"]
+        app.staticTexts["BadgeNotificationView"]
     }
 
     enum NavigationBar {
         static var chatAvatar: XCUIElement {
-            app.images["ChannelAvatarView"]
+            app.images["ChannelAvatar"]
         }
 
         static var chatName: XCUIElement {
@@ -90,7 +97,7 @@ class MessageListPage {
         static var textView: XCUIElement { inputField }
         static var inputField: XCUIElement { app.textViews["ComposerTextInputView"] }
         static var sendButton: XCUIElement { app.buttons["SendMessageButton"] }
-        static var confirmButton: XCUIElement { sendButton }
+        static var confirmButton: XCUIElement { app.buttons["ConfirmEditButton"] }
         static var attachmentButton: XCUIElement { app.buttons["PickerTypeButtonMedia"] }
         static var commandButton: XCUIElement { app.buttons["PickerTypeButtonCommands"] }
         static var collapsedComposerButton: XCUIElement { app.buttons["PickerTypeButtonCollapsed"] }
@@ -102,16 +109,16 @@ class MessageListPage {
 
     enum Reactions {
         static var reactionsMessageView: XCUIElement { app.otherElements["ReactionsMessageView"] }
-        static var love: XCUIElement { app.otherElements["reaction-love"] }
-        static var lol: XCUIElement { app.otherElements["reaction-haha"] }
-        static var like: XCUIElement { app.otherElements["reaction-like"] }
-        static var sad: XCUIElement { app.otherElements["reaction-sad"] }
-        static var wow: XCUIElement { app.otherElements["reaction-wow"] }
+        static var love: XCUIElement { app.buttons["reaction-love"].firstMatch }
+        static var lol: XCUIElement { app.buttons["reaction-haha"].firstMatch }
+        static var like: XCUIElement { app.buttons["reaction-like"].firstMatch }
+        static var sad: XCUIElement { app.buttons["reaction-sad"].firstMatch }
+        static var wow: XCUIElement { app.buttons["reaction-wow"].firstMatch }
     }
 
     enum Attributes {
         static func messageBubble(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.otherElements["MessageView"]
+            messageCell.buttons["MessageView"]
         }
         
         static func reactionButton(in messageCell: XCUIElement) -> XCUIElement {
@@ -119,7 +126,11 @@ class MessageListPage {
         }
 
         static func threadReplyCountButton(in messageCell: XCUIElement) -> XCUIElement {
-            app.buttons.matching(NSPredicate(format: "identifier LIKE 'MessageAvatarView' or identifier LIKE 'MessageAvatarViewPlaceholder'")).firstMatch
+            app.buttons.matching(
+                NSPredicate(format:
+                    "(identifier LIKE 'UserAvatar' or identifier LIKE 'UserAvatarPlaceholder') and label CONTAINS 'Thread Repl'"
+                )
+            ).firstMatch
         }
 
         static func reactions(in messageCell: XCUIElement) -> XCUIElementQuery {
@@ -131,7 +142,7 @@ class MessageListPage {
         }
 
         static func time(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.staticTexts["MessageDateView"]
+            messageCell.buttons["MessageDateView"]
         }
 
         static func author(messageCell: XCUIElement) -> XCUIElement {
@@ -147,7 +158,7 @@ class MessageListPage {
         }
 
         static func quotedText(_ text: String, in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.staticTexts["quotedMessageText"]
+            messageCell.staticTexts["referenceMessageSubtitle"]
         }
 
         static func deletedText(in messageCell: XCUIElement) -> XCUIElement {
@@ -164,10 +175,6 @@ class MessageListPage {
 
         static func errorButton(in messageCell: XCUIElement) -> XCUIElement {
             messageCell.otherElements["SendFailureIndicator"]
-        }
-
-        static func readCount(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.staticTexts["readIndicatorCount"]
         }
 
         // FIXME:
@@ -195,11 +202,7 @@ class MessageListPage {
         }
         
         static func giphyImage(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.otherElements["GiphyAttachmentView"].images.firstMatch
-        }
-
-        static func giphyLabel(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.staticTexts["GiphyAttachmentView"]
+            messageCell.images["GiphyAttachmentView"].firstMatch
         }
         
         static func actionButtons() -> XCUIElementQuery {
@@ -216,15 +219,15 @@ class MessageListPage {
         }
 
         static func image(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.images["ImageAttachmentContainer"]
+            messageCell.images["MessageMediaAttachmentsContainerView"]
         }
 
         static func imagePreloader(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.activityIndicators["ImageAttachmentContainer"]
+            messageCell.activityIndicators["MessageMediaAttachmentsContainerView"]
         }
 
         static func video(in messageCell: XCUIElement) -> XCUIElement {
-            messageCell.images["VideoAttachmentsContainer"]
+            messageCell.images["MessageMediaAttachmentsContainerView"]
         }
 
         static func fullscreenImage() -> XCUIElement {
@@ -359,11 +362,11 @@ class MessageListPage {
 
     enum ComposerCommands {
         static var cells: XCUIElementQuery {
-            app.otherElements.matching(identifier: "InstantCommandView")
+            app.otherElements.matching(identifier: "CommandSuggestionView")
         }
 
         static var headerTitle: XCUIElement {
-            app.staticTexts["InstantCommandsHeader"]
+            app.staticTexts["CommandSuggestionsHeader"]
         }
 
         static var headerImage: XCUIElement {
@@ -377,7 +380,7 @@ class MessageListPage {
 
     enum ComposerMentions {
         static var cells: XCUIElementQuery {
-            app.scrollViews["CommandsContainerView"].otherElements.matching(NSPredicate(format: "identifier LIKE 'MessageAvatarView'"))
+            app.scrollViews["SuggestionsContainerView"].images.matching(NSPredicate(format: "identifier LIKE 'UserAvatar'"))
         }
     }
 }

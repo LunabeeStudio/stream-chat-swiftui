@@ -23,9 +23,7 @@ public struct RedactedLoadingView<Factory: ViewFactory>: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                factory.makeChannelListTopView(
-                    searchText: .constant("")
-                )
+                factory.makeChannelListTopView(options: .init())
 
                 LazyVStack(spacing: 0) {
                     ForEach(0..<20) { _ in
@@ -46,7 +44,7 @@ struct RedactedChannelCell: View {
     private let circleSize: CGFloat = 48
 
     private var redactedColor: Color {
-        Color(colors.disabledColorForColor(colors.text))
+        Color(colors.backgroundCoreSurfaceStrong)
     }
 
     public var body: some View {

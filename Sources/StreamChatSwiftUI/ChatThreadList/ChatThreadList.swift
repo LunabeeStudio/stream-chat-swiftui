@@ -8,9 +8,9 @@ import SwiftUI
 /// Stateless component for the channel list.
 /// If used directly, you should provide the thread list.
 public struct ThreadList<Factory: ViewFactory, HeaderView: View, FooterView: View>: View {
-    var threads: LazyCachedMapCollection<ChatThread>
+    var threads: [ChatThread]
     private var factory: Factory
-    private var threadDestination: (ChatThread) -> Factory.ThreadDestination
+    private var threadDestination: @MainActor (ChatThread) -> Factory.ThreadDestination
     @Binding private var selectedThread: ThreadSelectionInfo?
     
     private var onItemTap: (ChatThread) -> Void
@@ -24,8 +24,8 @@ public struct ThreadList<Factory: ViewFactory, HeaderView: View, FooterView: Vie
 
     public init(
         factory: Factory,
-        threads: LazyCachedMapCollection<ChatThread>,
-        threadDestination: @escaping (ChatThread) -> Factory.ThreadDestination,
+        threads: [ChatThread],
+        threadDestination: @escaping @MainActor (ChatThread) -> Factory.ThreadDestination,
         selectedThread: Binding<ThreadSelectionInfo?>,
         onItemTap: @escaping (ChatThread) -> Void,
         onItemAppear: @escaping (Int) -> Void,
@@ -63,16 +63,16 @@ public struct ThreadsLazyVStack<Factory: ViewFactory>: View {
     @Injected(\.colors) private var colors
 
     private var factory: Factory
-    var threads: LazyCachedMapCollection<ChatThread>
-    private var threadDestination: (ChatThread) -> Factory.ThreadDestination
+    var threads: [ChatThread]
+    private var threadDestination: @MainActor (ChatThread) -> Factory.ThreadDestination
     @Binding private var selectedThread: ThreadSelectionInfo?
     private var onItemTap: (ChatThread) -> Void
     private var onItemAppear: (Int) -> Void
 
     public init(
         factory: Factory,
-        threads: LazyCachedMapCollection<ChatThread>,
-        threadDestination: @escaping (ChatThread) -> Factory.ThreadDestination,
+        threads: [ChatThread],
+        threadDestination: @escaping @MainActor (ChatThread) -> Factory.ThreadDestination,
         selectedThread: Binding<ThreadSelectionInfo?>,
         onItemTap: @escaping (ChatThread) -> Void,
         onItemAppear: @escaping (Int) -> Void
@@ -89,14 +89,18 @@ public struct ThreadsLazyVStack<Factory: ViewFactory>: View {
         LazyVStack(spacing: 0) {
             ForEach(threads) { thread in
                 factory.makeThreadListItem(
-                    thread: thread,
-                    threadDestination: threadDestination,
-                    selectedThread: $selectedThread
+                    options: .init(
+                        thread: thread,
+                        threadDestination: threadDestination,
+                        selectedThread: $selectedThread
+                    )
                 )
                 .background(
                     factory.makeThreadListItemBackground(
-                        thread: thread,
-                        isSelected: selectedThread?.id == thread.id
+                        options: ThreadListItemBackgroundOptions(
+                            thread: thread,
+                            isSelected: selectedThread?.id == thread.id
+                        )
                     )
                 )
                 .contentShape(Rectangle())
@@ -110,15 +114,8 @@ public struct ThreadsLazyVStack<Factory: ViewFactory>: View {
                         onItemAppear(index)
                     }
                 }
-                factory.makeThreadListDividerItem()
+                factory.makeThreadListDividerItem(options: ThreadListDividerItemOptions())
             }
         }
-    }
-}
-
-/// Determines the uniqueness of the channel list item.
-extension ChatThread: Identifiable {
-    public var id: String {
-        parentMessageId
     }
 }

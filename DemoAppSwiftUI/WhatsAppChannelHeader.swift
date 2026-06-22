@@ -17,8 +17,6 @@ struct WhatsAppChannelHeaderModifier: ChatChannelHeaderViewModifier {
 }
 
 struct WhatsAppChannelHeader: ToolbarContent {
-    @ObservedObject private var channelHeaderLoader = InjectedValues[\.utils].channelHeaderLoader
-    
     @Injected(\.chatClient) var chatClient
     @Injected(\.utils) var utils
     @Injected(\.fonts) var fonts
@@ -30,15 +28,11 @@ struct WhatsAppChannelHeader: ToolbarContent {
         chatClient.currentUserId ?? ""
     }
     
-    private var channelNamer: ChatChannelNamer {
-        utils.channelNamer
-    }
-    
     private var channelSubtitle: String {
         if channel.memberCount <= 2 {
-            return channel.onlineInfoText(currentUserId: currentUserId)
+            channel.onlineInfoText(currentUserId: currentUserId)
         } else {
-            return channel
+            channel
                 .lastActiveMembers
                 .map { $0.name ?? $0.id }
                 .joined(separator: ", ")
@@ -48,17 +42,13 @@ struct WhatsAppChannelHeader: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             HStack {
-                ChannelAvatarView(
-                    channel: channel,
-                    showOnlineIndicator: false,
-                    size: CGSize(width: 36, height: 36)
-                )
+                ChannelAvatar(channel: channel, size: 36)
                 VStack(alignment: .leading) {
-                    Text(channelNamer(channel, currentUserId) ?? "")
+                    Text(name(for: channel))
                         .font(fonts.bodyBold)
                     Text(channelSubtitle)
                         .font(fonts.caption1)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                        .foregroundColor(Color(colors.textTertiary))
                 }
             }
         }
@@ -76,5 +66,12 @@ struct WhatsAppChannelHeader: ToolbarContent {
                 })
             }
         }
+    }
+    
+    private func name(for channel: ChatChannel) -> String {
+        utils.channelNameFormatter.format(
+            channel: channel,
+            forCurrentUserId: chatClient.currentUserId
+        ) ?? ""
     }
 }

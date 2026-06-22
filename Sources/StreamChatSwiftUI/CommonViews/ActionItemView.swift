@@ -20,15 +20,15 @@ public struct ActionItemView: View {
         HStack(spacing: 16) {
             Image(uiImage: image)
                 .customizable()
-                .frame(maxHeight: 18)
+                .frame(width: 20, height: 18)
                 .foregroundColor(
-                    isDestructive ? Color(colors.alert) : Color(colors.textLowEmphasis)
+                    isDestructive ? Color(colors.accentError) : Color(colors.textTertiary)
                 )
 
             Text(title)
                 .font(boldTitle ? fonts.bodyBold : fonts.body)
                 .foregroundColor(
-                    isDestructive ? Color(colors.alert) : Color(colors.text)
+                    isDestructive ? Color(colors.accentError) : Color(colors.textPrimary)
                 )
 
             Spacer()
@@ -53,11 +53,11 @@ public struct ActionItemView: View {
         }
 
         // Check if it's bundled.
-        if let image = UIImage(named: iconName, in: .streamChatUI) {
+        if let image = UIImage(named: iconName, in: .streamChatCommonUI) {
             return image
         }
 
         // Default image.
-        return images.photoDefault
+        return images.imagePlaceholder
     }
 }

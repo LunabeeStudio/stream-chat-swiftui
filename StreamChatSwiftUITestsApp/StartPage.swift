@@ -58,14 +58,11 @@ struct StartPage: View {
     }
 
     private func connectUser(withCredentials credentials: UserCredentials) {
-        chatClient.logout {}
-
         let token = try! Token(rawValue: credentials.token)
         LogConfig.level = .debug
         
         let utils = Utils(
             channelListConfig: ChannelListConfig(
-                messageRelativeDateFormatEnabled: true,
                 channelItemMutedStyle: .afterChannelName
             ),
             messageListConfig: MessageListConfig(
@@ -76,20 +73,21 @@ struct StartPage: View {
                 skipEditedMessageLabel: { message in
                     message.extraData["ai_generated"]?.boolValue == true
                 },
-                draftMessagesEnabled: true,
-                downloadFileAttachmentsEnabled: true
+                draftMessagesEnabled: true
             ),
             composerConfig: ComposerConfig(isVoiceRecordingEnabled: true)
         )
         streamChat = StreamChat(chatClient: chatClient, utils: utils)
 
-        chatClient.connectUser(
-            userInfo: .init(id: credentials.id, name: credentials.name, imageURL: credentials.avatarURL),
-            token: token
-        ) { error in
-            if let error = error {
-                log.error("connecting the user failed \(error)")
-                return
+        chatClient.logout {
+            chatClient.connectUser(
+                userInfo: .init(id: credentials.id, name: credentials.name, imageURL: credentials.avatarURL),
+                token: token
+            ) { error in
+                if let error = error {
+                    log.error("connecting the user failed \(error)")
+                    return
+                }
             }
         }
     }
@@ -99,10 +97,12 @@ class DemoAppFactory: ViewFactory {
     @Injected(\.chatClient) public var chatClient
 
     private init() {}
+    
+    public var styles = RegularStyles()
 
     public static let shared = DemoAppFactory()
 
-    func makeChannelListHeaderViewModifier(title: String) -> some ChannelListHeaderViewModifier {
-        CustomChannelModifier(title: title)
+    func makeChannelListHeaderViewModifier(options: ChannelListHeaderViewModifierOptions) -> some ChannelListHeaderViewModifier {
+        CustomChannelModifier(title: options.title)
     }
 }
