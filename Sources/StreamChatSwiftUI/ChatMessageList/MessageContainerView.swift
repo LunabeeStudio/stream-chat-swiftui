@@ -19,6 +19,7 @@ struct MessageContainerView<Factory: ViewFactory>: View {
     let showsAllInfo: Bool
     let shownAsPreview: Bool
     let isLast: Bool
+    let showBubble: Bool
     @Binding var scrolledId: String?
     let onGesture: (_ showsMessageActions: Bool) -> Void
     // Fork additions re-ported from the v4 MessageContainerView.
@@ -115,6 +116,7 @@ struct MessageContainerView<Factory: ViewFactory>: View {
                         message: message,
                         contentWidth: contentWidth,
                         isFirst: showsAllInfo,
+                        showBubble: showBubble,
                         scrolledId: $scrolledId,
                         translationLanguage: messageViewModel.translationLanguage
                     )
@@ -126,6 +128,7 @@ struct MessageContainerView<Factory: ViewFactory>: View {
                     message: message,
                     contentWidth: contentWidth,
                     isFirst: showsAllInfo,
+                    showBubble: showBubble,
                     scrolledId: $scrolledId,
                     translationLanguage: messageViewModel.translationLanguage
                 )

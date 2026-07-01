@@ -23,6 +23,9 @@ public struct MessageItemView<Factory: ViewFactory>: View {
     /// - Note: Fork addition. When `false`, the opposite-side horizontal spacer is removed
     ///   (`spacerWidth` becomes 0) so the message can use the full available width.
     let hasHorizontalSpacer: Bool
+    /// When `false`, the message renders without the bubble background **and** without the bubble's
+    /// interior padding, so bubble-less content sits flush with the bubble's leading edge. Fork addition.
+    let showBubble: Bool
     let showsAllInfo: Bool
     let shownAsPreview: Bool
     let isInThread: Bool
@@ -59,6 +62,7 @@ public struct MessageItemView<Factory: ViewFactory>: View {
         width: CGFloat? = nil,
         fixedContentWidth: CGFloat? = nil,
         hasHorizontalSpacer: Bool = true,
+        showBubble: Bool = true,
         showsAllInfo: Bool,
         shownAsPreview: Bool = false,
         isInThread: Bool,
@@ -74,6 +78,7 @@ public struct MessageItemView<Factory: ViewFactory>: View {
         self.width = width
         self.fixedContentWidth = fixedContentWidth
         self.hasHorizontalSpacer = hasHorizontalSpacer
+        self.showBubble = showBubble
         self.showsAllInfo = showsAllInfo
         self.shownAsPreview = shownAsPreview
         self.isInThread = isInThread
@@ -104,6 +109,7 @@ public struct MessageItemView<Factory: ViewFactory>: View {
                     showsAllInfo: showsAllInfo,
                     shownAsPreview: shownAsPreview,
                     isLast: isLast,
+                    showBubble: showBubble,
                     scrolledId: $scrolledId,
                     onGesture: { handleGestureForMessage(showsMessageActions: $0) }
                 )
