@@ -21,6 +21,9 @@ struct MessageContainerView<Factory: ViewFactory>: View {
     let isLast: Bool
     @Binding var scrolledId: String?
     let onGesture: (_ showsMessageActions: Bool) -> Void
+    // Fork additions re-ported from the v4 MessageContainerView.
+    private let extraTrailingPadding: CGFloat = 8
+    private let extraBottomPadding: CGFloat = 8
 
     var body: some View {
         HStack(alignment: .bottom, spacing: tokens.spacingXs) {
@@ -94,6 +97,8 @@ struct MessageContainerView<Factory: ViewFactory>: View {
         .frame(maxWidth: .infinity, alignment: messageViewModel.isRightAligned ? .trailing : .leading)
         .padding(.top, messageViewModel.topReactionsShown && !messageViewModel.annotationsShown ? messageListConfig.messageDisplayOptions.reactionsTopPadding(message) : 0)
         .padding(.horizontal, messageListConfig.messagePaddings.horizontal)
+        .padding(.trailing, extraTrailingPadding)
+        .padding(.bottom, extraBottomPadding)
         .padding(.bottom, showsAllInfo || messageViewModel.annotationsShown ? paddingValue : groupMessageInterItemSpacing)
         .padding(.top, isLast ? paddingValue : (messageViewModel.annotationsShown ? groupMessageInterItemSpacing : 0))
     }

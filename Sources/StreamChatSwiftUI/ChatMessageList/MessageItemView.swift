@@ -20,6 +20,9 @@ public struct MessageItemView<Factory: ViewFactory>: View {
     let message: ChatMessage
     let width: CGFloat?
     let fixedContentWidth: CGFloat?
+    /// - Note: Fork addition. When `false`, the opposite-side horizontal spacer is removed
+    ///   (`spacerWidth` becomes 0) so the message can use the full available width.
+    let hasHorizontalSpacer: Bool
     let showsAllInfo: Bool
     let shownAsPreview: Bool
     let isInThread: Bool
@@ -27,6 +30,10 @@ public struct MessageItemView<Factory: ViewFactory>: View {
     @Binding var scrolledId: String?
     @Binding var quotedMessage: ChatMessage?
     let onLongPress: (MessageDisplayInfo) -> Void
+
+    /// - Note: Fork addition. Extra trailing padding applied to every message row (and subtracted
+    ///   from the content width) so bubbles don't sit flush against the trailing edge.
+    private let extraTrailingPadding: CGFloat = 8
 
     @State private var frame: CGRect = .zero
     @State private var computeFrame = false
@@ -51,6 +58,7 @@ public struct MessageItemView<Factory: ViewFactory>: View {
         message: ChatMessage,
         width: CGFloat? = nil,
         fixedContentWidth: CGFloat? = nil,
+        hasHorizontalSpacer: Bool = true,
         showsAllInfo: Bool,
         shownAsPreview: Bool = false,
         isInThread: Bool,
@@ -65,6 +73,7 @@ public struct MessageItemView<Factory: ViewFactory>: View {
         self.message = message
         self.width = width
         self.fixedContentWidth = fixedContentWidth
+        self.hasHorizontalSpacer = hasHorizontalSpacer
         self.showsAllInfo = showsAllInfo
         self.shownAsPreview = shownAsPreview
         self.isInThread = isInThread
@@ -152,12 +161,12 @@ public struct MessageItemView<Factory: ViewFactory>: View {
         if utils.messageListConfig.messageDisplayOptions.showAvatars(for: channel, incoming: !messageViewModel.isRightAligned) {
             padding += AvatarSize.medium + tokens.spacingXs
         }
-        let available = (width ?? 0) - spacerWidth - padding
+        let available = (width ?? 0) - spacerWidth - padding - extraTrailingPadding
         return max(minimumWidth, available)
     }
 
     private var spacerWidth: CGFloat {
-        messageListConfig.messageDisplayOptions.spacerWidth(width ?? 0)
+        hasHorizontalSpacer ? messageListConfig.messageDisplayOptions.spacerWidth(width ?? 0) : 0
     }
 
     private var messageListConfig: MessageListConfig {
