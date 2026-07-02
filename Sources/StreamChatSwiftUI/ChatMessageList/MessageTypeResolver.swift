@@ -6,6 +6,7 @@ import Foundation
 import StreamChat
 
 /// Custom enum to separate custom attachments displayed on top of the message, from those displayed at the bottom of the message
+/// - Note: Fork addition — enables rendering custom attachments in separate `.top` / `.bottom` slots.
 public enum CustomAttachmentLayout: Sendable {
     case all
     case top

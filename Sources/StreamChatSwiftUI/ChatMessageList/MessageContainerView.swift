@@ -6,6 +6,9 @@ import StreamChat
 import SwiftUI
 
 /// The inner content of a message item: avatar, bubble, reactions, replies, and delivery status.
+/// - Note: Fork changes from original implementation:
+///   - Transmits `showBubble` to `MessageView`
+///   - Adds extra bottom padding
 struct MessageContainerView<Factory: ViewFactory>: View {
     @ObservedObject var messageViewModel: MessageViewModel
 
@@ -154,6 +157,8 @@ struct MessageContainerView<Factory: ViewFactory>: View {
         .overlay(
             messageViewModel.failureIndicatorShown ? SendFailureIndicator() : nil
         )
+        // - Note: Fork change — the message actions gesture is applied here on the bubble content
+        //   instead of on the whole row in `MessageItemView`, so it only triggers on the bubble.
         .contentShape(Rectangle())
         .modifier(MessageActionsGestureModifier(
             shownAsPreview: shownAsPreview,
@@ -175,10 +180,11 @@ struct MessageContainerView<Factory: ViewFactory>: View {
         .opacity(isLast || showsAllInfo ? 1 : 0)
     }
 
+    /// - Note: Fork change — only wraps the read indicator + date in a padded `HStack` when the
+    ///   date is actually shown, avoiding phantom bottom padding when `messageDateShown` is false.
     @ViewBuilder
     private var deliveryStatusView: some View {
         if message.isSentByCurrentUser && channel.config.readEventsEnabled {
-            // Fix deliveryStatusView adding padding for nothing here when messageDateShown is false
             if messageViewModel.messageDateShown {
                 HStack(spacing: tokens.spacingXxs) {
                     factory.makeMessageReadIndicatorView(

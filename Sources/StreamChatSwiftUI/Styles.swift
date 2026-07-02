@@ -98,6 +98,7 @@ extension Styles {
         EmptyViewModifier()
     }
     
+    /// - Note: Fork change — forwards `showBubble` so bubble-less messages render without a background.
     public func makeMessageViewModifier(for messageModifierInfo: MessageModifierInfo) -> some ViewModifier {
         MessageBubbleModifier(
             message: messageModifierInfo.message,
