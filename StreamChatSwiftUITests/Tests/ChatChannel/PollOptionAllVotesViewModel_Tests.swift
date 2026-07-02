@@ -30,7 +30,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let poll = Poll.mock()
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
-        controller.votes_simulated = LazyCachedMapCollection(source: [], map: { $0 })
+        controller.votes_simulated = []
         controller.synchronize_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -40,10 +40,10 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         
         // When
         let votes = [
-            PollVote.mock(pollId: poll.id, optionId: option.id),
-            PollVote.mock(pollId: poll.id, optionId: option.id)
+            PollVote.mock(pollId: poll.id, optionId: option.id, updatedAt: nil),
+            PollVote.mock(pollId: poll.id, optionId: option.id, updatedAt: nil)
         ]
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         viewModel.refresh()
         
         // Then
@@ -56,7 +56,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let poll = Poll.mock()
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
-        controller.votes_simulated = LazyCachedMapCollection(source: [], map: { $0 })
+        controller.votes_simulated = []
         controller.synchronize_completion_result = .failure(ClientError("ERROR"))
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -77,7 +77,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let votes = makeVotes(count: 30, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         controller.synchronize_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -99,7 +99,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let votes = makeVotes(count: 30, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         controller.synchronize_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -121,7 +121,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let votes = makeVotes(count: 20, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         controller.synchronize_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -143,7 +143,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let votes = makeVotes(count: 30, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         controller.synchronize_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
             poll: poll,
@@ -152,7 +152,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         )
         
         // When - appear with vote not in list
-        let otherVote = PollVote.mock(pollId: poll.id, optionId: "other_option")
+        let otherVote = PollVote.mock(pollId: poll.id, optionId: "other_option", updatedAt: nil)
         viewModel.onAppear(vote: otherVote)
         
         // Then
@@ -165,7 +165,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let initialVotes = makeVotes(count: 30, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: initialVotes, map: { $0 })
+        controller.votes_simulated = initialVotes
         controller.synchronize_completion_result = .success(())
         controller.loadMoreVotes_completion_result = .success(())
         let viewModel = PollOptionAllVotesViewModel(
@@ -179,7 +179,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         viewModel.onAppear(vote: voteAtIndex21)
         let additionalVotes = makeVotes(count: 10, pollId: poll.id, optionId: option.id)
         let allVotes = initialVotes + additionalVotes
-        controller.votes_simulated = LazyCachedMapCollection(source: allVotes, map: { $0 })
+        controller.votes_simulated = allVotes
         // Trigger the delegate method to update the view model
         viewModel.controller(controller, didChangeVotes: [])
         
@@ -194,7 +194,7 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
         let option = poll.options.first!
         let controller = makeVoteListController(poll: poll, option: option)
         let votes = makeVotes(count: 30, pollId: poll.id, optionId: option.id)
-        controller.votes_simulated = LazyCachedMapCollection(source: votes, map: { $0 })
+        controller.votes_simulated = votes
         controller.synchronize_completion_result = .success(())
         controller.loadMoreVotes_completion_result = .failure(ClientError("ERROR"))
         let viewModel = PollOptionAllVotesViewModel(
@@ -246,7 +246,8 @@ final class PollOptionAllVotesViewModel_Tests: StreamChatTestCase {
             PollVote.mock(
                 id: "vote_\(index)",
                 pollId: pollId,
-                optionId: optionId
+                optionId: optionId,
+                updatedAt: nil
             )
         }
     }

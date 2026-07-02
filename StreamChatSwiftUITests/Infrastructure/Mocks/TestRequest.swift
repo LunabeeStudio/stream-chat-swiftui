@@ -5,7 +5,7 @@
 import Foundation
 @testable import StreamChat
 
-class TestRequestEncoder: RequestEncoder {
+class TestRequestEncoder: RequestEncoder, @unchecked Sendable {
     let init_baseURL: URL
     let init_apiKey: APIKey
 
@@ -15,10 +15,10 @@ class TestRequestEncoder: RequestEncoder {
     var encodeRequest_endpoint: AnyEndpoint?
     var encodeRequest_completion: ((Result<URLRequest, Error>) -> Void)?
 
-    func encodeRequest<ResponsePayload>(
-        for endpoint: Endpoint<ResponsePayload>,
+    func encodeRequest(
+        for endpoint: Endpoint<some Decodable>,
         completion: @escaping (Result<URLRequest, Error>) -> Void
-    ) where ResponsePayload: Decodable {
+    ) {
         encodeRequest_endpoint = AnyEndpoint(endpoint)
         encodeRequest_completion = completion
 
@@ -33,7 +33,7 @@ class TestRequestEncoder: RequestEncoder {
     }
 }
 
-class TestRequestDecoder: RequestDecoder {
+class TestRequestDecoder: RequestDecoder, @unchecked Sendable {
     var decodeRequestResponse: Result<Any, Error>?
 
     var decodeRequestResponse_data: Data?

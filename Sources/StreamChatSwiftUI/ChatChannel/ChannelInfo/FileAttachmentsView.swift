@@ -13,6 +13,7 @@ public struct FileAttachmentsView: View {
     @Injected(\.fonts) private var fonts
     @Injected(\.images) private var images
     @Injected(\.utils) private var utils
+    @Injected(\.tokens) private var tokens
 
     public init(channel: ChatChannel) {
         _viewModel = StateObject(
@@ -29,7 +30,7 @@ public struct FileAttachmentsView: View {
             if viewModel.loading {
                 LoadingView()
             } else if viewModel.attachmentsDataSource.isEmpty {
-                NoContentView(
+                EmptyContentView(
                     image: images.noMedia,
                     title: L10n.ChatInfo.Files.emptyTitle,
                     description: L10n.ChatInfo.Files.emptyDesc
@@ -38,9 +39,7 @@ public struct FileAttachmentsView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(viewModel.attachmentsDataSource) { monthlyDataSource in
-                            MonthlyAttachmentsHeader(monthlyDataSource: monthlyDataSource)
-
-                            ForEach(monthlyDataSource.attachments, id: \.self) { attachment in
+                            ForEach(monthlyDataSource.attachments) { attachment in
                                 let url = attachment.assetURL
 
                                 Button {
@@ -53,9 +52,6 @@ public struct FileAttachmentsView: View {
                                             sizeString: attachment.file.sizeString
                                         )
                                         Spacer()
-                                        if utils.messageListConfig.downloadFileAttachmentsEnabled {
-                                            DownloadShareAttachmentView(attachment: attachment)
-                                        }
                                     }
                                     .onAppear {
                                         viewModel.loadAdditionalAttachments(
@@ -63,21 +59,19 @@ public struct FileAttachmentsView: View {
                                             latest: attachment
                                         )
                                     }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical)
                                 }
-                                .withDownloadingStateIndicator(for: attachment.downloadingState, url: attachment.assetURL)
+                                .padding(.vertical, tokens.spacingSm)
+                                .padding(.horizontal)
                                 .sheet(item: $viewModel.selectedAttachment) { item in
-                                    FileAttachmentPreview(title: item.title, url: item.assetURL)
+                                    FileAttachmentPreview(attachment: item)
                                 }
-
-                                Divider()
                             }
                         }
                     }
                 }
             }
         }
+        .background(colors.backgroundCoreApp.toColor)
         .toolbarThemed {
             ToolbarItem(placement: .principal) {
                 Text(L10n.ChatInfo.Files.title)
@@ -88,25 +82,3 @@ public struct FileAttachmentsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
-
-struct MonthlyAttachmentsHeader: View {
-    @Injected(\.colors) private var colors
-    @Injected(\.fonts) private var fonts
-
-    var monthlyDataSource: MonthlyFileAttachments
-
-    var body: some View {
-        HStack {
-            Text(monthlyDataSource.monthAndYear)
-                .font(fonts.bodyBold)
-                .foregroundColor(Color(colors.textLowEmphasis))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-
-            Spacer()
-        }
-        .background(Color(colors.background6))
-    }
-}
-
-extension ChatMessageFileAttachment: Identifiable {}

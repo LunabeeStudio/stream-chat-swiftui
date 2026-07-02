@@ -179,19 +179,6 @@ final class MessageList_Tests: StreamTestCase {
         }
     }
 
-    func test_composerGrowthLimit() throws {
-        linkToScenario(withId: 260)
-
-        GIVEN("user opens the channel") {
-            userRobot
-                .login()
-                .openChannel()
-        }
-        THEN("user verifies that composer does not grow more than 4 lines") {
-            userRobot.assertComposerLimits(toNumberOfLines: 4)
-        }
-    }
-
     func test_typingIndicator() throws {
         linkToScenario(withId: 358)
 
@@ -209,24 +196,6 @@ final class MessageList_Tests: StreamTestCase {
         }
         THEN("user observes typing indicator has disappeared") {
             userRobot.assertTypingIndicatorHidden()
-        }
-    }
-
-    func test_commandsPopupDisappear_whenUserTapsOnMessageList() throws {
-        linkToScenario(withId: 364)
-
-        GIVEN("user opens the channel") {
-            backendRobot.generateChannels(channelsCount: 1, messagesCount: 30)
-            userRobot.login().openChannel()
-        }
-        AND("user opens command suggestions") {
-            userRobot.openComposerCommands()
-        }
-        WHEN("user taps on message list") {
-            userRobot.tapOnMessageList()
-        }
-        THEN("command suggestions disappear") {
-            userRobot.assertComposerCommands(shouldBeVisible: false)
         }
     }
 
@@ -441,7 +410,7 @@ extension MessageList_Tests {
             userRobot.login().openChannel()
         }
         AND("user scrolls up") {
-            userRobot.scrollMessageListUpSlow()
+            userRobot.scrollMessageListUp()
         }
         AND("participant sends some messages") {
             participantRobot

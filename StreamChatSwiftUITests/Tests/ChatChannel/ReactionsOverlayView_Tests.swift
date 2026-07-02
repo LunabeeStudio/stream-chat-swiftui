@@ -9,9 +9,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class ReactionsOverlayView_Tests: StreamChatTestCase {
-    private static let screenSize = CGSize(width: 393, height: 852)
-
+@MainActor class ReactionsOverlayView_Tests: StreamChatTestCase {
     private let testMessage = ChatMessage.mock(
         id: "test",
         cid: .unique,
@@ -21,19 +19,19 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
 
     private let messageDisplayInfo = MessageDisplayInfo(
         message: .mock(id: .unique, cid: .unique, text: "test", author: .mock(id: .unique)),
-        frame: CGRect(x: 44, y: 200, width: 80, height: 50),
-        contentWidth: 200,
+        frame: CGRect(x: 0, y: 200, width: defaultScreenSize.width, height: 70),
+        contentWidth: 240,
         isFirst: true
     )
 
     private let overlayImage = UIColor
         .black
         .withAlphaComponent(0.2)
-        .image(screenSize)
+        .image(defaultScreenSize)
 
     func test_reactionsOverlayView_snapshot() {
         // Given
-        let view = VerticallyCenteredView {
+        let view = OverlayHostView {
             ReactionsOverlayView(
                 factory: DefaultViewFactory.shared,
                 channel: .mockDMChannel(),
@@ -52,7 +50,7 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         // Given
         let config = ChannelConfig(reactionsEnabled: false)
         let channel = ChatChannel.mockDMChannel(config: config)
-        let view = VerticallyCenteredView {
+        let view = OverlayHostView {
             ReactionsOverlayView(
                 factory: DefaultViewFactory.shared,
                 channel: channel,
@@ -88,15 +86,15 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         )
         let messageDisplayInfo = MessageDisplayInfo(
             message: message,
-            frame: CGRect(x: 44, y: 200, width: 80, height: 50),
-            contentWidth: 200,
+            frame: CGRect(x: 0, y: 200, width: defaultScreenSize.width, height: 70),
+            contentWidth: 240,
             isFirst: true,
             showsMessageActions: false
         )
 
         // When
         let channel = ChatChannel.mockDMChannel()
-        let view = VerticallyCenteredView {
+        let view = OverlayHostView {
             ReactionsOverlayView(
                 factory: DefaultViewFactory.shared,
                 channel: channel,
@@ -126,13 +124,13 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         )
         let messageDisplayInfo = MessageDisplayInfo(
             message: testMessage,
-            frame: CGRect(x: 44, y: 105, width: defaultScreenSize.width - 60, height: defaultScreenSize.height * 2),
-            contentWidth: 200,
+            frame: CGRect(x: 0, y: 200, width: defaultScreenSize.width, height: defaultScreenSize.height * 2),
+            contentWidth: 240,
             isFirst: true
         )
 
         // When
-        let view = VerticallyCenteredView {
+        let view = OverlayHostView {
             ReactionsOverlayView(
                 factory: DefaultViewFactory.shared,
                 channel: .mockDMChannel(ownCapabilities: [.sendMessage, .uploadFile, .pinMessage, .readEvents]),
@@ -174,7 +172,8 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         let view = ReactionsOverlayContainer(
             message: message,
             contentRect: .init(x: -60, y: 200, width: 300, height: 300),
-            onReactionTap: { _ in }
+            onReactionTap: { _ in },
+            onMoreReactionsTap: {}
         )
 
         // Then
@@ -190,39 +189,12 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         let view = ReactionsAnimatableView(
             message: message,
             reactions: reactions,
-            onReactionTap: { _ in }
+            onReactionTap: { _ in },
+            onMoreReactionsTap: {}
         )
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-
-    func test_chatMessage_reactionOffsetCurrentUser() {
-        // Given
-        let message = ChatMessage.mock(text: "Test message", isSentByCurrentUser: true)
-
-        // When
-        let offset = message.reactionOffsetX(
-            for: .init(origin: .zero, size: .init(width: 50, height: 50)),
-            reactionsSize: 25
-        )
-
-        // Then
-        XCTAssert(offset == -12.5)
-    }
-
-    func test_chatMessage_reactionOffsetOtherUser() {
-        // Given
-        let message = ChatMessage.mock(text: "Test message", isSentByCurrentUser: false)
-
-        // When
-        let offset = message.reactionOffsetX(
-            for: .init(origin: .zero, size: .init(width: 50, height: 50)),
-            reactionsSize: 25
-        )
-
-        // Then
-        XCTAssert(offset == 12.5)
     }
 
     func test_reactionsOverlayView_translated() {
@@ -236,12 +208,12 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
         )
         let messageDisplayInfo = MessageDisplayInfo(
             message: testMessage,
-            frame: self.messageDisplayInfo.frame,
-            contentWidth: self.messageDisplayInfo.contentWidth,
+            frame: CGRect(x: 0, y: 200, width: defaultScreenSize.width, height: 85),
+            contentWidth: 240,
             isFirst: true
         )
         let channel = ChatChannel.mock(cid: .unique, membership: .mock(id: "test", language: .portuguese))
-        let view = VerticallyCenteredView {
+        let view = OverlayHostView {
             ReactionsOverlayView(
                 factory: DefaultViewFactory.shared,
                 channel: channel,
@@ -250,22 +222,92 @@ class ReactionsOverlayView_Tests: StreamChatTestCase {
                 onBackgroundTap: {},
                 onActionExecuted: { _ in }
             )
-            .environment(\.messageViewModel, MessageViewModel(message: testMessage, channel: channel))
         }
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
+
+    func test_reactionsOverlayView_allAnnotations() {
+        // Given
+        let currentUserId = StreamChatTestCase.currentUserId
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(
+            messageListConfig: .init(messageDisplayOptions: MessageDisplayOptions(showOriginalTranslatedButton: true))
+        ))
+
+        let config = ChannelConfig(
+            reactionsEnabled: true,
+            readEventsEnabled: true,
+            messageRemindersEnabled: true
+        )
+        let channel = ChatChannel.mock(
+            cid: .unique,
+            config: config,
+            ownCapabilities: [.sendMessage, .uploadFile, .readEvents],
+            membership: .mock(id: "test", language: .portuguese)
+        )
+
+        let readUser = ChatUser.mock(id: .unique, name: "reader")
+        let testMessage = ChatMessage.mock(
+            id: "test",
+            cid: channel.cid,
+            text: "Hey, did you get a chance to look at the venue options?",
+            author: .mock(id: currentUserId, name: "martin"),
+            parentMessageId: .unique,
+            showReplyInChannel: true,
+            replyCount: 3,
+            translations: [.portuguese: "Olá, conseguiu ver as opções de local?"],
+            threadParticipants: [.mock(id: .unique, name: "alice")],
+            isSentByCurrentUser: true,
+            pinDetails: MessagePinDetails(
+                pinnedAt: Date(),
+                pinnedBy: .mock(id: currentUserId, name: "martin"),
+                expiresAt: nil
+            ),
+            readBy: [readUser],
+            reminder: MessageReminderInfo(
+                remindAt: Date().addingTimeInterval(3600),
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        )
+        let messageDisplayInfo = MessageDisplayInfo(
+            message: testMessage,
+            frame: CGRect(x: 0, y: 650, width: defaultScreenSize.width, height: 200),
+            contentWidth: 240,
+            isFirst: true
+        )
+
+        let view = OverlayHostView {
+            ReactionsOverlayView(
+                factory: DefaultViewFactory.shared,
+                channel: channel,
+                currentSnapshot: self.overlayImage,
+                messageDisplayInfo: messageDisplayInfo,
+                onBackgroundTap: {},
+                onActionExecuted: { _ in }
+            )
+        }
+
+        // Then
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: defaultScreenSize)
+    }
 }
 
-struct VerticallyCenteredView<Content: View>: View {
+private struct OverlayHostView<Content: View>: View {
     var content: () -> Content
 
     var body: some View {
         VStack {
             Spacer()
-            content()
+            Rectangle()
+                .frame(width: 200, height: 50)
+                .overlay(content().transaction { transaction in
+                    transaction.disablesAnimations = true
+                })
+                
             Spacer()
         }
+        .applyDefaultSize()
     }
 }

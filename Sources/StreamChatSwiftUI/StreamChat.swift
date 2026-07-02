@@ -7,7 +7,7 @@ import StreamChat
 /// Main interface to the SwiftUI SDK.
 ///
 /// Provides context for the views and view models. Must be initialized with a `ChatClient` on app start.
-public class StreamChat {
+@MainActor public class StreamChat {
     var chatClient: ChatClient
     var appearance: Appearance
     var utils: Utils
@@ -17,6 +17,7 @@ public class StreamChat {
         appearance: Appearance = Appearance(),
         utils: Utils = Utils()
     ) {
+        Appearance.bundle = .streamChatUI
         self.chatClient = chatClient
         self.appearance = appearance
         self.utils = utils
@@ -26,12 +27,12 @@ public class StreamChat {
 
 /// Returns the current value for the `StreamChat` instance.
 private final class StreamChatProviderKey: InjectionKey {
-    static var currentValue: StreamChat?
+    nonisolated(unsafe) static var currentValue: StreamChat?
 }
 
 extension InjectedValues {
     /// Provides access to the `StreamChat` instance in the views and view models.
-    var streamChat: StreamChat {
+    @MainActor var streamChat: StreamChat {
         get {
             guard let injected = Self[StreamChatProviderKey.self] else {
                 fatalError("Chat client was not setup")

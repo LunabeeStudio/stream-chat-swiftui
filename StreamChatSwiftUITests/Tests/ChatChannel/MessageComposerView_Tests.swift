@@ -5,19 +5,21 @@
 import Photos
 import SnapshotTesting
 @testable import StreamChat
+@testable import StreamChatCommonUI
 @testable import StreamChatSwiftUI
 @testable import StreamChatTestTools
 import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class MessageComposerView_Tests: StreamChatTestCase {
+@MainActor class MessageComposerView_Tests: StreamChatTestCase {
+    let composerWidth: CGFloat = 375
+
     override func setUp() {
         super.setUp()
-
-        let imageLoader = TestImagesLoader_Mock()
+        
         let utils = Utils(
-            imageLoader: imageLoader,
+            mediaLoader: MediaLoader_Mock(),
             messageListConfig: MessageListConfig(
                 becomesFirstResponderOnOpen: true,
                 draftMessagesEnabled: true
@@ -39,9 +41,9 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 100)
+        .frame(width: composerWidth, height: 200)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -59,7 +61,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         .environment(\.layoutDirection, .rightToLeft)
         .frame(width: defaultScreenSize.width, height: 100)
@@ -83,7 +85,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         .environment(\.layoutDirection, .rightToLeft)
         .frame(width: defaultScreenSize.width, height: 100)
@@ -92,13 +94,16 @@ class MessageComposerView_Tests: StreamChatTestCase {
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision), named: "rtl-with-text")
     }
     
+    // MARK: - Voice Recording
+
     func test_messageComposerView_recording() {
         // Given
+        let size = CGSize(width: composerWidth, height: 250)
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        viewModel.recordingState = .recording(.zero)
-        
+        viewModel.recordingState = .recording
+
         // When
         let view = MessageComposerView(
             viewFactory: factory,
@@ -107,21 +112,51 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 250)
+        .frame(width: size.width, height: size.height)
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, size: size)
     }
-    
+
+    func test_messageComposerView_recordingSlideToCancel() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 250)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.recordingState = .recording
+        viewModel.recordingGestureLocation = CGPoint(x: -50, y: 0)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
     func test_messageComposerView_recordingLocked() {
         // Given
+        let size = CGSize(width: composerWidth, height: 120)
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
         viewModel.recordingState = .locked
-        
+        viewModel.audioRecordingInfo = AudioRecordingInfo(
+            waveform: [0, 0.2, 0.5, 0.8, 1.0, 0.6, 0.3, 0.1, 0.4, 0.7],
+            duration: 5.0
+        )
+
         // When
         let view = MessageComposerView(
             viewFactory: factory,
@@ -130,21 +165,31 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 120)
+        .frame(width: size.width, height: size.height)
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, size: size)
     }
-    
-    func test_messageComposerView_recordingTip() {
+
+    func test_messageComposerView_recordingStopped() {
         // Given
+        let size = CGSize(width: composerWidth, height: 120)
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        viewModel.recordingState = .showingTip
-        
+        viewModel.recordingState = .stopped
+        viewModel.audioRecordingInfo = AudioRecordingInfo(
+            waveform: [0, 0.2, 0.5, 0.8, 1.0, 0.6, 0.3, 0.1, 0.4, 0.7],
+            duration: 12.5
+        )
+        viewModel.pendingAudioRecording = AddedVoiceRecording(
+            url: .localYodaImage,
+            duration: 12.5,
+            waveform: [0, 0.2, 0.5, 0.8, 1.0, 0.6, 0.3, 0.1, 0.4, 0.7]
+        )
+
         // When
         let view = MessageComposerView(
             viewFactory: factory,
@@ -153,21 +198,75 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 120)
+        .frame(width: size.width, height: size.height)
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, size: size)
     }
-    
+
+    func test_messageComposerView_recordingWhileQuoting() {
+        let size = CGSize(width: composerWidth, height: 250)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let quoted = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Original message being replied to",
+            author: .mock(id: .unique, name: "John Smart")
+        )
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.recordingState = .recording
+
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(quoted),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        AssertSnapshot(view, variants: [.defaultLight], size: size)
+    }
+
+    func test_messageComposerView_recordingTipSnackbar() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.showRecordingTip()
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
     func test_messageComposerView_addedVoiceRecording() {
         // Given
+        let size = CGSize(width: composerWidth, height: 200)
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        viewModel.addedVoiceRecordings = [AddedVoiceRecording(url: .localYodaImage, duration: 5, waveform: [0, 0.1, 0.6, 1.0])]
-        
+        viewModel.addedVoiceRecordings = [
+            AddedVoiceRecording(url: .localYodaImage, duration: 5, waveform: [0, 0.1, 0.6, 1.0])
+        ]
+
         // When
         let view = MessageComposerView(
             viewFactory: factory,
@@ -176,34 +275,85 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 200)
+        .frame(width: size.width, height: size.height)
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageComposerView_voiceRecordingPlaying() {
+        // Given
+        let url = URL(string: "https://example.com/recording.m4a")!
+        let recording = AddedVoiceRecording(
+            url: url,
+            duration: 10,
+            waveform: [0, 0.1, 0.4, 0.7, 1.0, 0.8, 0.5, 0.3, 0.6, 0.9]
+        )
+        let handler = VoiceRecordingHandler()
+        handler.isPlaying = true
+        handler.context = AudioPlaybackContext(
+            assetLocation: url,
+            duration: 10,
+            currentTime: 4.2,
+            state: .playing,
+            rate: .normal,
+            isSeeking: false
+        )
+        let size = CGSize(width: composerWidth - 32, height: 100)
+
+        // When
+        let view = ComposerVoiceRecordingAttachmentView(
+            handler: handler,
+            recording: recording,
+            onDiscardAttachment: { _ in }
+        )
+        .frame(width: size.width)
+        .padding()
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight], size: size)
     }
 
     func test_composerInputView_slowMode() {
         // Given
         let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
 
         // When
         let view = ComposerInputView(
             factory: factory,
+            channelController: channelController,
             text: .constant(""),
             selectedRangeLocation: .constant(0),
             command: .constant(nil),
-            addedAssets: [],
-            addedFileURLs: [],
+            recordingState: .constant(.initial),
+            recordingGestureLocation: .constant(.zero),
+            composerAssets: [],
             addedCustomAttachments: [],
+            addedVoiceRecordings: [],
             quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
             cooldownDuration: 15,
+            hasContent: true,
+            canSendMessage: true,
+            audioRecordingInfo: .initial,
+            pendingAudioRecordingURL: nil,
             onCustomAttachmentTap: { _ in },
-            removeAttachmentWithId: { _ in }
+            removeAttachmentWithId: { _ in },
+            sendMessage: {},
+            onImagePasted: { _ in },
+            startRecording: {},
+            stopRecording: {},
+            confirmRecording: {},
+            discardRecording: {},
+            previewRecording: {},
+            showRecordingTip: {},
+            sendInChannelShown: false,
+            showReplyInChannel: .constant(false)
         )
-        .environmentObject(MessageComposerTestUtils.makeComposerViewModel(chatClient: chatClient))
-        .frame(width: defaultScreenSize.width, height: 100)
+        .frame(width: composerWidth, height: 200)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -215,9 +365,11 @@ class MessageComposerView_Tests: StreamChatTestCase {
 
         // When
         let view = factory.makeTrailingComposerView(
-            enabled: true,
-            cooldownDuration: 0,
-            onTap: {}
+            options: TrailingComposerViewOptions(
+                enabled: true,
+                cooldownDuration: 0,
+                onTap: {}
+            )
         )
         .environmentObject(MessageComposerTestUtils.makeComposerViewModel(chatClient: chatClient))
         .frame(width: 100, height: 40)
@@ -234,9 +386,11 @@ class MessageComposerView_Tests: StreamChatTestCase {
         
         // When
         let view = factory.makeTrailingComposerView(
-            enabled: true,
-            cooldownDuration: 15,
-            onTap: {}
+            options: TrailingComposerViewOptions(
+                enabled: true,
+                cooldownDuration: 15,
+                onTap: {}
+            )
         )
         .environmentObject(viewModel)
         .frame(width: 36, height: 36)
@@ -254,7 +408,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
 
         // When
         let pickerTypeState: Binding<PickerTypeState> = .constant(.expanded(.none))
-        let view = factory.makeLeadingComposerView(state: pickerTypeState, channelConfig: nil)
+        let view = factory.makeLeadingComposerView(options: LeadingComposerViewOptions(state: pickerTypeState, channelConfig: nil))
             .environmentObject(viewModel)
             .frame(width: 36, height: 36)
 
@@ -271,12 +425,210 @@ class MessageComposerView_Tests: StreamChatTestCase {
 
         // When
         let pickerTypeState: Binding<PickerTypeState> = .constant(.expanded(.none))
-        let view = factory.makeLeadingComposerView(state: pickerTypeState, channelConfig: nil)
+        let view = factory.makeLeadingComposerView(options: LeadingComposerViewOptions(state: pickerTypeState, channelConfig: nil))
             .environmentObject(viewModel)
             .frame(width: 36, height: 36)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageComposerView_commandActive() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.composerCommand = ComposerCommandFactory.shared.mute()
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 200)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
+    }
+
+    // MARK: - Send Button Icon
+
+    func test_messageComposerView_sendButton_noCommandSelected() {
+        // Given — text entered, no command: send button shows the standard composerSend icon
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.text = "Hello"
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 56)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
+    }
+
+    func test_messageComposerView_sendButton_commandSelected_noText() {
+        // Given — instant command active, no text: send button shows selectionBadgeIcon (disabled)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.composerCommand = ComposerCommandFactory.shared.giphy()
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 56)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
+    }
+
+    func test_messageComposerView_sendButton_commandSelected_withText() {
+        // Given — instant command active with text: send button shows selectionBadgeIcon (enabled)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.composerCommand = ComposerCommandFactory.shared.giphy()
+        viewModel.text = "funny cat"
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 56)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
+    }
+
+    // MARK: - Send In Channel
+
+    func test_messageComposerView_sendInChannel_selected() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let messageController = ChatMessageControllerSUI_Mock.mock(
+            chatClient: chatClient,
+            cid: .unique,
+            messageId: .unique
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: messageController
+        )
+        viewModel.showReplyInChannel = true
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: messageController,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageComposerView_sendInChannel_unselected() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let messageController = ChatMessageControllerSUI_Mock.mock(
+            chatClient: chatClient,
+            cid: .unique,
+            messageId: .unique
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: messageController
+        )
+        viewModel.showReplyInChannel = false
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: messageController,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    // MARK: - Attachment Picker Prompt Views
+
+    func test_photoLibraryAccessPromptView_snapshot() {
+        let view = PhotoLibraryAccessPromptView()
+            .frame(width: composerWidth, height: 300)
+
+        AssertSnapshot(view)
+    }
+
+    func test_fileOpenPromptView_snapshot() {
+        let view = FileOpenPromptView(onTap: {})
+            .frame(width: composerWidth, height: 300)
+
+        AssertSnapshot(view)
+    }
+
+    func test_cameraOpenPromptView_snapshot() {
+        let view = CameraOpenPromptView(onTap: {})
+            .frame(width: composerWidth, height: 300)
+
+        AssertSnapshot(view)
+    }
+
+    func test_cameraAccessDeniedPromptView_snapshot() {
+        let view = CameraAccessDeniedPromptView()
+            .frame(width: composerWidth, height: 300)
+
+        AssertSnapshot(view)
+    }
+
+    func test_pollCreatePromptView_snapshot() {
+        let view = PollCreatePromptView(onTap: {})
+            .frame(width: composerWidth, height: 300)
+
+        AssertSnapshot(view)
     }
 
     // MARK: - Frozen Channel Tests
@@ -297,9 +649,9 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
-        .frame(width: defaultScreenSize.width, height: 100)
+        .frame(width: composerWidth, height: 200)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -310,24 +662,40 @@ class MessageComposerView_Tests: StreamChatTestCase {
         let factory = DefaultViewFactory.shared
         let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
         mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
-        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
 
         // When
         let view = ComposerInputView(
             factory: factory,
+            channelController: mockChannelController,
             text: .constant(""),
             selectedRangeLocation: .constant(0),
             command: .constant(nil),
-            addedAssets: [],
-            addedFileURLs: [],
+            recordingState: .constant(.initial),
+            recordingGestureLocation: .constant(.zero),
+            composerAssets: [],
             addedCustomAttachments: [],
+            addedVoiceRecordings: [],
             quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
             cooldownDuration: 0,
+            hasContent: true,
+            canSendMessage: true,
+            audioRecordingInfo: .initial,
+            pendingAudioRecordingURL: nil,
             onCustomAttachmentTap: { _ in },
-            removeAttachmentWithId: { _ in }
+            removeAttachmentWithId: { _ in },
+            sendMessage: {},
+            onImagePasted: { _ in },
+            startRecording: {},
+            stopRecording: {},
+            confirmRecording: {},
+            discardRecording: {},
+            previewRecording: {},
+            showRecordingTip: {},
+            sendInChannelShown: false,
+            showReplyInChannel: .constant(false)
         )
-        .environmentObject(viewModel)
-        .frame(width: defaultScreenSize.width, height: 100)
+        .frame(width: composerWidth, height: 200)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -342,7 +710,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
 
         // When
         let pickerTypeState: Binding<PickerTypeState> = .constant(.expanded(.none))
-        let view = factory.makeLeadingComposerView(state: pickerTypeState, channelConfig: nil)
+        let view = factory.makeLeadingComposerView(options: LeadingComposerViewOptions(state: pickerTypeState, channelConfig: nil))
             .environmentObject(viewModel)
             .frame(width: 36, height: 36)
 
@@ -358,11 +726,11 @@ class MessageComposerView_Tests: StreamChatTestCase {
         let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
 
         // When
-        let view = factory.makeTrailingComposerView(
+        let view = factory.makeTrailingComposerView(options: TrailingComposerViewOptions(
             enabled: true,
             cooldownDuration: 0,
             onTap: {}
-        )
+        ))
         .environmentObject(viewModel)
         .frame(width: 100, height: 40)
 
@@ -373,7 +741,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
     func test_composerInputView_inputTextView() {
         // Given
         let view = InputTextView(
-            frame: .init(x: 16, y: 16, width: defaultScreenSize.width - 32, height: 50)
+            frame: .init(x: 16, y: 16, width: composerWidth - 32, height: 50)
         )
 
         // When
@@ -390,11 +758,13 @@ class MessageComposerView_Tests: StreamChatTestCase {
             text: .constant("This is a sample text"),
             height: .constant(38),
             selectedRangeLocation: .constant(3),
-            placeholder: "Send a message",
+            placeholder: "Message",
             editable: true,
-            currentHeight: 38
+            maxMessageLength: nil,
+            currentHeight: 38,
+            onImagePasted: { _ in }
         )
-        .frame(width: defaultScreenSize.width, height: 50)
+        .frame(width: composerWidth, height: 50)
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
@@ -406,12 +776,14 @@ class MessageComposerView_Tests: StreamChatTestCase {
             text: .constant("This is a sample text"),
             height: .constant(38),
             selectedRangeLocation: .constant(3),
-            placeholder: "Send a message",
+            placeholder: "Message",
             editable: true,
-            currentHeight: 38
+            maxMessageLength: nil,
+            currentHeight: 38,
+            onImagePasted: { _ in }
         )
         let inputView = InputTextView(
-            frame: .init(x: 16, y: 16, width: defaultScreenSize.width - 32, height: 50)
+            frame: .init(x: 16, y: 16, width: composerWidth - 32, height: 50)
         )
 
         // When
@@ -429,12 +801,14 @@ class MessageComposerView_Tests: StreamChatTestCase {
             text: .constant("New text"),
             height: .constant(38),
             selectedRangeLocation: .constant(3),
-            placeholder: "Send a message",
+            placeholder: "Message",
             editable: true,
-            currentHeight: 38
+            maxMessageLength: nil,
+            currentHeight: 38,
+            onImagePasted: { _ in }
         )
         let inputView = InputTextView(
-            frame: .init(x: 16, y: 16, width: defaultScreenSize.width - 32, height: 50)
+            frame: .init(x: 16, y: 16, width: composerWidth - 32, height: 50)
         )
 
         // When
@@ -447,24 +821,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
         XCTAssert(coordinator.textInput.selectedRangeLocation == 3)
         XCTAssert(coordinator.textInput.text == "New text")
     }
-
-    func test_quotedMessageHeaderView_snapshot() {
-        // Given
-        let message = ChatMessage.mock(
-            id: .unique,
-            cid: .unique,
-            text: "Quoted message",
-            author: .mock(id: .unique)
-        )
-
-        // When
-        let view = QuotedMessageHeaderView(quotedMessage: .constant(message), showContent: true)
-            .frame(width: defaultScreenSize.width, height: 36)
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-
+    
     func test_composerInputView_snapshot() {
         // Given
         let inputView = InputTextView()
@@ -472,113 +829,177 @@ class MessageComposerView_Tests: StreamChatTestCase {
             text: .constant("test test"),
             height: .constant(100),
             selectedRangeLocation: .constant(0),
-            placeholder: "Send a message",
+            placeholder: "Message",
             editable: true,
-            currentHeight: 36
+            maxMessageLength: nil,
+            currentHeight: 36,
+            onImagePasted: { _ in }
         )
         let coordinator = ComposerTextInputView.Coordinator(textInput: view, maxMessageLength: nil)
         let viewWithSize = view.applyDefaultSize()
-
+        
         // When
         inputView.scrollToBottom()
         coordinator.updateHeight(inputView, shouldAnimate: true)
         coordinator.updateHeight(inputView, shouldAnimate: false)
-
+        
         // Then
         assertSnapshot(matching: viewWithSize, as: .image(perceptualPrecision: precision))
         XCTAssert(coordinator.textInput.height == 100)
     }
 
-    func test_photoAttachmentCell_loadingResource() {
+    func test_messageComposerView_withAttachmentPicker() {
         // Given
-        let asset = PHAsset()
-        let loader = PhotoAssetLoader()
-        let cell = PhotoAttachmentCell(
-            assetLoader: loader,
-            asset: asset,
-            onImageTap: { _ in },
-            imageSelected: { _ in
-                false
-            }
-        )
+        let (fetchResult, loader) = makeMockPhotoAssets()
+        let factory = MockMediaPickerViewFactory(assetLoader: loader)
+        factory.mockPhotoAssets = fetchResult
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.pickerTypeState = .expanded(.media)
 
         // When
-        _ = cell.onAppear()
-        _ = cell.onDisappear()
-        let newRequestId = cell.requestId
-
-        // Then
-        XCTAssert(newRequestId == nil)
-    }
-
-    func test_videoIndicatorView_snapshot() {
-        // Given
-        let view = VideoIndicatorView()
-            .frame(width: 100, height: 100)
-            .background(.black)
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-
-    func test_videoDurationIndicatorView_snapshot() {
-        // Given
-        let view = VideoDurationIndicatorView(duration: "02:54")
-            .frame(width: 100, height: 100)
-            .background(.black)
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-
-    func test_photosPickerView_snapshot() {
-        // Given
-        let view = PhotoAttachmentPickerView(
-            assets: .init(fetchResult: .init()),
-            onImageTap: { _ in },
-            imageSelected: { _ in true }
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
         )
-        .applyDefaultSize()
+        .frame(width: composerWidth)
 
         // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
     }
 
     func test_composerInputView_command() {
         let factory = DefaultViewFactory.shared
-        let size = CGSize(width: defaultScreenSize.width, height: 100)
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let size = CGSize(width: composerWidth, height: 200)
 
         let view = ComposerInputView(
             factory: factory,
+            channelController: channelController,
             text: .constant(""),
             selectedRangeLocation: .constant(0),
-            command: .constant(.init(
-                id: .unique,
-                typingSuggestion: .empty,
-                displayInfo: CommandDisplayInfo(
-                    displayName: "Giphy",
-                    icon: Images().commandGiphy,
-                    format: "",
-                    isInstant: true
-                )
-            )),
-            addedAssets: [],
-            addedFileURLs: [],
+            command: .constant(ComposerCommandFactory.shared.giphy()),
+            recordingState: .constant(.initial),
+            recordingGestureLocation: .constant(.zero),
+            composerAssets: [],
             addedCustomAttachments: [],
+            addedVoiceRecordings: [],
             quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
             cooldownDuration: 0,
+            hasContent: true,
+            canSendMessage: true,
+            audioRecordingInfo: .initial,
+            pendingAudioRecordingURL: nil,
             onCustomAttachmentTap: { _ in },
-            removeAttachmentWithId: { _ in }
+            removeAttachmentWithId: { _ in },
+            sendMessage: {},
+            onImagePasted: { _ in },
+            startRecording: {},
+            stopRecording: {},
+            confirmRecording: {},
+            discardRecording: {},
+            previewRecording: {},
+            showRecordingTip: {},
+            sendInChannelShown: false,
+            showReplyInChannel: .constant(false)
         )
-        .environmentObject(MessageComposerTestUtils.makeComposerViewModel(chatClient: chatClient))
+        .frame(width: size.width, height: size.height)
+
+        AssertSnapshot(view, size: size)
+
+        // Themed
+        streamChat?.appearance.colorPalette.backgroundCoreInverse = UIColor(Color.indigo)
+        streamChat?.appearance.colorPalette.textOnInverse = .yellow
+
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: size, suffix: "themed")
+    }
+
+    func test_composerInputView_command_empty() {
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let size = CGSize(width: composerWidth, height: 200)
+
+        let view = ComposerInputView(
+            factory: factory,
+            channelController: channelController,
+            text: .constant(""),
+            selectedRangeLocation: .constant(0),
+            command: .constant(ComposerCommandFactory.shared.giphy()),
+            recordingState: .constant(.initial),
+            recordingGestureLocation: .constant(.zero),
+            composerAssets: [],
+            addedCustomAttachments: [],
+            addedVoiceRecordings: [],
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            cooldownDuration: 0,
+            hasContent: false,
+            canSendMessage: true,
+            audioRecordingInfo: .initial,
+            pendingAudioRecordingURL: nil,
+            onCustomAttachmentTap: { _ in },
+            removeAttachmentWithId: { _ in },
+            sendMessage: {},
+            onImagePasted: { _ in },
+            startRecording: {},
+            stopRecording: {},
+            confirmRecording: {},
+            discardRecording: {},
+            previewRecording: {},
+            showRecordingTip: {},
+            sendInChannelShown: false,
+            showReplyInChannel: .constant(false)
+        )
         .frame(width: size.width, height: size.height)
 
         AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: size)
+    }
 
-        // Themed
-        streamChat?.appearance.colors.tintColor = .mint
-        streamChat?.appearance.colors.staticColorText = .black
-        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: size, suffix: "themed")
+    func test_composerInputView_command_mute() {
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let size = CGSize(width: composerWidth, height: 200)
+
+        let view = ComposerInputView(
+            factory: factory,
+            channelController: channelController,
+            text: .constant(""),
+            selectedRangeLocation: .constant(0),
+            command: .constant(ComposerCommandFactory.shared.mute()),
+            recordingState: .constant(.initial),
+            recordingGestureLocation: .constant(.zero),
+            composerAssets: [],
+            addedCustomAttachments: [],
+            addedVoiceRecordings: [],
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            cooldownDuration: 0,
+            hasContent: false,
+            canSendMessage: true,
+            audioRecordingInfo: .initial,
+            pendingAudioRecordingURL: nil,
+            onCustomAttachmentTap: { _ in },
+            removeAttachmentWithId: { _ in },
+            sendMessage: {},
+            onImagePasted: { _ in },
+            startRecording: {},
+            stopRecording: {},
+            confirmRecording: {},
+            discardRecording: {},
+            previewRecording: {},
+            showRecordingTip: {},
+            sendInChannelShown: false,
+            showReplyInChannel: .constant(false)
+        )
+        .frame(width: size.width, height: size.height)
+
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: size)
     }
   
     // MARK: - Drafts
@@ -588,12 +1009,12 @@ class MessageComposerView_Tests: StreamChatTestCase {
     // Either way, the test of the content is covered.
 
     func test_composerView_draftWithImageAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockDraftMessage = DraftMessage.mock(
+        let size = CGSize(width: composerWidth, height: 200)
+        let mockDraftMessage = try DraftMessage.mock(
             attachments: [
                 .dummy(
                     type: .image,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         ImageAttachmentPayload(
                             title: nil,
                             imageRemoteURL: TestImages.yoda.url,
@@ -603,7 +1024,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
                 ),
                 .dummy(
                     type: .image,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         ImageAttachmentPayload(
                             title: nil,
                             imageRemoteURL: TestImages.chewbacca.url,
@@ -621,12 +1042,12 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_draftWithVideoAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockDraftMessage = DraftMessage.mock(
+        let size = CGSize(width: composerWidth, height: 200)
+        let mockDraftMessage = try DraftMessage.mock(
             attachments: [
                 .dummy(
                     type: .video,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         VideoAttachmentPayload(
                             title: nil,
                             videoRemoteURL: TestImages.yoda.url,
@@ -646,12 +1067,12 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_draftWithFileAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockDraftMessage = DraftMessage.mock(
+        let size = CGSize(width: composerWidth, height: 200)
+        let mockDraftMessage = try DraftMessage.mock(
             attachments: [
                 .dummy(
                     type: .file,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         FileAttachmentPayload(
                             title: "Test",
                             assetRemoteURL: .localYodaQuote,
@@ -675,12 +1096,12 @@ class MessageComposerView_Tests: StreamChatTestCase {
         try Data(count: 1024).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockDraftMessage = DraftMessage.mock(
+        let size = CGSize(width: composerWidth, height: 200)
+        let mockDraftMessage = try DraftMessage.mock(
             attachments: [
                 .dummy(
                     type: .voiceRecording,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         VoiceRecordingAttachmentPayload(
                             title: "Audio",
                             voiceRecordingRemoteURL: url,
@@ -700,7 +1121,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_draftWithCommand() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 100)
+        let size = CGSize(width: composerWidth, height: 200)
         let mockDraftMessage = DraftMessage.mock(
             text: "/giphy test"
         )
@@ -729,51 +1150,14 @@ class MessageComposerView_Tests: StreamChatTestCase {
             channelController: channelController,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
     }
     
-    func test_composerQuotedMessage_translated() {
-        let factory = DefaultViewFactory.shared
-        let size = CGSize(width: defaultScreenSize.width, height: 100)
-
-        let channelController = ChatChannelTestHelpers.makeChannelController(
-            chatClient: chatClient,
-            chatChannel: .mock(
-                cid: .unique,
-                membership: .mock(id: .unique, language: .spanish)
-            )
-        )
-        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
-        let view = ComposerInputView(
-            factory: factory,
-            text: .constant("Hello"),
-            selectedRangeLocation: .constant(0),
-            command: .constant(nil),
-            addedAssets: [],
-            addedFileURLs: [],
-            addedCustomAttachments: [],
-            quotedMessage: .constant(
-                .mock(
-                    text: "Hello",
-                    translations: [.spanish: "Hola"]
-                )
-            ),
-            cooldownDuration: 0,
-            onCustomAttachmentTap: { _ in
-            },
-            removeAttachmentWithId: { _ in }
-        )
-        .environmentObject(viewModel)
-        .frame(width: size.width, height: size.height)
-
-        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: size)
-    }
-
     // MARK: - Editing
 
     func test_composerView_editingMessageWithText() {
-        let size = CGSize(width: defaultScreenSize.width, height: 100)
+        let size = CGSize(width: composerWidth, height: 300)
         let mockEditedMessage = ChatMessage.mock(
             id: .unique,
             cid: .unique,
@@ -788,7 +1172,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_editingMessageWithQuotedMessage() {
-        let size = CGSize(width: defaultScreenSize.width, height: 100)
+        let size = CGSize(width: composerWidth, height: 300)
         let mockEditedMessage = ChatMessage.mock(
             id: .unique,
             cid: .unique,
@@ -804,8 +1188,8 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_editingMessageWithImageAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockEditedMessage = ChatMessage.mock(
+        let size = CGSize(width: composerWidth, height: 300)
+        let mockEditedMessage = try ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Message with image",
@@ -813,7 +1197,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             attachments: [
                 .dummy(
                     type: .image,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         ImageAttachmentPayload(
                             title: nil,
                             imageRemoteURL: TestImages.yoda.url,
@@ -831,8 +1215,8 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_editingMessageWithVideoAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockEditedMessage = ChatMessage.mock(
+        let size = CGSize(width: composerWidth, height: 300)
+        let mockEditedMessage = try ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Message with video",
@@ -840,7 +1224,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             attachments: [
                 .dummy(
                     type: .video,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         VideoAttachmentPayload(
                             title: nil,
                             videoRemoteURL: TestImages.yoda.url,
@@ -860,8 +1244,8 @@ class MessageComposerView_Tests: StreamChatTestCase {
     }
 
     func test_composerView_editingMessageWithFileAttachment() throws {
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockEditedMessage = ChatMessage.mock(
+        let size = CGSize(width: composerWidth, height: 300)
+        let mockEditedMessage = try ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Message with file",
@@ -869,7 +1253,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             attachments: [
                 .dummy(
                     type: .file,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         FileAttachmentPayload(
                             title: "Test",
                             assetRemoteURL: .localYodaQuote,
@@ -894,8 +1278,8 @@ class MessageComposerView_Tests: StreamChatTestCase {
         try Data(count: 1024).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let size = CGSize(width: defaultScreenSize.width, height: 200)
-        let mockEditedMessage = ChatMessage.mock(
+        let size = CGSize(width: composerWidth, height: 200)
+        let mockEditedMessage = try ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Message with voice recording",
@@ -903,7 +1287,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             attachments: [
                 .dummy(
                     type: .voiceRecording,
-                    payload: try JSONEncoder().encode(
+                    payload: JSONEncoder().encode(
                         VoiceRecordingAttachmentPayload(
                             title: "Audio",
                             voiceRecordingRemoteURL: url,
@@ -926,7 +1310,11 @@ class MessageComposerView_Tests: StreamChatTestCase {
     private func makeComposerViewWithEditedMessage(_ editedMessage: ChatMessage) -> some View {
         let factory = DefaultViewFactory.shared
         let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
-        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil,
+            editedMessage: .constant(editedMessage)
+        )
         viewModel.attachmentsConverter = SynchronousAttachmentsConverter()
         viewModel.fillEditedMessage(editedMessage)
 
@@ -936,10 +1324,46 @@ class MessageComposerView_Tests: StreamChatTestCase {
             channelController: channelController,
             quotedMessage: .constant(nil),
             editedMessage: .constant(editedMessage),
-            onMessageSent: {}
+            willSendMessage: {}
         )
     }
-    
+
+    // MARK: - Quoting
+
+    func test_composerView_quotingMessageWithImageAttachment() throws {
+        let size = CGSize(width: composerWidth, height: 300)
+        let mockQuotedMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Original message being replied to",
+            author: .mock(id: .unique, name: "John Smart")
+        )
+
+        let addedAsset = AddedAsset(
+            image: TestImages.yoda.image,
+            id: .unique,
+            url: TestImages.yoda.url,
+            type: .image
+        )
+
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.updateAddedAssets([addedAsset])
+
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            quotedMessage: .constant(mockQuotedMessage),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        AssertSnapshot(view, variants: [.defaultLight], size: size)
+    }
+
     // MARK: - Notification Tests
     
     func test_commandsOverlayHiddenNotification_hidesCommandsOverlay() {
@@ -969,7 +1393,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         view.addToViewHierarchy()
 
@@ -1011,7 +1435,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         view.addToViewHierarchy()
 
@@ -1049,7 +1473,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         view.addToViewHierarchy()
 
@@ -1086,7 +1510,7 @@ class MessageComposerView_Tests: StreamChatTestCase {
             messageController: nil,
             quotedMessage: .constant(nil),
             editedMessage: .constant(nil),
-            onMessageSent: {}
+            willSendMessage: {}
         )
         view.addToViewHierarchy()
 
@@ -1099,13 +1523,318 @@ class MessageComposerView_Tests: StreamChatTestCase {
         // Then
         XCTAssertEqual(viewModel.pickerTypeState, .expanded(.media))
     }
+
+    // MARK: - Liquid Glass Style
+
+    func test_messageComposerView_liquidGlass_snapshot() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = LiquidGlassViewFactory()
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: size)
+    }
+
+    func test_messageComposerView_rtlWithImageAttachments() {
+        // Given – verify that multiple image attachments are laid out
+        // correctly in RTL, with the dismiss buttons positioned on the correct
+        // (top-trailing in RTL == top-leading visually) corner of every asset.
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.updateAddedAssets([
+            AddedAsset(image: TestImages.yoda.image, id: "1", url: TestImages.yoda.url, type: .image),
+            AddedAsset(image: TestImages.yoda.image, id: "2", url: TestImages.yoda.url, type: .image)
+        ])
+
+        // When – RTL layout
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .environment(\.layoutDirection, .rightToLeft)
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight], size: size, suffix: "rtl")
+    }
+
+    func test_messageComposerView_liquidGlass_withImageAttachment() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = LiquidGlassViewFactory()
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        let addedAsset = AddedAsset(
+            image: TestImages.yoda.image,
+            id: .unique,
+            url: TestImages.yoda.url,
+            type: .image
+        )
+        viewModel.updateAddedAssets([addedAsset])
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: size)
+    }
+
+    func test_messageComposerView_liquidGlass_withAttachmentPicker() {
+        // Given
+        let (fetchResult, loader) = makeMockPhotoAssets()
+        let factory = MockLiquidGlassMediaPickerViewFactory(assetLoader: loader)
+        factory.mockPhotoAssets = fetchResult
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let viewModel = MessageComposerViewModel(channelController: channelController, messageController: nil)
+        viewModel.pickerTypeState = .expanded(.media)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth)
+
+        // Then
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark])
+    }
+}
+
+// MARK: - Helpers
+
+private extension MessageComposerView_Tests {
+    func makeMockPhotoAssets() -> (fetchResult: MockPHFetchResult, loader: PhotoAssetLoader) {
+        let itemColors: [UIColor] = [
+            .systemBlue, .systemGreen, .systemOrange,
+            .systemPurple, .systemRed, .systemTeal,
+            .systemPink, .systemYellow, .systemIndigo
+        ]
+        let mockAssets: [PHAsset] = (0..<9).map { index in
+            if index == 3 || index == 7 {
+                return MockPHAsset(
+                    mockId: "asset-\(index)",
+                    mockMediaType: .video,
+                    mockDuration: index == 3 ? 15.5 : 125
+                )
+            }
+            return MockPHAsset(mockId: "asset-\(index)")
+        }
+
+        let fetchResult = MockPHFetchResult(mockAssets: mockAssets)
+        let loader = PhotoAssetLoader()
+        let imageSize = CGSize(width: 200, height: 200)
+        for (index, asset) in mockAssets.enumerated() {
+            loader.loadedImages[asset.localIdentifier] = UIImage.make(
+                color: itemColors[index],
+                size: imageSize
+            )
+        }
+        return (fetchResult, loader)
+    }
 }
 
 class SynchronousAttachmentsConverter: MessageAttachmentsConverter {
     override func attachmentsToAssets(
         _ attachments: [AnyChatMessageAttachment],
-        completion: @escaping (ComposerAssets) -> Void
+        completion: @escaping @Sendable @MainActor (TotalAddedAssets) -> Void
     ) {
         super.attachmentsToAssets(attachments, with: nil, completion: completion)
+    }
+}
+
+// MARK: - Mock View Factory
+
+private class MockMediaPickerViewFactory: ViewFactory {
+    @Injected(\.chatClient) var chatClient: ChatClient
+
+    var styles = RegularStyles()
+    var mockPhotoAssets: PHFetchResult<PHAsset>?
+
+    private let assetLoader: PhotoAssetLoader
+
+    init(assetLoader: PhotoAssetLoader) {
+        self.assetLoader = assetLoader
+    }
+
+    func makeAttachmentMediaPickerView(
+        options: AttachmentMediaPickerViewOptions
+    ) -> some View {
+        AttachmentMediaPickerView(
+            assetLoader: assetLoader,
+            photoLibraryAssets: options.photoLibraryAssets,
+            onImageTap: options.onAssetTap,
+            imageSelected: options.isAssetSelected,
+            selectedAssetIds: options.selectedAssetIds
+        )
+    }
+
+    func makeAttachmentPickerView(
+        options: AttachmentPickerViewOptions
+    ) -> some View {
+        AttachmentPickerView(
+            viewFactory: self,
+            selectedPickerState: options.attachmentPickerState,
+            filePickerShown: options.filePickerShown,
+            cameraPickerShown: options.cameraPickerShown,
+            onFilesPicked: options.onFilesPicked,
+            onPickerStateChange: options.onPickerStateChange,
+            photoLibraryAssets: mockPhotoAssets ?? options.photoLibraryAssets,
+            onAssetTap: options.onAssetTap,
+            onCustomAttachmentTap: options.onCustomAttachmentTap,
+            isAssetSelected: options.isAssetSelected,
+            addedCustomAttachments: options.addedCustomAttachments,
+            cameraImageAdded: options.cameraImageAdded,
+            askForAssetsAccessPermissions: options.askForAssetsAccessPermissions,
+            isDisplayed: options.isDisplayed,
+            height: 500,
+            selectedAssetIds: options.selectedAssetIds,
+            channelController: options.channelController,
+            messageController: options.messageController,
+            canSendPoll: options.canSendPoll,
+            instantCommands: options.instantCommands,
+            onCommandSelected: options.onCommandSelected
+        )
+    }
+}
+
+private class MockLiquidGlassMediaPickerViewFactory: ViewFactory {
+    @Injected(\.chatClient) var chatClient: ChatClient
+
+    var styles = LiquidGlassStyles()
+    var mockPhotoAssets: PHFetchResult<PHAsset>?
+
+    private let assetLoader: PhotoAssetLoader
+
+    init(assetLoader: PhotoAssetLoader) {
+        self.assetLoader = assetLoader
+    }
+
+    func makeAttachmentMediaPickerView(
+        options: AttachmentMediaPickerViewOptions
+    ) -> some View {
+        AttachmentMediaPickerView(
+            assetLoader: assetLoader,
+            photoLibraryAssets: options.photoLibraryAssets,
+            onImageTap: options.onAssetTap,
+            imageSelected: options.isAssetSelected,
+            selectedAssetIds: options.selectedAssetIds
+        )
+    }
+
+    func makeAttachmentPickerView(
+        options: AttachmentPickerViewOptions
+    ) -> some View {
+        AttachmentPickerView(
+            viewFactory: self,
+            selectedPickerState: options.attachmentPickerState,
+            filePickerShown: options.filePickerShown,
+            cameraPickerShown: options.cameraPickerShown,
+            onFilesPicked: options.onFilesPicked,
+            onPickerStateChange: options.onPickerStateChange,
+            photoLibraryAssets: mockPhotoAssets ?? options.photoLibraryAssets,
+            onAssetTap: options.onAssetTap,
+            onCustomAttachmentTap: options.onCustomAttachmentTap,
+            isAssetSelected: options.isAssetSelected,
+            addedCustomAttachments: options.addedCustomAttachments,
+            cameraImageAdded: options.cameraImageAdded,
+            askForAssetsAccessPermissions: options.askForAssetsAccessPermissions,
+            isDisplayed: options.isDisplayed,
+            height: 500,
+            selectedAssetIds: options.selectedAssetIds,
+            channelController: options.channelController,
+            messageController: options.messageController,
+            canSendPoll: options.canSendPoll,
+            instantCommands: options.instantCommands,
+            onCommandSelected: options.onCommandSelected
+        )
+    }
+}
+
+// MARK: - Photos Framework Mocks
+
+private class MockPHAsset: PHAsset, @unchecked Sendable {
+    private let _mockId: String
+    private let _mockMediaType: PHAssetMediaType
+    private let _mockDuration: TimeInterval
+
+    init(
+        mockId: String,
+        mockMediaType: PHAssetMediaType = .image,
+        mockDuration: TimeInterval = 0
+    ) {
+        self._mockId = mockId
+        self._mockMediaType = mockMediaType
+        self._mockDuration = mockDuration
+        super.init()
+    }
+
+    override var localIdentifier: String { _mockId }
+    override var mediaType: PHAssetMediaType { _mockMediaType }
+    override var duration: TimeInterval { _mockDuration }
+
+    override func requestContentEditingInput(
+        with options: PHContentEditingInputRequestOptions?,
+        completionHandler: @escaping (PHContentEditingInput?, [AnyHashable: Any]) -> Void
+    ) -> PHContentEditingInputRequestID {
+        completionHandler(nil, [:])
+        return 0
+    }
+
+    override func cancelContentEditingInputRequest(_ requestID: PHContentEditingInputRequestID) {}
+}
+
+private class MockPHFetchResult: PHFetchResult<PHAsset>, @unchecked Sendable {
+    private let _mockAssets: [PHAsset]
+
+    init(mockAssets: [PHAsset]) {
+        self._mockAssets = mockAssets
+        super.init()
+    }
+
+    override var count: Int { _mockAssets.count }
+
+    override func object(at index: Int) -> PHAsset {
+        _mockAssets[index]
+    }
+}
+
+private extension UIImage {
+    static func make(color: UIColor, size: CGSize) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
     }
 }

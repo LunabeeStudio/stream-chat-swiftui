@@ -7,7 +7,7 @@ import Foundation
 import StreamChat
 
 /// The ViewModel for the `ChatThreadListView`.
-open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDelegate, EventsControllerDelegate {
+@MainActor open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDelegate, EventsControllerDelegate {
     /// Context provided dependencies.
     @Injected(\.chatClient) private var chatClient: ChatClient
 
@@ -24,7 +24,7 @@ open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDe
     @Published public var selectedThread: ThreadSelectionInfo?
 
     /// The list of threads.
-    @Published public var threads = LazyCachedMapCollection<ChatThread>()
+    @Published public var threads = [ChatThread]()
 
     /// A boolean indicating if it is loading data from the server and no local cache is available.
     @Published public var isLoading = false
@@ -70,13 +70,13 @@ open class ChatThreadListViewModel: ObservableObject, ChatThreadListControllerDe
         threadListController: ChatThreadListController? = nil,
         eventsController: EventsController? = nil
     ) {
-        if let threadListController = threadListController {
+        if let threadListController {
             self.threadListController = threadListController
         } else {
             makeDefaultThreadListController()
         }
 
-        if let eventsController = eventsController {
+        if let eventsController {
             self.eventsController = eventsController
         } else {
             makeDefaultEventsController()

@@ -8,7 +8,7 @@ import Combine
 @testable import StreamChatTestTools
 import XCTest
 
-class FileAttachmentsViewModel_Tests: StreamChatTestCase {
+@MainActor class FileAttachmentsViewModel_Tests: StreamChatTestCase {
     func test_fileAttachmentsViewModel_notEmpty() {
         // Given
         let messages = ChannelInfoMockUtils.generateMessagesWithFileAttachments(count: 10)
@@ -41,7 +41,7 @@ class FileAttachmentsViewModel_Tests: StreamChatTestCase {
         let additional = Array(ChannelInfoMockUtils.generateMessagesWithFileAttachments(count: 20))
         var current = Array(messages)
         current.append(contentsOf: additional)
-        messages = LazyCachedMapCollection(source: current) { $0 }
+        messages = current
         messageSearchController.messages_mock = messages
 
         // Initial load, when only the 5th attachment is displayed.

@@ -7,7 +7,7 @@ import StreamChat
 import SwiftUI
 
 /// View model for the `ChatChannelView`.
-open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
+@MainActor open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     @Injected(\.chatClient) private var chatClient
     @Injected(\.utils) private var utils
     @Injected(\.images) private var images
@@ -36,9 +36,8 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     private var readsString = ""
     private var canMarkRead = false
     private var hasSetInitialCanMarkRead = false
+    private var pendingMarkReadMessageId: MessageId?
     private var currentUserSentNewMessage = false
-
-    private let messageListDateOverlay: DateFormatter = DateFormatter.messageListDateOverlay
     
     private lazy var messagesDateFormatter = utils.dateFormatter
     private lazy var messageCachingUtils = utils.messageCachingUtils
@@ -62,11 +61,17 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     // This is used for scenarios when scrolling to message Id should not highlight it.
     var skipHighlightMessageId: String?
 
-    @Published public var showScrollToLatestButton = false
+    @Published public var showScrollToLatestButton = false {
+        didSet {
+            checkTypingIndicator()
+            checkHeaderType()
+        }
+    }
+
     @Published var showAlertBanner = false
 
     @Published public var currentDateString: String?
-    @Published public var messages = LazyCachedMapCollection<ChatMessage>() {
+    @Published public var messages = [ChatMessage]() {
         didSet {
             if utils.messageListConfig.groupMessages {
                 groupMessages()
@@ -122,7 +127,8 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         }
     }
 
-    @Published public var shouldShowTypingIndicator = false
+    @Published public var shouldShowInlineTypingIndicator = false
+    @Published public var shouldShowNavigationBarTypingIndicator = false
     @Published public var scrollPosition: String?
     @Published public private(set) var loadingNextMessages: Bool = false
     @Published public var firstUnreadMessageId: String? {
@@ -132,6 +138,8 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             }
         }
     }
+
+    @Published public var reactionsDetailMessage: ChatMessage?
 
     // A boolean value indicating if the user marked a message as unread
     // in the current session of the channel. If it is true,
@@ -154,7 +162,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             && messageController == nil {
             channelController.synchronize()
         }
-        if let messageController = messageController {
+        if let messageController {
             self.messageController = messageController
             messageController.synchronize()
             channelDataSource = MessageThreadDataSource(
@@ -226,7 +234,13 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(selectedMessageThread(notification:)),
-                name: NSNotification.Name(MessageRepliesConstants.selectedMessageThread),
+                name: MessageRepliesConstants.threadMessageNavigationNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(selectedMessageInChannel(notification:)),
+                name: MessageRepliesConstants.channelMessageNavigationNotification,
                 object: nil
             )
         }
@@ -238,16 +252,22 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
 
     @objc
     private func selectedMessageThread(notification: Notification) {
-        if let message = notification.userInfo?[MessageRepliesConstants.selectedMessage] as? ChatMessage {
-            threadMessage = message
-            threadMessageShown = true
-
-            // Only set jumpToReplyId if there's a specific reply message to highlight
-            // (for showReplyInChannel messages). The parent message should never be highlighted.
-            if let replyMessage = notification.userInfo?[MessageRepliesConstants.threadReplyMessage] as? ChatMessage {
-                messageCachingUtils.jumpToReplyId = replyMessage.messageId
-            }
+        resignFirstResponder()
+        guard let parentId = notification.userInfo?[MessageRepliesConstants.threadMessageParentId] as? String else { return }
+        let message = messages.first(where: { $0.messageId == parentId }) ?? channelController.dataStore.message(id: parentId)
+        threadMessage = message
+        threadMessageShown = true
+        if let replyId = notification.userInfo?[MessageRepliesConstants.threadMessageReplyId] as? String {
+            messageCachingUtils.jumpToReplyId = replyId
         }
+    }
+
+    @objc
+    private func selectedMessageInChannel(notification: Notification) {
+        resignFirstResponder()
+        guard let messageId = notification.userInfo?[MessageRepliesConstants.channelMessageMessageId] as? String else { return }
+        threadMessageShown = false
+        _ = jumpToMessage(messageId: messageId, skipThreadNavigation: true)
     }
     
     @objc
@@ -291,6 +311,10 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
 
     public func jumpToMessage(messageId: String) -> Bool {
+        jumpToMessage(messageId: messageId, skipThreadNavigation: false)
+    }
+
+    private func jumpToMessage(messageId: String, skipThreadNavigation: Bool) -> Bool {
         if messageId == .unknownMessageId {
             if firstUnreadMessageId == nil, let lastReadMessageId {
                 scrollsToUnreadAfterJumpToMessage = true
@@ -320,7 +344,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                 return true
             } else {
                 let message = channelController.dataStore.message(id: baseId)
-                if let parentMessageId = message?.parentMessageId, !isMessageThread {
+                if let parentMessageId = message?.parentMessageId, !isMessageThread, !skipThreadNavigation {
                     let parentMessage = channelController.dataStore.message(id: parentMessageId)
                     threadMessage = parentMessage
                     threadMessageShown = true
@@ -333,13 +357,13 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                     return false
                 }
                 loadingMessagesAround = true
-                channelDataSource.loadPageAroundMessageId(baseId) { [weak self] error in
+                channelDataSource.loadPageAroundMessageId(baseId) { [weak self, channelController] error in
                     if error != nil {
                         log.error("Error loading messages around message \(messageId)")
                         return
                     }
                     var toJumpId = messageId
-                    if toJumpId == baseId, let message = self?.channelController.dataStore.message(id: toJumpId) {
+                    if toJumpId == baseId, let message = channelController.dataStore.message(id: toJumpId) {
                         toJumpId = message.messageId
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
@@ -373,7 +397,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
 
     open func handleMessageAppear(index: Int, scrollDirection: ScrollDirection) {
-        if index >= channelDataSource.messages.count || loadingMessagesAround {
+        if !messages.indices.contains(index) || loadingMessagesAround {
             return
         }
         
@@ -453,7 +477,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     
     func dataSource(
         channelDataSource: ChannelDataSource,
-        didUpdateMessages messages: LazyCachedMapCollection<ChatMessage>,
+        didUpdateMessages messages: [ChatMessage],
         changes: [ListChange<ChatMessage>]
     ) {
         if !isActive {
@@ -491,6 +515,13 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         } else if changes.first?.isInsertion == true && currentUserSentNewMessage {
             updateScrolledIdToNewestMessage()
             currentUserSentNewMessage = false
+        }
+        
+        if let pendingMarkReadMessageId,
+           let pendingMarkReadMessage = messages.first(where: { $0.id == pendingMarkReadMessageId }),
+           !pendingMarkReadMessage.isLocalOnly {
+            self.pendingMarkReadMessageId = nil
+            sendReadEventIfNeeded(for: pendingMarkReadMessage)
         }
     }
     
@@ -558,7 +589,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     // MARK: - private
 
     private func checkForOlderMessages(index: Int) {
-        guard index >= channelDataSource.messages.count - 25 else { return }
+        guard index >= messages.count - 25 else { return }
         guard !loadingPreviousMessages else { return }
         guard !channelController.hasLoadedAllPreviousMessages else { return }
         
@@ -568,7 +599,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             before: nil,
             limit: utils.messageListConfig.pageSize,
             completion: { [weak self] _ in
-                guard let self = self else { return }
+                guard let self else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.loadingPreviousMessages = false
                 }
@@ -577,6 +608,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
         
     private func checkForNewerMessages(index: Int) {
+        guard messages.indices.contains(index) else { return }
         guard index <= 5 else { return }
         guard !loadingNextMessages else { return }
         guard !channelController.hasLoadedAllNextMessages else { return }
@@ -588,7 +620,7 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
         }
 
         channelDataSource.loadNextMessages(limit: Self.newerMessagesLimit) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.loadingNextMessages = false
             }
@@ -607,7 +639,9 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             withTimeInterval: 0.5,
             repeats: false,
             block: { [weak self] _ in
-                self?.currentDate = nil
+                StreamConcurrency.onMain {
+                    self?.currentDate = nil
+                }
             }
         )
     }
@@ -618,6 +652,10 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
             return
         }
         if let read = channel.read(for: currentUserId), read.lastReadAt > message.createdAt {
+            return
+        }
+        if message.isLocalOnly {
+            pendingMarkReadMessageId = message.id
             return
         }
         throttler.execute { [weak self] in
@@ -688,18 +726,10 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
     
     private func checkHeaderType() {
-        guard let channel = channel else {
-            return
-        }
-        
         let type: ChannelHeaderType
-        let typingUsers = channel.currentlyTypingUsersFiltered(
-            currentUserId: chatClient.currentUserId
-        )
-        
         if !reactionsShown && isMessageThread {
             type = .messageThread
-        } else if !typingUsers.isEmpty && utils.messageListConfig.typingIndicatorPlacement == .navigationBar {
+        } else if shouldShowNavigationBarTypingIndicator {
             type = .typingIndicator
         } else {
             type = .regular
@@ -755,12 +785,12 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
 
     private func handleDateChange() {
-        guard showScrollToLatestButton == true, let currentDate = currentDate else {
+        guard showScrollToLatestButton == true, let currentDate else {
             currentDateString = nil
             return
         }
         
-        let dateString = messageListDateOverlay.string(from: currentDate)
+        let dateString = utils.messageDateSeparatorFormatter.format(currentDate)
         if currentDateString != dateString {
             currentDateString = dateString
         }
@@ -796,6 +826,8 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
                 }
             case .move:
                 continue
+            @unknown default:
+                continue
             }
         }
         
@@ -809,12 +841,20 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
     
     private func checkTypingIndicator() {
-        guard let channel = channel else { return }
-        let shouldShow = !channel.currentlyTypingUsersFiltered(currentUserId: chatClient.currentUserId).isEmpty
-            && utils.messageListConfig.typingIndicatorPlacement == .bottomOverlay
-            && channel.config.typingEventsEnabled
-        if shouldShow != shouldShowTypingIndicator {
-            shouldShowTypingIndicator = shouldShow
+        guard let channel, channel.config.typingEventsEnabled else {
+            shouldShowInlineTypingIndicator = false
+            shouldShowNavigationBarTypingIndicator = false
+            return
+        }
+        
+        let isTyping = !channel.currentlyTypingUsersFiltered(currentUserId: chatClient.currentUserId).isEmpty
+        let placement = utils.messageListConfig.typingIndicatorPlacement
+        
+        shouldShowInlineTypingIndicator = isTyping && placement != .navigationBar
+        shouldShowNavigationBarTypingIndicator = switch placement {
+        case .navigationBar: isTyping
+        case .inline: false
+        case .automatic: isTyping && showScrollToLatestButton
         }
     }
     
@@ -834,22 +874,24 @@ open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
     }
     
     deinit {
-        throttler.cancel()
-        messageCachingUtils.clearCache()
-        if messageController == nil {
-            utils.channelControllerFactory.clearCurrentController()
-            cleanupAudioPlayer()
-            ImageCache.shared.trim(toCost: utils.messageListConfig.cacheSizeOnChatDismiss)
+        // Actor isolated deinit is in 6.2
+        StreamConcurrency.onMain {
+            messageCachingUtils.clearCache()
+            if messageController == nil {
+                utils.channelControllerFactory.clearCurrentController()
+                cleanupAudioPlayer()
+                ImageCache.shared.trim(toCost: utils.messageListConfig.cacheSizeOnChatDismiss)
+            }
         }
     }
 }
 
-extension ChatMessage: Identifiable {
-    public var scrollMessageId: String {
+extension ChatMessage {
+    @MainActor public var scrollMessageId: String {
         messageId
     }
     
-    var messageId: String {
+    @MainActor var messageId: String {
         InjectedValues[\.utils].messageIdBuilder.makeMessageId(for: self)
     }
     
@@ -912,6 +954,9 @@ let lastMessageKey = "lastMessage"
 extension Notification.Name {
     /// A notification for notifying when an error occured and an alert banner should be shown at the top of the message list.
     static let showChannelAlertBannerNotification = Notification.Name("showChannelAlertBannerNotification")
+    
+    /// A notification for showing a snack bar at the bottom of the channel. The `object` should be a `String` with the text.
+    static let showChannelSnackBarNotification = Notification.Name("showChannelSnackBarNotification")
     
     /// A notification for notifying when message dismissed a sheet.
     static let messageSheetHiddenNotification = Notification.Name("messageSheetHiddenNotification")

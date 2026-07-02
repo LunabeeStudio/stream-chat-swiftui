@@ -6,7 +6,7 @@ import Foundation
 import StreamChat
 import SwiftUI
 
-public protocol MarkdownFormatter {
+@MainActor public protocol MarkdownFormatter {
     /// Formats a Markdown string into an `AttributedString`, merging Markdown styles with the provided base attributes and honoring the given layout direction.
     /// - Parameters:
     ///   - string: The Markdown-formatted source string to render.
@@ -66,28 +66,26 @@ open class DefaultMarkdownFormatter: MarkdownFormatter {
         switch presentationKind {
         case .blockQuote:
             return AttributeContainer()
-                .foregroundColor(Color(colors.subtitleText))
+                .foregroundColor(Color(colors.textSecondary))
         case .codeBlock:
             return AttributeContainer()
                 .font(fonts.body.monospaced())
         case let .header(level):
-            let font: Font = {
-                switch level {
-                case 1:
-                    return fonts.title
-                case 2:
-                    return fonts.title2
-                case 3:
-                    return fonts.title3
-                case 4:
-                    return fonts.headline
-                case 5:
-                    return fonts.subheadline
-                default:
-                    return fonts.footnote
-                }
-            }()
-            let foregroundColor: Color? = level >= 6 ? Color(colors.subtitleText) : nil
+            let font: Font = switch level {
+            case 1:
+                fonts.title
+            case 2:
+                fonts.title2
+            case 3:
+                fonts.title3
+            case 4:
+                fonts.headline
+            case 5:
+                fonts.subheadline
+            default:
+                fonts.footnote
+            }
+            let foregroundColor: Color? = level >= 6 ? Color(colors.textSecondary) : nil
             if let foregroundColor {
                 return AttributeContainer()
                     .font(font)

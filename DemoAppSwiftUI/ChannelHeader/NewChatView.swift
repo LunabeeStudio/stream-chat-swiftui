@@ -23,7 +23,7 @@ struct NewChatView: View, KeyboardReadable {
             HStack {
                 Text("TO:")
                     .font(fonts.footnote)
-                    .foregroundColor(Color(colors.textLowEmphasis))
+                    .foregroundColor(Color(colors.textTertiary))
 
                 VStack {
                     if !viewModel.selectedUsers.isEmpty {
@@ -77,13 +77,13 @@ struct NewChatView: View, KeyboardReadable {
                 VerticallyCenteredView {
                     Text("No user matches these keywords")
                         .font(.title2)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                        .foregroundColor(Color(colors.textTertiary))
                 }
             } else if viewModel.state == .error {
                 VerticallyCenteredView {
                     Text("Error loading the users")
                         .font(.title2)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                        .foregroundColor(Color(colors.textTertiary))
                 }
             } else if viewModel.state == .channel, let controller = viewModel.channelController {
                 Divider()
@@ -127,9 +127,9 @@ struct SelectedUserView: View {
 
     var body: some View {
         HStack {
-            MessageAvatarView(
-                avatarURL: user.imageURL,
-                size: CGSize(width: 20, height: 20)
+            UserAvatar(
+                user: user,
+                size: AvatarSize.extraSmall
             )
 
             Text(user.name ?? user.id)
@@ -137,7 +137,7 @@ struct SelectedUserView: View {
                 .padding(.vertical, 2)
                 .padding(.trailing)
         }
-        .background(Color(colors.background1))
+        .background(Color(colors.backgroundCoreSurfaceSubtle))
         .cornerRadius(16)
     }
 }
@@ -186,11 +186,11 @@ struct CreateGroupButton: View {
             HStack {
                 Image(systemName: "person.3")
                     .renderingMode(.template)
-                    .foregroundColor(colors.tintColor)
+                    .foregroundColor(Color(colors.accentPrimary))
 
                 Text("Create a group")
                     .font(fonts.bodyBold)
-                    .foregroundColor(Color(colors.text))
+                    .foregroundColor(Color(colors.textPrimary))
 
                 Spacer()
             }
@@ -211,7 +211,7 @@ struct ChatUserView: View {
     var body: some View {
         HStack {
             LazyView(
-                MessageAvatarView(avatarURL: user.imageURL)
+                UserAvatar(user: user, size: AvatarSize.medium)
             )
 
             VStack(alignment: .leading, spacing: 4) {
@@ -220,14 +220,14 @@ struct ChatUserView: View {
                     .font(fonts.bodyBold)
                 Text(onlineText)
                     .font(fonts.footnote)
-                    .foregroundColor(Color(colors.textLowEmphasis))
+                    .foregroundColor(Color(colors.textTertiary))
             }
             Spacer()
 
             if isSelected {
                 Image(systemName: "checkmark")
                     .renderingMode(.template)
-                    .foregroundColor(colors.tintColor)
+                    .foregroundColor(Color(colors.accentPrimary))
             }
         }
     }
@@ -245,10 +245,10 @@ struct UsersHeaderView: View {
                 .padding(.horizontal)
                 .padding(.vertical, 2)
                 .font(fonts.body)
-                .foregroundColor(Color(colors.textLowEmphasis))
+                .foregroundColor(Color(colors.textTertiary))
 
             Spacer()
         }
-        .background(Color(colors.background1))
+        .background(Color(colors.backgroundCoreSurfaceSubtle))
     }
 }

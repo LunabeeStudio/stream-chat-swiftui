@@ -2,6 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>chat-info.members.count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@members@</string>
+		<key>members</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d Member</string>
+			<key>other</key>
+			<string>%d Members</string>
+		</dict>
+	</dict>
 	<key>message.polls.button.view-number-of-comments</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -47,11 +63,11 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>zero</key>
-			<string>%d Message Reactions</string>
+			<string>%d Reactions</string>
 			<key>one</key>
-			<string>%d Message Reaction</string>
+			<string>%d Reaction</string>
 			<key>other</key>
-			<string>%d Message Reactions</string>
+			<string>%d Reactions</string>
 		</dict>
 	</dict>
 	<key>message.unread.count</key>
@@ -101,11 +117,11 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>zero</key>
-			<string>New messages</string>
+			<string>Unread messages</string>
 			<key>one</key>
-			<string>New messages</string>
+			<string>Unread messages</string>
 			<key>other</key>
-			<string>New messages</string>
+			<string>Unread messages</string>
 		</dict>
 	</dict>
 	<key>messageList.typingIndicator.users</key>
@@ -137,11 +153,11 @@
 			<key>NSStringFormatValueTypeKey</key>
 			<string>d</string>
 			<key>zero</key>
-			<string>No Thread Replies</string>
+			<string>0 replies</string>
 			<key>one</key>
-			<string>%d Thread Reply</string>
+			<string>%d reply</string>
 			<key>other</key>
-			<string>%d Thread Replies</string>
+			<string>%d replies</string>
 		</dict>
 	</dict>
 </dict>

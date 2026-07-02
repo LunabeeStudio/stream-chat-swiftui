@@ -6,7 +6,7 @@ import StreamChat
 import StreamChatSwiftUI
 import SwiftUI
 
-class LoginViewModel: ObservableObject {
+@MainActor class LoginViewModel: ObservableObject {
     @Published var demoUsers = UserCredentials.builtInUsers
     @Published var loading = false
     @Published var showsConfiguration = false
@@ -35,17 +35,14 @@ class LoginViewModel: ObservableObject {
             ),
             token: token
         ) { [weak self] error in
-            if let error = error {
+            if let error {
                 log.error("connecting the user failed \(error)")
                 return
             }
-
-            DispatchQueue.main.async { [weak self] in
-                withAnimation {
-                    self?.loading = false
-                    UnsecureRepository.shared.save(user: credentials)
-                    AppState.shared.userState = .loggedIn
-                }
+            withAnimation {
+                self?.loading = false
+                UnsecureRepository.shared.save(user: credentials)
+                AppState.shared.userState = .loggedIn
             }
         }
     }
@@ -56,16 +53,13 @@ class LoginViewModel: ObservableObject {
         chatClient.connectGuestUser(
             userInfo: .init(id: credentials.id, name: credentials.name)
         ) { [weak self] error in
-            if let error = error {
+            if let error {
                 log.error("connecting the user failed \(error)")
                 return
             }
-
-            DispatchQueue.main.async { [weak self] in
-                withAnimation {
-                    self?.loading = false
-                    AppState.shared.userState = .loggedIn
-                }
+            withAnimation {
+                self?.loading = false
+                AppState.shared.userState = .loggedIn
             }
         }
     }

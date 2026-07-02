@@ -9,14 +9,14 @@ import SwiftUI
 import UIKit
 
 /// View model for the `ChatChannelListView`.
-open class ChatChannelListViewModel: ObservableObject, ChatChannelListControllerDelegate, ChatMessageSearchControllerDelegate {
+@MainActor open class ChatChannelListViewModel: ObservableObject, ChatChannelListControllerDelegate, ChatMessageSearchControllerDelegate {
     /// Context provided dependencies.
-    @Injected(\.chatClient) private var chatClient: ChatClient
-    @Injected(\.images) private var images: Images
-    @Injected(\.utils) private var utils: Utils
+    @Injected(\.chatClient) private var chatClient
+    @Injected(\.images) private var images
+    @Injected(\.utils) private var utils
 
     /// Context provided utils.
-    internal lazy var channelNamer = utils.channelNamer
+    internal lazy var channelNameFormatter = utils.channelNameFormatter
 
     /// The maximum number of images that combine to form a single avatar
     private let maxNumberOfImagesInCombinedAvatar = 4
@@ -50,7 +50,7 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     @Published public var scrolledChannelId: String?
 
     /// Published variables.
-    @Published public var channels = LazyCachedMapCollection<ChatChannel>()
+    @Published public var channels = [ChatChannel]()
 
     @Published public var selectedChannel: ChannelSelectionInfo? {
         willSet {
@@ -80,21 +80,23 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
         }
     }
 
-    @Published public var customChannelPopupType: ChannelPopupType? {
+    @Published public var channelPopupType: ChannelPopupType? {
         didSet {
-            if customChannelPopupType != nil {
-                customAlertShown = true
+            if channelPopupType != nil {
+                channelPopupShown = true
             } else {
-                customAlertShown = false
+                channelPopupShown = false
             }
         }
     }
 
     @Published public var alertShown = false
     @Published public var loading = false
-    @Published public var customAlertShown = false {
+    @Published public var channelPopupShown = false {
         didSet {
-            hideTabBar = customAlertShown
+            if !channelPopupShown {
+                swipedChannelId = nil
+            }
         }
     }
 
@@ -149,6 +151,9 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     ) {
         self.searchType = searchType
         self.selectedChannelId = selectedChannelId
+        // Recompute channel avatars on a fresh channel list load. Afterwards
+        // they are cached so they stay consistent while the list is shown.
+        utils.channelPlaceholderAvatarUsersCache.clear()
         if let channelListController = channelListController {
             controller = channelListController
         } else {
@@ -164,7 +169,10 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     /// - Parameter channel: the channel whose display name is asked for.
     /// - Returns: `String` with the channel name.
     public func name(forChannel channel: ChatChannel) -> String {
-        channelNamer(channel, chatClient.currentUserId) ?? ""
+        channelNameFormatter.format(
+            channel: channel,
+            forCurrentUserId: chatClient.currentUserId
+        ) ?? ""
     }
 
     /// Checks if there are new channels to be loaded.
@@ -237,20 +245,16 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
         }
     }
 
-    /// Determines whether an online indicator is shown.
-    ///
-    /// - Parameter channel: the provided channel.
-    /// - Returns: Boolean whether the indicator is shown.
-    public func onlineIndicatorShown(for channel: ChatChannel) -> Bool {
-        channel.shouldShowOnlineIndicator
-    }
-
     public func onDeleteTapped(channel: ChatChannel) {
         setChannelAlertType(.deleteChannel(channel))
     }
+    
+    public func onMuteTapped(channel: ChatChannel) {
+        setChannelAlertType(.muteChannel(channel))
+    }
 
     public func onMoreTapped(channel: ChatChannel) {
-        customChannelPopupType = .moreActions(channel)
+        channelPopupType = .moreActions(channel)
     }
 
     public func delete(channel: ChatChannel) {
@@ -264,6 +268,27 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
                 self?.setChannelAlertType(.error)
             }
         }
+    }
+
+    public func mute(channel: ChatChannel) {
+        let controller = chatClient.channelController(
+            for: .init(type: channel.type, id: channel.cid.id)
+        )
+
+        if channel.isMuted {
+            controller.unmuteChannel { [weak self] error in
+                if error != nil {
+                    self?.setChannelAlertType(.error)
+                }
+            }
+        } else {
+            controller.muteChannel { [weak self] error in
+                if error != nil {
+                    self?.setChannelAlertType(.error)
+                }
+            }
+        }
+        swipedChannelId = nil
     }
 
     open func showErrorPopup(_ error: Error?) {
@@ -478,10 +503,10 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
             return
         }
 
-        queue.async { [weak self] in
+        queue.async { [weak self, chatClient] in
             let results: [ChannelSelectionInfo] = messageSearchController.messages.compactMap { message in
                 guard let channelId = message.cid else { return nil }
-                guard let channel = self?.chatClient.channelController(for: channelId).channel else {
+                guard let channel = chatClient.channelController(for: channelId).channel else {
                     return nil
                 }
                 return ChannelSelectionInfo(
@@ -490,7 +515,7 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
                     searchType: .messages
                 )
             }
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.searchResults = results
             }
         }
@@ -505,7 +530,7 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
             .compactMap { channel in
                 ChannelSelectionInfo(
                     channel: channel,
-                    message: channel.previewMessage,
+                    message: channel.latestMessages.first,
                     searchType: .channels
                 )
             }
@@ -523,11 +548,13 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     private func observeClientIdChange() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true, block: { [weak self] _ in
-            guard let self = self else { return }
-            if self.chatClient.currentUserId != nil {
-                self.stopTimer()
-                self.makeDefaultChannelListController()
-                self.setupChannelListController()
+            guard let self else { return }
+            StreamConcurrency.onMain {
+                if self.chatClient.currentUserId != nil {
+                    self.stopTimer()
+                    self.makeDefaultChannelListController()
+                    self.setupChannelListController()
+                }
             }
         })
     }
@@ -538,19 +565,12 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
     }
 
     private func updateChannels() {
-        skippedChannelUpdates = false
-        channels = controller?.channels ?? LazyCachedMapCollection<ChatChannel>()
+        channels = controller?.channels ?? [ChatChannel]()
     }
 
     private func handleChannelAppearance() {
-        if skippedChannelUpdates && selectedChannel == nil {
+        if skippedChannelUpdates {
             updateChannels()
-        } else if skippedChannelUpdates {
-            updateSelectedChannelData()
-        } else if !skippedChannelUpdates && selectedChannel != nil {
-            if selectedChannel?.injectedChannelInfo == nil {
-                selectedChannel?.injectedChannelInfo = InjectedChannelInfo(unreadCount: 0)
-            }
         }
     }
 
@@ -562,30 +582,6 @@ open class ChatChannelListViewModel: ObservableObject, ChatChannelListController
                 self?.handleChannelAppearance()
             }
         }
-    }
-
-    private func updateSelectedChannelData() {
-        let selected = selectedChannel?.channel
-        var index: Int?
-        var temp = Array(controller?.channels ?? [])
-        for i in 0..<temp.count {
-            let current = temp[i]
-            if current.cid == selected?.cid {
-                index = i
-                selectedChannel?.injectedChannelInfo = InjectedChannelInfo(
-                    subtitle: current.subtitleText,
-                    unreadCount: 0,
-                    timestamp: current.timestampText,
-                    lastMessageAt: current.lastMessageAt,
-                    latestMessages: current.latestMessages
-                )
-                break
-            }
-        }
-        if let index = index, let selected = selected {
-            temp[index] = selected
-        }
-        channels = LazyCachedMapCollection(source: temp, map: { $0 })
     }
     
     private func scrollToAndOpen(channel: ChatChannel) {
@@ -636,19 +632,20 @@ public func notifyHideTabBar() {
 }
 
 /// Enum for the type of alert presented in the channel list view.
-public enum ChannelAlertType {
+public enum ChannelAlertType: Equatable {
+    case muteChannel(ChatChannel)
     case deleteChannel(ChatChannel)
     case error
 }
 
 /// Enum describing the type of the custom popup for channel actions.
-public enum ChannelPopupType {
+public enum ChannelPopupType: Equatable {
     /// Shows the 'more actions' popup.
     case moreActions(ChatChannel)
 }
 
 /// The type of data the channel list should perform a search.
-public final class ChannelListSearchType: Equatable {
+public final class ChannelListSearchType: Equatable, Sendable {
     let type: String
 
     private init(type: String) {
@@ -657,7 +654,7 @@ public final class ChannelListSearchType: Equatable {
 
     public static let channels = ChannelListSearchType(type: "channels")
     public static let messages = ChannelListSearchType(type: "messages")
-
+    
     public static func == (lhs: ChannelListSearchType, rhs: ChannelListSearchType) -> Bool {
         lhs.type == rhs.type
     }

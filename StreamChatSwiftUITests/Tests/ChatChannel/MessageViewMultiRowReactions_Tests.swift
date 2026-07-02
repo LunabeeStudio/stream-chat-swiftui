@@ -9,7 +9,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-final class MessageViewMultiRowReactions_Tests: StreamChatTestCase {
+@MainActor final class MessageViewMultiRowReactions_Tests: StreamChatTestCase {
     override public func setUp() {
         super.setUp()
         let reactionsTopPadding: (ChatMessage) -> CGFloat = { message in
@@ -31,7 +31,7 @@ final class MessageViewMultiRowReactions_Tests: StreamChatTestCase {
         )
         streamChat = StreamChat(chatClient: chatClient, utils: utils)
     }
-    
+
     func test_messageViewMultiRowReactions_snapshot() {
         // Given
         let viewFactory = TestViewFactory.shared
@@ -46,7 +46,7 @@ final class MessageViewMultiRowReactions_Tests: StreamChatTestCase {
         let channel = ChatChannel.mockDMChannel()
         
         // When
-        let view = MessageContainerView(
+        let view = MessageItemView(
             factory: viewFactory,
             channel: channel,
             message: message,
@@ -66,17 +66,18 @@ final class MessageViewMultiRowReactions_Tests: StreamChatTestCase {
 
 class TestViewFactory: ViewFactory {
     @Injected(\.chatClient) public var chatClient
+    var styles = LiquidGlassStyles()
 
     private init() {}
 
     public static let shared = TestViewFactory()
     
-    func makeMessageReactionView(
-        message: ChatMessage,
-        onTapGesture: @escaping () -> Void,
-        onLongPressGesture: @escaping () -> Void
-    ) -> some View {
-        CustomReactionsContainer(message: message, onTapGesture: onTapGesture, onLongPressGesture: onLongPressGesture)
+    func makeMessageReactionView(options: MessageReactionViewOptions) -> some View {
+        CustomReactionsContainer(
+            message: options.message,
+            onTapGesture: options.onTapGesture,
+            onLongPressGesture: options.onLongPressGesture
+        )
     }
 }
 
@@ -98,25 +99,24 @@ struct CustomReactionsContainer: View {
         GeometryReader { reader in
             Color.clear
                 .overlay(
-                    ReactionsHStack(message: message) {
-                        CustomMessageReactionView(
-                            message: message,
-                            chunkSize: chunkSize,
-                            useLargeIcons: useLargeIcons,
-                            reactions: reactions,
-                            onReactionTap: { _ in }
-                        )
-                        .onTapGesture {
-                            onTapGesture()
-                        }
-                        .onLongPressGesture {
-                            onLongPressGesture()
-                        }
+                    CustomMessageReactionView(
+                        message: message,
+                        chunkSize: chunkSize,
+                        useLargeIcons: useLargeIcons,
+                        reactions: reactions,
+                        onReactionTap: { _ in }
+                    )
+                    .onTapGesture {
+                        onTapGesture()
+                    }
+                    .onLongPressGesture {
+                        onLongPressGesture()
                     }
                     .offset(
                         x: offsetX,
                         y: (-reader.size.height - offsetY) / 2
-                    )
+                    ),
+                    alignment: message.isSentByCurrentUser ? .leading : .trailing
                 )
         }
         .accessibilityElement(children: .contain)
@@ -219,22 +219,16 @@ struct CustomMessageReactionView: View {
 
     private func iconProvider(for reaction: MessageReactionType) -> UIImage? {
         if useLargeIcons {
-            return images.availableReactions[reaction]?.largeIcon
+            images.defaultReactions[reaction]?.largeIcon
         } else {
-            return images.availableReactions[reaction]?.smallIcon
+            images.defaultReactions[reaction]?.smallIcon
         }
     }
 
     private func color(for reaction: MessageReactionType) -> Color? {
-        var colors = colors
         let containsUserReaction = userReactionIDs.contains(reaction)
-        let color = containsUserReaction ? colors.reactionCurrentUserColor : colors.reactionOtherUserColor
-
-        if let color = color {
-            return Color(color)
-        } else {
-            return nil
-        }
+        let color = containsUserReaction ? colors.accentPrimary : colors.textTertiary
+        return Color(color)
     }
 
     private var userReactionIDs: Set<MessageReactionType> {

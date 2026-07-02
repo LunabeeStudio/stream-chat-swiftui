@@ -9,7 +9,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-final class MessageListViewNewMessages_Tests: StreamChatTestCase {
+@MainActor final class MessageListViewNewMessages_Tests: StreamChatTestCase {
     override func setUp() {
         super.setUp()
         let messageListConfig = MessageListConfig(showNewMessagesSeparator: true)
@@ -99,7 +99,7 @@ final class MessageListViewNewMessages_Tests: StreamChatTestCase {
         messages: [ChatMessage],
         channel: ChatChannel
     ) -> some View {
-        let messages = LazyCachedMapCollection(source: messages, map: { $0 })
+        let messages = messages
         let messageListView = MessageListView(
             factory: DefaultViewFactory.shared,
             channel: channel,

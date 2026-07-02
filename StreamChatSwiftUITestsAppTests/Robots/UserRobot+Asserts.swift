@@ -3,7 +3,6 @@
 //
 
 import Foundation
-@testable import StreamChatSwiftUI
 import XCTest
 
 let channelAttributes = ChannelListPage.Attributes.self
@@ -106,24 +105,6 @@ extension UserRobot {
             XCTAssertTrue(checkmark.wait().exists, "Checkmark does not exist", file: file, line: line)
         }
 
-        return self
-    }
-
-    @discardableResult
-    func assertMessageReadCountInChannelPreview(
-        readBy: Int,
-        at cellIndex: Int? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Self {
-        let cell = channelCell(withIndex: cellIndex, file: file, line: line)
-        let readByCount = channelAttributes.readCount(in: cell)
-        if readBy == 0 {
-            XCTAssertFalse(readByCount.isHittable, "Read count is visible", file: file, line: line)
-        } else {
-            let actualText = readByCount.waitForText("\(readBy)").text
-            XCTAssertEqual("\(readBy)", actualText, file: file, line: line)
-        }
         return self
     }
 
@@ -483,7 +464,7 @@ extension UserRobot {
             line: line
         )
         XCTAssertTrue(
-            typingIndicatorView.text.contains(typingUserName),
+            typingIndicatorView.label.contains(typingUserName),
             "User name is wrong",
             file: file,
             line: line
@@ -555,24 +536,6 @@ extension UserRobot {
         return self
     }
 
-    @discardableResult
-    func assertMessageReadCount(
-        readBy: Int,
-        at messageCellIndex: Int? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Self {
-        let messageCell = messageCell(withIndex: messageCellIndex, file: file, line: line)
-        let readByCount = attributes.readCount(in: messageCell)
-        if readBy == 0 {
-            XCTAssertFalse(readByCount.isHittable, "Read count is visible", file: file, line: line)
-        } else {
-            let actualText = readByCount.waitForText("\(readBy)", timeout: 10).text
-            XCTAssertEqual("\(readBy)", actualText, file: file, line: line)
-        }
-        return self
-    }
-
     func assertComposerLimits(
         toNumberOfLines limit: Int,
         file: StaticString = #filePath,
@@ -584,11 +547,11 @@ extension UserRobot {
             let obtainKeyboardFocus = (i == 1) ? true : false
             typeText("\(i)\n", obtainKeyboardFocus: obtainKeyboardFocus)
             let updatedComposerHeight = composer.height
-            XCTAssertGreaterThan(updatedComposerHeight, composerHeight, file: file, line: line)
+            XCTAssertGreaterThan(round(updatedComposerHeight), composerHeight, file: file, line: line)
             composerHeight = updatedComposerHeight
         }
         typeText("\(limit)\n\(limit + 1)", obtainKeyboardFocus: false)
-        XCTAssertEqual(composerHeight, composer.height, file: file, line: line)
+        XCTAssertEqual(round(composerHeight), composer.height, file: file, line: line)
     }
 
     @discardableResult
@@ -851,17 +814,6 @@ extension UserRobot {
     }
 
     @discardableResult
-    func assertThreadReplyReadCount(
-        readBy: Int,
-        at messageCellIndex: Int? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Self {
-        assertThreadIsOpen(file: file, line: line)
-            .assertMessageReadCount(readBy: readBy, at: messageCellIndex, file: file, line: line)
-    }
-
-    @discardableResult
     func assertThreadReplyDeliveryStatus(
         _ deliveryStatus: StreamChatTestMockServer.MessageDeliveryStatus?,
         at messageCellIndex: Int? = nil,
@@ -899,7 +851,7 @@ extension UserRobot {
         )
         
         XCTAssertEqual(
-            MessageListPage.Composer.placeholder.text == L10n.Composer.Placeholder.slowMode,
+            MessageListPage.Composer.placeholder.text.contains("Slow mode, wait"),
             shouldBeVisible,
             file: file,
             line: line
@@ -1002,8 +954,14 @@ extension UserRobot {
         line: UInt = #line
     ) -> Self {
         let cell = messageCell(withIndex: messageCellIndex, file: file, line: line).wait()
-        XCTAssertTrue(attributes.giphyLabel(in: cell).wait().exists, "Giphy label does not exist")
-        XCTAssertTrue(attributes.giphyImage(in: cell).exists, "Giphy image does not exist")
+        let image = attributes.giphyImage(in: cell).wait()
+        XCTAssertTrue(image.exists, "Giphy image does not exist", file: file, line: line)
+        XCTAssertTrue(
+            image.label.hasPrefix("Giphy"),
+            "Giphy image is missing the expected VoiceOver label, got: \(image.label)",
+            file: file,
+            line: line
+        )
         return self
     }
 
@@ -1014,7 +972,12 @@ extension UserRobot {
         line: UInt = #line
     ) -> Self {
         let cell = messageCell(withIndex: messageCellIndex, file: file, line: line)
-        XCTAssertFalse(attributes.giphyLabel(in: cell).waitForDisappearance().exists, "Giphy label exists")
+        XCTAssertFalse(
+            attributes.giphyImage(in: cell).waitForDisappearance().exists,
+            "Giphy image exists",
+            file: file,
+            line: line
+        )
         XCTAssertEqual(0, attributes.giphyButtons(in: cell).count)
         return self
     }

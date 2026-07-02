@@ -15,9 +15,7 @@ struct DemoAppChatChannelListItem: View {
 
     var channel: ChatChannel
     var channelName: String
-    var injectedChannelInfo: InjectedChannelInfo?
-    var avatar: UIImage
-    var onlineIndicatorShown: Bool
+    var isSelected: Bool = false
     var disabled = false
     var onItemTap: (ChatChannel) -> Void
 
@@ -26,9 +24,9 @@ struct DemoAppChatChannelListItem: View {
             onItemTap(channel)
         } label: {
             HStack {
-                ChannelAvatarView(
+                ChannelAvatar(
                     channel: channel,
-                    showOnlineIndicator: onlineIndicatorShown
+                    size: AvatarSize.medium
                 )
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -37,9 +35,9 @@ struct DemoAppChatChannelListItem: View {
 
                         Spacer()
 
-                        if injectedChannelInfo == nil && channel.unreadCount != .noUnread {
-                            UnreadIndicatorView(
-                                unreadCount: channel.unreadCount.messages
+                        if !isSelected && channel.unreadCount != .noUnread {
+                            BadgeNotificationView(
+                                count: channel.unreadCount.messages
                             )
                         }
                     }
@@ -54,13 +52,12 @@ struct DemoAppChatChannelListItem: View {
                                 MessageReadIndicatorView(
                                     readUsers: channel.readUsers(
                                         currentUserId: chatClient.currentUserId,
-                                        message: channel.latestMessages.first
+                                        message: previewMessage
                                     ),
-                                    showReadCount: false,
-                                    localState: channel.latestMessages.first?.localState
+                                    localState: previewMessage?.localState
                                 )
                             }
-                            SubtitleText(text: injectedChannelInfo?.timestamp ?? channel.timestampText)
+                            SubtitleText(text: timestampText)
                                 .accessibilityIdentifier("timestampView")
                         }
                     }
@@ -70,38 +67,70 @@ struct DemoAppChatChannelListItem: View {
         }
         .foregroundColor(.black)
         .disabled(disabled)
-        .background(channel.isPinned ? Color(colors.pinnedBackground) : .clear)
+        .background(channel.isPinned ? Color(colors.backgroundCoreHighlight) : .clear)
+    }
+
+    private var previewMessage: ChatMessage? {
+        channel.latestMessages.first(where: { $0.type != .ephemeral })
+    }
+
+    private var shouldShowTypingIndicator: Bool {
+        !channel.currentlyTypingUsersFiltered(
+            currentUserId: chatClient.currentUserId
+        ).isEmpty && channel.config.typingEventsEnabled
+    }
+
+    private var draftMessageText: String? {
+        guard let draftMessage = channel.draftMessage else { return nil }
+        return utils.messagePreviewFormatter.formatContent(for: ChatMessage(draftMessage), in: channel)
+    }
+
+    private var timestampText: String {
+        if let lastMessageAt = channel.lastMessageAt {
+            return utils.messageTimestampFormatter.format(lastMessageAt)
+        }
+        return ""
+    }
+
+    private var subtitleText: String {
+        if shouldShowTypingIndicator {
+            return channel.typingIndicatorString(currentUserId: chatClient.currentUserId)
+        }
+        if let previewMessage {
+            return utils.messagePreviewFormatter.format(previewMessage, in: channel)
+        }
+        return "No messages yet"
     }
 
     private var subtitleView: some View {
         HStack(spacing: 4) {
-            if let image = image {
+            if let image {
                 Image(uiImage: image)
                     .customizable()
                     .frame(maxHeight: 12)
-                    .foregroundColor(Color(colors.subtitleText))
+                    .foregroundColor(Color(colors.textSecondary))
             } else {
-                if channel.shouldShowTypingIndicator {
-                    TypingIndicatorView()
+                if shouldShowTypingIndicator {
+                    TypingIndicatorDotsView()
                 }
             }
-            if let draftText = channel.draftMessageText {
+            if let draftText = draftMessageText {
                 HStack(spacing: 2) {
                     Text("Draft:")
                         .font(fonts.caption1).bold()
-                        .foregroundColor(Color(colors.highlightedAccentBackground))
+                        .foregroundColor(Color(colors.accentPrimary))
                     SubtitleText(text: draftText)
                 }
             } else {
-                SubtitleText(text: injectedChannelInfo?.subtitle ?? channel.subtitleText)
+                SubtitleText(text: subtitleText)
             }
             Spacer()
         }
-        .accessibilityIdentifier("subtitleView")
+        .accessibilityIdentifier("previewView")
     }
 
     private var shouldShowReadEvents: Bool {
-        if let message = channel.latestMessages.first,
+        if let message = previewMessage,
            message.isSentByCurrentUser,
            !message.isDeleted {
             return channel.config.readEventsEnabled
@@ -121,29 +150,23 @@ struct DemoAppChatChannelListItem: View {
 struct DemoAppChatChannelNavigatableListItem<ChannelDestination: View>: View {
     private var channel: ChatChannel
     private var channelName: String
-    private var avatar: UIImage
     private var disabled: Bool
-    private var onlineIndicatorShown: Bool
     @Binding private var selectedChannel: ChannelSelectionInfo?
-    private var channelDestination: (ChannelSelectionInfo) -> ChannelDestination
+    private var channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)?
     private var onItemTap: (ChatChannel) -> Void
 
     init(
         channel: ChatChannel,
         channelName: String,
-        avatar: UIImage,
-        onlineIndicatorShown: Bool,
         disabled: Bool = false,
         selectedChannel: Binding<ChannelSelectionInfo?>,
-        channelDestination: @escaping (ChannelSelectionInfo) -> ChannelDestination,
+        channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)? = nil,
         onItemTap: @escaping (ChatChannel) -> Void
     ) {
         self.channel = channel
         self.channelName = channelName
         self.channelDestination = channelDestination
         self.onItemTap = onItemTap
-        self.avatar = avatar
-        self.onlineIndicatorShown = onlineIndicatorShown
         self.disabled = disabled
         _selectedChannel = selectedChannel
     }
@@ -154,9 +177,7 @@ struct DemoAppChatChannelNavigatableListItem<ChannelDestination: View>: View {
                 DemoAppChatChannelListItem(
                     channel: channel,
                     channelName: channelName,
-                    injectedChannelInfo: injectedChannelInfo,
-                    avatar: avatar,
-                    onlineIndicatorShown: onlineIndicatorShown,
+                    isSelected: isSelected,
                     disabled: disabled,
                     onItemTap: onItemTap
                 )
@@ -164,30 +185,30 @@ struct DemoAppChatChannelNavigatableListItem<ChannelDestination: View>: View {
                 ChatChannelListItem(
                     channel: channel,
                     channelName: channelName,
-                    injectedChannelInfo: injectedChannelInfo,
-                    avatar: avatar,
-                    onlineIndicatorShown: onlineIndicatorShown,
+                    isSelected: isSelected,
                     disabled: disabled,
                     onItemTap: onItemTap
                 )
             }
 
-            NavigationLink(
-                tag: channel.channelSelectionInfo,
-                selection: $selectedChannel
-            ) {
-                LazyView(
-                    channelDestination(channel.channelSelectionInfo)
-                        .modifier(TabBarVisibilityModifier())
-                )
-            } label: {
-                EmptyView()
+            if let channelDestination {
+                NavigationLink(
+                    tag: channel.channelSelectionInfo,
+                    selection: $selectedChannel
+                ) {
+                    LazyView(
+                        channelDestination(channel.channelSelectionInfo)
+                            .modifier(TabBarVisibilityModifier())
+                    )
+                } label: {
+                    EmptyView()
+                }
+                .opacity(0) // Fixes showing accessibility button shape
             }
-            .opacity(0) // Fixes showing accessibility button shape
         }
     }
 
-    private var injectedChannelInfo: InjectedChannelInfo? {
-        selectedChannel?.channel.cid.rawValue == channel.cid.rawValue ? selectedChannel?.injectedChannelInfo : nil
+    private var isSelected: Bool {
+        selectedChannel?.channel.cid == channel.cid
     }
 }

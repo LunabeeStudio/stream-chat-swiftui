@@ -26,6 +26,8 @@ extension ContactAttachmentPayload: Identifiable {
 
 class CustomAttachmentsFactory: ViewFactory {
     @Injected(\.chatClient) var chatClient: ChatClient
+    
+    public var styles = LiquidGlassStyles()
 
     private let mockContacts = [
         CustomAttachment(
@@ -50,11 +52,11 @@ class CustomAttachmentsFactory: ViewFactory {
         )
     ]
 
-    func makeAttachmentSourcePickerView(
+    func makeAttachmentTypePickerView(
         selected: AttachmentPickerState,
-        onPickerStateChange: @escaping (AttachmentPickerState) -> Void
+        onPickerStateChange: @escaping @MainActor (AttachmentPickerState) -> Void
     ) -> some View {
-        CustomAttachmentSourcePickerView(
+        CustomAttachmentTypePickerView(
             selected: selected,
             onTap: onPickerStateChange
         )
@@ -62,7 +64,7 @@ class CustomAttachmentsFactory: ViewFactory {
 
     func makeCustomAttachmentView(
         addedCustomAttachments: [CustomAttachment],
-        onCustomAttachmentTap: @escaping (CustomAttachment) -> Void
+        onCustomAttachmentTap: @escaping @MainActor (CustomAttachment) -> Void
     ) -> some View {
         CustomContactAttachmentView(
             contacts: mockContacts,
@@ -99,7 +101,7 @@ class CustomAttachmentsFactory: ViewFactory {
 
     func makeCustomAttachmentPreviewView(
         addedCustomAttachments: [CustomAttachment],
-        onCustomAttachmentTap: @escaping (CustomAttachment) -> Void
+        onCustomAttachmentTap: @escaping @MainActor (CustomAttachment) -> Void
     ) -> some View {
         CustomContactAttachmentComposerPreview(
             addedCustomAttachments: addedCustomAttachments,
@@ -115,7 +117,7 @@ class CustomMessageTypeResolver: MessageTypeResolving {
     }
 }
 
-struct CustomAttachmentSourcePickerView: View {
+struct CustomAttachmentTypePickerView: View {
     @Injected(\.colors) var colors
     @Injected(\.images) var images
 
@@ -124,28 +126,28 @@ struct CustomAttachmentSourcePickerView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 24) {
-            AttachmentPickerButton(
+            AttachmentTypePickerButton(
                 icon: images.attachmentPickerPhotos,
                 pickerType: .photos,
                 isSelected: selected == .photos,
                 onTap: onTap
             )
 
-            AttachmentPickerButton(
+            AttachmentTypePickerButton(
                 icon: images.attachmentPickerFolder,
                 pickerType: .files,
                 isSelected: selected == .files,
                 onTap: onTap
             )
 
-            AttachmentPickerButton(
+            AttachmentTypePickerButton(
                 icon: images.attachmentPickerCamera,
                 pickerType: .camera,
                 isSelected: selected == .camera,
                 onTap: onTap
             )
 
-            AttachmentPickerButton(
+            AttachmentTypePickerButton(
                 icon: UIImage(systemName: "person.crop.circle")!,
                 pickerType: .custom,
                 isSelected: selected == .custom,
@@ -156,7 +158,7 @@ struct CustomAttachmentSourcePickerView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 56)
-        .background(Color(colors.background1))
+        .background(Color(colors.backgroundCoreSurfaceSubtle))
     }
 }
 
@@ -169,29 +171,27 @@ struct CustomContactAttachmentView: View {
     var onCustomAttachmentTap: (CustomAttachment) -> Void
 
     var body: some View {
-        AttachmentTypeContainer {
-            VStack(alignment: .leading) {
-                Text("Contacts")
-                    .font(fonts.headlineBold)
-                    .standardPadding()
+        VStack(alignment: .leading) {
+            Text("Contacts")
+                .font(fonts.headlineBold)
+                .standardPadding()
 
-                ScrollView {
-                    VStack {
-                        ForEach(contacts) { contact in
-                            if let payload = contact.content.payload as? ContactAttachmentPayload {
-                                CustomContactAttachmentPreview(
-                                    contact: contact,
-                                    payload: payload,
-                                    onCustomAttachmentTap: onCustomAttachmentTap,
-                                    isAttachmentSelected: addedContacts.contains(contact)
-                                )
-                                .padding(.all, 4)
-                                .padding(.horizontal, 8)
-                            }
+            ScrollView {
+                VStack {
+                    ForEach(contacts) { contact in
+                        if let payload = contact.content.payload as? ContactAttachmentPayload {
+                            CustomContactAttachmentPreview(
+                                contact: contact,
+                                payload: payload,
+                                onCustomAttachmentTap: onCustomAttachmentTap,
+                                isAttachmentSelected: addedContacts.contains(contact)
+                            )
+                            .padding(.all, 4)
+                            .padding(.horizontal, 8)
                         }
                     }
-                    .frame(maxWidth: .infinity)
                 }
+                .frame(maxWidth: .infinity)
             }
         }
     }
@@ -232,6 +232,28 @@ struct CustomContactAttachmentComposerPreview: View {
     }
 }
 
+struct DiscardAttachmentButton: View {
+    var attachmentIdentifier: String
+    var onDiscard: (String) -> Void
+
+    public init(attachmentIdentifier: String, onDiscard: @escaping (String) -> Void) {
+        self.attachmentIdentifier = attachmentIdentifier
+        self.onDiscard = onDiscard
+    }
+
+    public var body: some View {
+        TopRightView {
+            Button(action: {
+                withAnimation {
+                    onDiscard(attachmentIdentifier)
+                }
+            }, label: {
+                DiscardButtonView()
+            })
+        }
+    }
+}
+
 struct CustomContactAttachmentPreview: View {
     @Injected(\.fonts) var fonts
     @Injected(\.colors) var colors
@@ -251,15 +273,15 @@ struct CustomContactAttachmentPreview: View {
             HStack {
                 Image(systemName: "person.crop.circle")
                     .renderingMode(.template)
-                    .foregroundColor(Color(colors.textLowEmphasis))
+                    .foregroundColor(Color(colors.textTertiary))
 
                 VStack(alignment: .leading) {
                     Text(payload.name)
                         .font(fonts.bodyBold)
-                        .foregroundColor(Color(colors.text))
+                        .foregroundColor(Color(colors.textPrimary))
                     Text(payload.phoneNumber)
                         .font(fonts.footnote)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                        .foregroundColor(Color(colors.textTertiary))
                 }
 
                 if hasSpacing {
@@ -269,7 +291,7 @@ struct CustomContactAttachmentPreview: View {
                 if isAttachmentSelected {
                     Image(systemName: "checkmark")
                         .renderingMode(.template)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                        .foregroundColor(Color(colors.textTertiary))
                 }
             }
         }

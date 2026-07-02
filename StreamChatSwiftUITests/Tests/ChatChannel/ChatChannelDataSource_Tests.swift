@@ -9,7 +9,7 @@ import SnapshotTesting
 import SwiftUI
 import XCTest
 
-class ChatChannelDataSource_Tests: StreamChatTestCase {
+@MainActor class ChatChannelDataSource_Tests: StreamChatTestCase {
     private let message = ChatMessage.mock(
         id: .unique,
         cid: .unique,
@@ -234,7 +234,7 @@ class ChatChannelDataSource_Tests: StreamChatTestCase {
 
         func dataSource(
             channelDataSource: ChannelDataSource,
-            didUpdateMessages messages: LazyCachedMapCollection<ChatMessage>,
+            didUpdateMessages messages: [ChatMessage],
             changes: [ListChange<ChatMessage>]
         ) {
             updateMessagesCalled = true

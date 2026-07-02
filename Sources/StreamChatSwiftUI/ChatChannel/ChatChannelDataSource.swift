@@ -5,7 +5,7 @@
 import StreamChat
 
 /// Data source providing the chat messages.
-protocol MessagesDataSource: AnyObject {
+@MainActor protocol MessagesDataSource: AnyObject {
     /// Called when the messages are updated.
     ///
     /// - Parameters:
@@ -13,7 +13,7 @@ protocol MessagesDataSource: AnyObject {
     ///  - messages, the collection of updated messages.
     func dataSource(
         channelDataSource: ChannelDataSource,
-        didUpdateMessages messages: LazyCachedMapCollection<ChatMessage>,
+        didUpdateMessages messages: [ChatMessage],
         changes: [ListChange<ChatMessage>]
     )
 
@@ -30,12 +30,12 @@ protocol MessagesDataSource: AnyObject {
 }
 
 /// The data source for the channel.
-protocol ChannelDataSource: AnyObject {
+@MainActor protocol ChannelDataSource: AnyObject {
     /// Delegate implementing the `MessagesDataSource`.
     var delegate: MessagesDataSource? { get set }
 
     /// List of the messages.
-    var messages: LazyCachedMapCollection<ChatMessage> { get }
+    var messages: [ChatMessage] { get }
     
     /// Determines whether all new messages have been fetched.
     var hasLoadedAllNextMessages: Bool { get }
@@ -51,7 +51,7 @@ protocol ChannelDataSource: AnyObject {
     func loadPreviousMessages(
         before messageId: MessageId?,
         limit: Int,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     )
     
     /// Loads newer messages.
@@ -60,7 +60,7 @@ protocol ChannelDataSource: AnyObject {
     ///  - completion: called when the messages are loaded.
     func loadNextMessages(
         limit: Int,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     )
     
     /// Loads a page around the provided message id.
@@ -69,12 +69,12 @@ protocol ChannelDataSource: AnyObject {
     ///  - completion: called when the messages are loaded.
     func loadPageAroundMessageId(
         _ messageId: MessageId,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     )
     
     /// Loads the first page of the channel.
     ///  - Parameter completion: called when the initial page is loaded.
-    func loadFirstPage(_ completion: ((_ error: Error?) -> Void)?)
+    func loadFirstPage(_ completion: (@MainActor (_ error: Error?) -> Void)?)
 }
 
 /// Implementation of `ChannelDataSource`. Loads the messages of the channel.
@@ -82,7 +82,7 @@ class ChatChannelDataSource: ChannelDataSource, ChatChannelControllerDelegate {
     let controller: ChatChannelController
     weak var delegate: MessagesDataSource?
     
-    var messages: LazyCachedMapCollection<ChatMessage> {
+    var messages: [ChatMessage] {
         controller.messages
     }
     
@@ -134,7 +134,7 @@ class ChatChannelDataSource: ChannelDataSource, ChatChannelControllerDelegate {
     func loadPreviousMessages(
         before messageId: MessageId?,
         limit: Int,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     ) {
         controller.loadPreviousMessages(
             before: messageId,
@@ -143,18 +143,18 @@ class ChatChannelDataSource: ChannelDataSource, ChatChannelControllerDelegate {
         )
     }
     
-    func loadNextMessages(limit: Int, completion: ((Error?) -> Void)?) {
+    func loadNextMessages(limit: Int, completion: (@MainActor (Error?) -> Void)?) {
         controller.loadNextMessages(limit: limit, completion: completion)
     }
     
     func loadPageAroundMessageId(
         _ messageId: MessageId,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     ) {
         controller.loadPageAroundMessageId(messageId, completion: completion)
     }
     
-    func loadFirstPage(_ completion: ((_ error: Error?) -> Void)?) {
+    func loadFirstPage(_ completion: (@MainActor (_ error: Error?) -> Void)?) {
         controller.loadFirstPage(completion)
     }
 }
@@ -166,7 +166,7 @@ class MessageThreadDataSource: ChannelDataSource, ChatMessageControllerDelegate 
     
     weak var delegate: MessagesDataSource?
     
-    var messages: LazyCachedMapCollection<ChatMessage> {
+    var messages: [ChatMessage] {
         var replies = messageController.replies
         if let message = messageController.message, replies.last != message {
             replies.append(message)
@@ -190,10 +190,10 @@ class MessageThreadDataSource: ChannelDataSource, ChatMessageControllerDelegate 
         self.messageController = messageController
         self.messageController.delegate = self
         self.messageController.loadPreviousReplies { [weak self] _ in
-            guard let self = self else { return }
-            self.delegate?.dataSource(
+            guard let self else { return }
+            delegate?.dataSource(
                 channelDataSource: self,
-                didUpdateMessages: self.messages,
+                didUpdateMessages: messages,
                 changes: []
             )
         }
@@ -224,7 +224,7 @@ class MessageThreadDataSource: ChannelDataSource, ChatMessageControllerDelegate 
     func loadPreviousMessages(
         before messageId: MessageId?,
         limit: Int,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     ) {
         messageController.loadPreviousReplies(
             before: messageId,
@@ -233,18 +233,18 @@ class MessageThreadDataSource: ChannelDataSource, ChatMessageControllerDelegate 
         )
     }
     
-    func loadNextMessages(limit: Int, completion: ((Error?) -> Void)?) {
+    func loadNextMessages(limit: Int, completion: (@MainActor (Error?) -> Void)?) {
         messageController.loadNextReplies(limit: limit, completion: completion)
     }
     
     func loadPageAroundMessageId(
         _ messageId: MessageId,
-        completion: ((Error?) -> Void)?
+        completion: (@MainActor (Error?) -> Void)?
     ) {
         messageController.loadPageAroundReplyId(messageId, completion: completion)
     }
     
-    func loadFirstPage(_ completion: ((_ error: Error?) -> Void)?) {
+    func loadFirstPage(_ completion: (@MainActor (_ error: Error?) -> Void)?) {
         messageController.loadFirstPage(completion)
     }
 }

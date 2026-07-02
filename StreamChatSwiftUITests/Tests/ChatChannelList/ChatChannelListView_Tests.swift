@@ -10,19 +10,7 @@ import StreamSwiftTestHelpers
 import SwiftUI
 import XCTest
 
-class ChatChannelListView_Tests: StreamChatTestCase {
-    func test_chatChannelScreen_snapshot() {
-        // Given
-        let controller = makeChannelListController()
-
-        // When
-        let view = ChatChannelListScreen(channelListController: controller)
-            .applyDefaultSize()
-
-        // Then
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
-    }
-
+@MainActor class ChatChannelListView_Tests: StreamChatTestCase {
     func test_chatChannelListView_snapshot() {
         // Given
         let controller = makeChannelListController()
@@ -105,7 +93,68 @@ class ChatChannelListView_Tests: StreamChatTestCase {
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-    
+
+    func test_trailingSwipeActionsView_unmuted_snapshot() {
+        // Given - channel is not muted, swipe action shows mute (speaker.slash) icon
+        let channel = ChatChannel.mockDMChannel()
+        let view = TrailingSwipeActionsView(
+            channel: channel,
+            offsetX: -160,
+            buttonWidth: 80,
+            leftButtonTapped: { _ in },
+            rightButtonTapped: { _ in }
+        )
+        .frame(
+            width: defaultScreenSize.width,
+            height: 64
+        )
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_trailingSwipeActionsView_muted_snapshot() {
+        // Given - channel is muted, swipe action shows unmute (speaker.wave.2) icon
+        let channel = ChatChannel.mockDMChannel(
+            muteDetails: .init(createdAt: .unique, updatedAt: .unique, expiresAt: nil)
+        )
+        let view = TrailingSwipeActionsView(
+            channel: channel,
+            offsetX: -160,
+            buttonWidth: 80,
+            leftButtonTapped: { _ in },
+            rightButtonTapped: { _ in }
+        )
+        .frame(
+            width: defaultScreenSize.width,
+            height: 64
+        )
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_trailingSwipeActionsView_rightToLeft_snapshot() {
+        // Given - in RTL, the action buttons should be aligned to the leading
+        // (left) edge with the destructive/primary action appearing leftmost.
+        let channel = ChatChannel.mockDMChannel()
+        let view = TrailingSwipeActionsView(
+            channel: channel,
+            offsetX: -160,
+            buttonWidth: 80,
+            leftButtonTapped: { _ in },
+            rightButtonTapped: { _ in }
+        )
+        .frame(
+            width: defaultScreenSize.width,
+            height: 64
+        )
+        .environment(\.layoutDirection, .rightToLeft)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
     func test_channelListView_channelAvatarUpdated() {
         // Given
         let controller = makeChannelListController()
@@ -154,13 +203,26 @@ class ChatChannelListView_Tests: StreamChatTestCase {
 
 class ChannelAvatarViewFactory: ViewFactory {
     @Injected(\.chatClient) var chatClient
+    var styles = LiquidGlassStyles()
     
     func makeChannelAvatarView(
-        for channel: ChatChannel,
-        with options: ChannelAvatarViewOptions
+        options: ChannelAvatarViewOptions
     ) -> some View {
         Circle()
             .fill(.red)
-            .frame(width: options.size.width, height: options.size.height)
+            .frame(width: options.size, height: options.size)
+    }
+}
+
+class ChannelAvatarViewRegularFactory: ViewFactory {
+    @Injected(\.chatClient) var chatClient
+    var styles = RegularStyles()
+
+    func makeChannelAvatarView(
+        options: ChannelAvatarViewOptions
+    ) -> some View {
+        Circle()
+            .fill(.red)
+            .frame(width: options.size, height: options.size)
     }
 }

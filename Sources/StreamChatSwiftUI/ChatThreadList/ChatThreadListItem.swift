@@ -22,110 +22,15 @@ public struct ChatThreadListItem<Factory: ViewFactory>: View {
         ChatThreadListItemContentView(
             factory: factory,
             channelNameText: viewModel.channelNameText,
-            parentMessageText: viewModel.parentMessageText,
+            parentMessageAuthorName: viewModel.parentMessageAuthorName,
+            parentMessageContentText: viewModel.parentMessageContentText,
             unreadRepliesCount: viewModel.unreadRepliesCount,
-            replyAuthorId: viewModel.latestReplyAuthorId,
-            replyAuthorName: viewModel.latestReplyAuthorNameText,
-            replyAuthorUrl: viewModel.latestReplyAuthorImageURL,
-            replyAuthorIsOnline: viewModel.isLatestReplyAuthorOnline,
-            replyMessageText: viewModel.latestReplyMessageText,
+            parentAuthor: viewModel.parentMessageAuthor,
+            replyCountText: viewModel.replyCountText,
             replyTimestampText: viewModel.latestReplyTimestampText,
+            participantUsers: viewModel.participantUsers,
             draftText: viewModel.draftReplyText
         )
-    }
-}
-
-/// The view model for the thread list item view.
-///
-/// It contains the default presentation logic for the thread list item data.
-public final class ChatThreadListItemViewModel {
-    @Injected(\.utils) private var utils
-    @Injected(\.chatClient) private var chatClient
-
-    private let thread: ChatThread
-
-    public init(thread: ChatThread) {
-        self.thread = thread
-    }
-
-    /// The formatted thread parent message text.
-    public var parentMessageText: String {
-        var parentMessageText: String
-        if thread.parentMessage.isDeleted {
-            parentMessageText = L10n.Message.deletedMessagePlaceholder
-        } else if let threadTitle = thread.title {
-            parentMessageText = threadTitle
-        } else {
-            let formatter = InjectedValues[\.utils].messagePreviewFormatter
-            parentMessageText = formatter.formatContent(for: thread.parentMessage, in: thread.channel)
-        }
-        return L10n.Thread.Item.repliedTo(parentMessageText.trimmed)
-    }
-
-    /// The formatted latest reply text.
-    public var latestReplyMessageText: String {
-        guard let latestReply = thread.latestReplies.last else {
-            return ""
-        }
-
-        if latestReply.isDeleted {
-            return L10n.Message.deletedMessagePlaceholder
-        }
-
-        let formatter = InjectedValues[\.utils].messagePreviewFormatter
-        return formatter.format(latestReply, in: thread.channel)
-    }
-
-    /// The formatted latest reply timestamp.
-    public var latestReplyTimestampText: String {
-        utils.dateFormatter.string(
-            from: thread.latestReplies.last?.createdAt ?? .distantPast
-        )
-    }
-
-    /// The formatted draft reply text.
-    public var draftReplyText: String? {
-        guard utils.messageListConfig.draftMessagesEnabled else { return nil }
-        guard let draftMessage = thread.parentMessage.draftReply else { return nil }
-        let messageFormatter = InjectedValues[\.utils].messagePreviewFormatter
-        return messageFormatter.formatContent(for: ChatMessage(draftMessage), in: thread.channel)
-    }
-
-    /// The number of unread replies.
-    public var unreadRepliesCount: Int {
-        let currentUserRead = thread.reads.first(
-            where: { $0.user.id == chatClient.currentUserId }
-        )
-        return currentUserRead?.unreadMessagesCount ?? 0
-    }
-
-    /// The formatted latest reply author name text.
-    public var latestReplyAuthorNameText: String {
-        latestReplyAuthor?.name ?? ""
-    }
-
-    /// A boolean value indicating if the latest reply author is online.
-    public var isLatestReplyAuthorOnline: Bool {
-        latestReplyAuthor?.isOnline ?? false
-    }
-
-    /// The latest reply author's image url.
-    public var latestReplyAuthorImageURL: URL? {
-        latestReplyAuthor?.imageURL
-    }
-
-    /// The latest reply author's user ID.
-    public var latestReplyAuthorId: String {
-        latestReplyAuthor?.id ?? ""
-    }
-
-    /// The formatted channel name text.
-    public var channelNameText: String {
-        utils.channelNamer(thread.channel, chatClient.currentUserId) ?? ""
-    }
-
-    private var latestReplyAuthor: ChatUser? {
-        thread.latestReplies.last?.author
     }
 }
 
@@ -133,116 +38,153 @@ public final class ChatThreadListItemViewModel {
 struct ChatThreadListItemContentView<Factory: ViewFactory>: View {
     @Injected(\.fonts) private var fonts
     @Injected(\.colors) private var colors
-    @Injected(\.utils) private var utils
-    @Injected(\.images) private var images
-    @Injected(\.chatClient) private var chatClient
+    @Injected(\.tokens) private var tokens
 
     var factory: Factory
     var channelNameText: String
-    var parentMessageText: String
+    var parentMessageAuthorName: String?
+    var parentMessageContentText: String
     var unreadRepliesCount: Int
-    var replyAuthorId: String
-    var replyAuthorName: String
-    var replyAuthorUrl: URL?
-    var replyAuthorIsOnline: Bool
-    var replyMessageText: String
+    let parentAuthor: ChatUser?
+    var replyCountText: String
     var replyTimestampText: String
+    var participantUsers: [ChatUser]
     var draftText: String?
 
     init(
         factory: Factory = DefaultViewFactory.shared,
         channelNameText: String,
-        parentMessageText: String,
+        parentMessageAuthorName: String?,
+        parentMessageContentText: String,
         unreadRepliesCount: Int,
-        replyAuthorId: String,
-        replyAuthorName: String,
-        replyAuthorUrl: URL?,
-        replyAuthorIsOnline: Bool,
-        replyMessageText: String,
+        parentAuthor: ChatUser?,
+        replyCountText: String,
         replyTimestampText: String,
+        participantUsers: [ChatUser],
         draftText: String? = nil
     ) {
         self.factory = factory
         self.channelNameText = channelNameText
-        self.parentMessageText = parentMessageText
+        self.parentMessageAuthorName = parentMessageAuthorName
+        self.parentMessageContentText = parentMessageContentText
         self.unreadRepliesCount = unreadRepliesCount
-        self.replyAuthorId = replyAuthorId
-        self.replyAuthorName = replyAuthorName
-        self.replyAuthorUrl = replyAuthorUrl
-        self.replyAuthorIsOnline = replyAuthorIsOnline
-        self.replyMessageText = replyMessageText
+        self.parentAuthor = parentAuthor
+        self.replyCountText = replyCountText
         self.replyTimestampText = replyTimestampText
+        self.participantUsers = participantUsers
         self.draftText = draftText
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            threadContainerView
-            replyContainerView
+        HStack(alignment: .top, spacing: tokens.spacingMd) {
+            parentAuthorAvatarView
+            VStack(alignment: .leading, spacing: tokens.spacingXxs) {
+                titleRow
+                messageTextRow
+                repliesRow
+            }
         }
-        .padding(.all, 8)
+        .padding(.all, tokens.spacingMd)
     }
 
-    var threadContainerView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Image(uiImage: images.threadIcon)
-                    .customizable()
-                    .frame(width: 15, height: 15)
-                    .foregroundColor(Color(colors.subtitleText))
-                Text(channelNameText)
-                    .lineLimit(1)
-                    .foregroundColor(Color(colors.text))
-                    .font(fonts.subheadlineBold)
-            }
-            HStack(alignment: .bottom) {
-                SubtitleText(text: parentMessageText)
-                Spacer()
-                HStack {
-                    if unreadRepliesCount != 0 {
-                        UnreadIndicatorView(
-                            unreadCount: unreadRepliesCount
-                        )
-                    }
-                }
-                .frame(minHeight: 18)
+    var parentAuthorAvatarView: some View {
+        Group {
+            if let parentAuthor {
+                factory.makeUserAvatarView(
+                    options: .init(
+                        user: parentAuthor,
+                        size: AvatarSize.extraLarge,
+                        showsIndicator: parentAuthor.isOnline
+                    )
+                )
+            } else {
+                UserAvatar(url: nil, initials: "", size: AvatarSize.extraLarge, indicator: .none)
             }
         }
     }
 
-    var replyContainerView: some View {
-        HStack(spacing: 8) {
-            let displayInfo = UserDisplayInfo(
-                id: replyAuthorId,
-                name: replyAuthorName,
-                imageURL: replyAuthorUrl,
-                size: .init(width: 40, height: 40)
-            )
-            factory.makeMessageAvatarView(for: displayInfo)
-            VStack(alignment: .leading) {
-                Text(replyAuthorName)
-                    .lineLimit(1)
-                    .foregroundColor(Color(colors.text))
-                    .font(fonts.subheadlineBold)
-                HStack {
-                    if let draftText {
-                        HStack(spacing: 2) {
-                            draftPrefixView
-                            SubtitleText(text: draftText)
-                        }
-                    } else {
-                        SubtitleText(text: replyMessageText)
-                    }
-                    Spacer()
-                    SubtitleText(text: replyTimestampText)
-                }
+    var titleRow: some View {
+        HStack {
+            Text(channelNameText)
+                .font(fonts.subheadline)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .foregroundColor(Color(colors.textTertiary))
+                .accessibilityIdentifier("ThreadMessageTitle")
+
+            Spacer()
+            if unreadRepliesCount > 0 {
+                BadgeNotificationView(count: unreadRepliesCount)
+            }
+        }
+    }
+
+    @ViewBuilder
+    var messageTextRow: some View {
+        if let draftText {
+            HStack(spacing: tokens.spacingXxxs) {
+                draftPrefixView
+                messageTitle(text: draftText)
+            }
+        } else if let authorName = parentMessageAuthorName {
+            HStack(spacing: tokens.spacingXxs) {
+                Text("\(authorName):")
+                    .font(fonts.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(colors.textSecondary))
+                messageTitle(text: parentMessageContentText)
+            }
+            .lineLimit(1)
+        } else {
+            messageTitle(text: parentMessageContentText)
+        }
+    }
+
+    var repliesRow: some View {
+        HStack(spacing: tokens.spacingXs) {
+            participantAvatarsView
+            Text(replyCountText)
+                .font(fonts.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(Color(colors.textLink))
+            SubtitleText(text: replyTimestampText, color: Color(colors.textTertiary))
+        }
+        .offset(y: tokens.spacingXxxs)
+    }
+
+    var participantAvatarsView: some View {
+        let avatarSize = AvatarSize.small
+        let overlap: CGFloat = avatarSize / 3
+        let borderWidth: CGFloat = 2
+
+        return HStack(spacing: -(overlap + borderWidth * 2)) {
+            ForEach(Array(participantUsers.prefix(3).enumerated()), id: \.offset) { index, user in
+                factory.makeUserAvatarView(
+                    options: UserAvatarViewOptions(
+                        user: user,
+                        size: avatarSize,
+                        showsIndicator: false,
+                        showsBorder: false
+                    )
+                )
+                .padding(borderWidth)
+                .background(Circle().fill(colors.borderCoreOnAccent.toColor))
+                .zIndex(Double(index))
             }
         }
     }
 
     var draftPrefixView: some View {
         Text("\(L10n.Message.Preview.draft):")
-            .font(fonts.caption1).bold()
-            .foregroundColor(Color(colors.highlightedAccentBackground))
+            .font(fonts.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(Color(colors.accentPrimary))
+    }
+    
+    func messageTitle(text: String) -> some View {
+        Text(text)
+            .lineLimit(1)
+            .font(fonts.body)
+            .foregroundColor(colors.textPrimary.toColor)
     }
 }

@@ -10,16 +10,18 @@ public struct SubtitleText: View {
     @Injected(\.colors) private var colors
 
     var text: String
+    var color: Color?
 
-    public init(text: String) {
+    public init(text: String, color: Color? = nil) {
         self.text = text
+        self.color = color
     }
 
     public var body: some View {
         Text(text)
             .lineLimit(1)
-            .font(fonts.caption1)
-            .foregroundColor(Color(colors.subtitleText))
+            .font(fonts.subheadline)
+            .foregroundColor(color ?? Color(colors.textSecondary))
     }
 }
 
@@ -42,24 +44,6 @@ public struct TopRightView<Content: View>: View {
     }
 }
 
-/// View representing the user's avatar.
-public struct AvatarView: View {
-    var avatar: UIImage
-    var size: CGSize = .defaultAvatarSize
-
-    public var body: some View {
-        Image(uiImage: avatar)
-            .renderingMode(.original)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(
-                width: size.width,
-                height: size.height
-            )
-            .clipShape(Circle())
-    }
-}
-
 public struct ChatTitleView: View {
     @Injected(\.fonts) private var fonts
     @Injected(\.colors) private var colors
@@ -73,13 +57,14 @@ public struct ChatTitleView: View {
     public var body: some View {
         Text(name)
             .lineLimit(1)
-            .font(fonts.bodyBold)
-            .foregroundColor(Color(colors.text))
+            .font(fonts.headline)
+            .foregroundColor(Color(colors.textPrimary))
             .accessibilityIdentifier("ChatTitleView")
     }
 }
 
-struct EmptyViewModifier: ViewModifier {
+public struct EmptyViewModifier: ViewModifier {
+    public init() {}
     public func body(content: Content) -> some View {
         content
     }
@@ -87,7 +72,7 @@ struct EmptyViewModifier: ViewModifier {
 
 extension CGSize {
     /// Default size of the avatar used in the channel list.
-    public static var defaultAvatarSize: CGSize = CGSize(width: 48, height: 48)
+    public nonisolated(unsafe) static var defaultAvatarSize: CGSize = CGSize(width: 48, height: 48)
 }
 
 /// Provides access to the the app's tab bar (if present).
@@ -125,9 +110,9 @@ struct TabBarAccessor: UIViewControllerRepresentable {
 }
 
 var isIphone: Bool {
-    UIDevice.current.userInterfaceIdiom == .phone
+    UITraitCollection.current.userInterfaceIdiom == .phone
 }
 
 var isIPad: Bool {
-    UIDevice.current.userInterfaceIdiom == .pad
+    UITraitCollection.current.userInterfaceIdiom == .pad
 }

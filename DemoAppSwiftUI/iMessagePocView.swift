@@ -10,7 +10,6 @@ struct iMessagePocView: View {
     @Injected(\.colors) var colors
 
     @StateObject var viewModel: iMessageChatChannelListViewModel
-    @StateObject private var channelHeaderLoader = ChannelHeaderLoader()
 
     private var factory = iMessageViewFactory.shared
 
@@ -31,9 +30,9 @@ struct iMessagePocView: View {
                     ScrollView(.horizontal) {
                         HStack {
                             ForEach(viewModel.pinnedChannels) { channel in
-                                ChannelAvatarView(
+                                ChannelAvatar(
                                     channel: channel,
-                                    showOnlineIndicator: false
+                                    size: 48
                                 )
                                 .padding()
                             }
@@ -46,14 +45,11 @@ struct iMessagePocView: View {
                     channels: viewModel.channels,
                     selectedChannel: $viewModel.selectedChannel,
                     swipedChannelId: $viewModel.swipedChannelId,
-                    onlineIndicatorShown: viewModel.onlineIndicatorShown(for:),
-                    imageLoader: channelHeaderLoader.image(for:),
                     onItemTap: { channel in
                         viewModel.selectedChannel = ChannelSelectionInfo(channel: channel, message: nil)
                     },
                     onItemAppear: viewModel.checkForChannels(index:),
-                    channelNaming: viewModel.name(forChannel:),
-                    channelDestination: factory.makeChannelDestination(),
+                    channelDestination: factory.makeChannelDestination(options: ChannelDestinationOptions()),
                     trailingSwipeRightButtonTapped: viewModel.onDeleteTapped(channel:),
                     trailingSwipeLeftButtonTapped: viewModel.onMoreTapped(channel:),
                     leadingSwipeButtonTapped: viewModel.pinChannelTapped(_:)
@@ -61,7 +57,7 @@ struct iMessagePocView: View {
                 .alert(isPresented: $viewModel.alertShown) {
                     switch viewModel.channelAlertType {
                     case let .deleteChannel(channel):
-                        return Alert(
+                        Alert(
                             title: Text("Delete"),
                             message: Text("Are you sure you want to delete this channel?"),
                             primaryButton: .destructive(Text("Delete")) {
@@ -70,33 +66,35 @@ struct iMessagePocView: View {
                             secondaryButton: .cancel()
                         )
                     default:
-                        return Alert.defaultErrorAlert
+                        Alert.defaultErrorAlert
                     }
                 }
 
                 Spacer()
             }
-            .blur(radius: (viewModel.customAlertShown || viewModel.alertShown) ? 6 : 0)
-            .overlay(viewModel.customAlertShown ? customViewOverlay() : nil)
-            .accentColor(colors.tintColor)
+            .blur(radius: (viewModel.channelPopupShown || viewModel.alertShown) ? 6 : 0)
+            .overlay(viewModel.channelPopupShown ? customViewOverlay() : nil)
+            .accentColor(Color(colors.accentPrimary))
             .navigationTitle("Messages")
         }
     }
 
     @ViewBuilder
     private func customViewOverlay() -> some View {
-        switch viewModel.customChannelPopupType {
+        switch viewModel.channelPopupType {
         case let .moreActions(channel):
             factory.makeMoreChannelActionsView(
-                for: channel,
-                swipedChannelId: $viewModel.swipedChannelId
-            ) {
-                withAnimation {
-                    viewModel.customChannelPopupType = nil
+                options: .init(
+                    channel: channel,
+                    swipedChannelId: $viewModel.swipedChannelId
+                ) {
+                    withAnimation {
+                        viewModel.channelPopupType = nil
+                    }
+                } onError: { error in
+                    viewModel.showErrorPopup(error)
                 }
-            } onError: { error in
-                viewModel.showErrorPopup(error)
-            }
+            )
             .edgesIgnoringSafeArea(.all)
         default:
             EmptyView()
@@ -120,13 +118,15 @@ class iMessageViewFactory: ViewFactory {
 
     static let shared = iMessageViewFactory()
 
+    public var styles = LiquidGlassStyles()
+    
     private init() {}
 
     func makeLeadingSwipeActionsView(
         channel: ChatChannel,
         offsetX: CGFloat,
         buttonWidth: CGFloat,
-        buttonTapped: @escaping (ChatChannel) -> Void
+        buttonTapped: @escaping @MainActor (ChatChannel) -> Void
     ) -> some View {
         HStack {
             ActionItemButton(imageName: "pin.fill") {

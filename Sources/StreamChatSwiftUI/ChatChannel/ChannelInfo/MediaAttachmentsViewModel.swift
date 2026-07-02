@@ -2,12 +2,13 @@
 // Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
+import Combine
 import Foundation
 import StreamChat
 import SwiftUI
 
 /// View model for the `MediaAttachmentsView`.
-class MediaAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDelegate {
+@MainActor class MediaAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDelegate {
     @Published var mediaItems = [MediaItem]()
     @Published var loading = false
     @Published var galleryShown = false
@@ -47,9 +48,9 @@ class MediaAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDe
         if !loadingNextMessages {
             loadingNextMessages = true
             messageSearchController.loadNextMessages { [weak self] _ in
-                guard let self = self else { return }
-                self.updateAttachments()
-                self.loadingNextMessages = false
+                guard let self else { return }
+                updateAttachments()
+                loadingNextMessages = false
             }
         }
     }
@@ -68,9 +69,9 @@ class MediaAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDe
 
         loading = true
         messageSearchController.search(query: query, completion: { [weak self] _ in
-            guard let self = self else { return }
-            self.updateAttachments()
-            self.loading = false
+            guard let self else { return }
+            updateAttachments()
+            loading = false
         })
     }
 
@@ -100,9 +101,7 @@ class MediaAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDe
                 result.append(mediaItem)
             }
         }
-        withAnimation {
-            self.mediaItems = result
-        }
+        self.mediaItems = result
     }
 }
 
@@ -128,11 +127,11 @@ public final class MediaItem: Identifiable {
         self.imageAttachment = imageAttachment
     }
     
-    public var mediaAttachment: MediaAttachment? {
+    @MainActor public var mediaAttachment: MediaAttachment? {
         if let videoAttachment {
-            return MediaAttachment(url: videoAttachment.videoURL, type: .video)
+            return MediaAttachment(from: videoAttachment)
         } else if let imageAttachment {
-            return MediaAttachment(url: imageAttachment.imageURL, type: .image)
+            return MediaAttachment(from: imageAttachment)
         }
         return nil
     }

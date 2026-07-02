@@ -2,12 +2,13 @@
 // Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
+import Combine
 import Foundation
 import StreamChat
 import SwiftUI
 
 /// View model for the `FileAttachmentsView`.
-class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDelegate {
+@MainActor class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDelegate {
     @Published var loading = false
     @Published var attachmentsDataSource = [MonthlyFileAttachments]()
     @Published var selectedAttachment: ChatMessageFileAttachment?
@@ -67,9 +68,9 @@ class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDel
         if !loadingNextMessages {
             loadingNextMessages = true
             messageSearchController.loadNextMessages { [weak self] _ in
-                guard let self = self else { return }
-                self.updateAttachments()
-                self.loadingNextMessages = false
+                guard let self else { return }
+                updateAttachments()
+                loadingNextMessages = false
             }
         }
     }
@@ -88,11 +89,11 @@ class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDel
 
         loading = true
         messageSearchController.search(query: query, completion: { [weak self] _ in
-            guard let self = self else { return }
+            guard let self else { return }
             withAnimation {
                 self.updateAttachments()
             }
-            self.loading = false
+            loading = false
         })
     }
 
@@ -101,7 +102,7 @@ class FileAttachmentsViewModel: ObservableObject, ChatMessageSearchControllerDel
         attachmentsDataSource = loadAttachments(from: messages)
     }
 
-    private func loadAttachments(from messages: LazyCachedMapCollection<ChatMessage>) -> [MonthlyFileAttachments] {
+    private func loadAttachments(from messages: [ChatMessage]) -> [MonthlyFileAttachments] {
         var attachmentMappings = [String: [ChatMessageFileAttachment]]()
         var monthAndYearArray = [String]()
 

@@ -8,7 +8,7 @@
 import SwiftUI
 import XCTest
 
-class ChatChannelViewModel_Tests: StreamChatTestCase {
+@MainActor class ChatChannelViewModel_Tests: StreamChatTestCase {
     func test_chatChannelVM_channelIsUpdated() {
         // Given
         let cid = ChannelId.unique
@@ -116,6 +116,12 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
 
     func test_chatChannelVM_currentDateString() {
         // Given
+        streamChat = StreamChat(
+            chatClient: chatClient,
+            utils: Utils(
+                messageListConfig: .init(dateIndicatorPlacement: .overlay)
+            )
+        )
         let expectedDate = "Jan 01"
         let channelController = makeChannelController()
         let viewModel = ChatChannelViewModel(channelController: channelController)
@@ -210,7 +216,7 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         viewModel.messageSentTapped()
         viewModel.dataSource(
             channelDataSource: ChatChannelDataSource(controller: channelController),
-            didUpdateMessages: LazyCachedMapCollection(elements: messages),
+            didUpdateMessages: messages,
             changes: [
                 .insert(messages[0], index: .init(item: 0, section: 0)),
                 .update(messages[1], index: .init(item: 1, section: 0))
@@ -285,7 +291,7 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
 
         // Then
         XCTAssert(headerType == .regular)
-        XCTAssert(viewModel.shouldShowTypingIndicator == false)
+        XCTAssert(viewModel.shouldShowInlineTypingIndicator == false)
     }
 
     func test_chatChannelVM_typingIndicatorMessageHeader() {
@@ -311,7 +317,7 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         XCTAssert(headerType == .typingIndicator)
     }
 
-    func test_chatChannelVM_typingIndicatorMessageList() {
+    func test_chatChannelVM_typingIndicatorInline() {
         // Given
         let channelController = makeChannelController()
         let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
@@ -326,7 +332,154 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         )
 
         // Then
-        XCTAssert(viewModel.shouldShowTypingIndicator == true)
+        XCTAssert(viewModel.shouldShowInlineTypingIndicator == true)
+    }
+
+    // MARK: - Automatic typing indicator placement
+
+    func test_chatChannelVM_automaticPlacement_showsInlineTypingIndicator() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .automatic)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // When
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+
+        // Then
+        XCTAssertTrue(viewModel.shouldShowInlineTypingIndicator)
+    }
+
+    func test_chatChannelVM_automaticPlacement_hidesNavBarTypingIndicatorWhenAtBottom() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .automatic)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.showScrollToLatestButton = false
+
+        // When
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+
+        // Then
+        XCTAssertFalse(viewModel.shouldShowNavigationBarTypingIndicator)
+        XCTAssertEqual(viewModel.channelHeaderType, .regular)
+    }
+
+    func test_chatChannelVM_automaticPlacement_showsNavBarTypingIndicatorWhenScrolledUp() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .automatic)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // When
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+        viewModel.showScrollToLatestButton = true
+
+        // Then
+        XCTAssertTrue(viewModel.shouldShowNavigationBarTypingIndicator)
+        XCTAssertEqual(viewModel.channelHeaderType, .typingIndicator)
+    }
+
+    func test_chatChannelVM_automaticPlacement_hidesNavBarTypingIndicatorWhenScrolledBackToBottom() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .automatic)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+        viewModel.showScrollToLatestButton = true
+        XCTAssertTrue(viewModel.shouldShowNavigationBarTypingIndicator)
+
+        // When
+        viewModel.showScrollToLatestButton = false
+
+        // Then
+        XCTAssertFalse(viewModel.shouldShowNavigationBarTypingIndicator)
+        XCTAssertEqual(viewModel.channelHeaderType, .regular)
+    }
+
+    func test_chatChannelVM_navigationBarPlacement_showsNavBarTypingIndicatorRegardlessOfScroll() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .navigationBar)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.showScrollToLatestButton = false
+
+        // When
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+
+        // Then
+        XCTAssertTrue(viewModel.shouldShowNavigationBarTypingIndicator)
+        XCTAssertFalse(viewModel.shouldShowInlineTypingIndicator)
+    }
+
+    func test_chatChannelVM_inlinePlacement_neverShowsNavBarTypingIndicator() {
+        // Given
+        let utils = Utils(
+            messageListConfig: MessageListConfig(typingIndicatorPlacement: .inline)
+        )
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+        let channelController = makeChannelController()
+        let typingUser: ChatChannelMember = ChatChannelMember.mock(id: .unique)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.showScrollToLatestButton = true
+
+        // When
+        let channel: ChatChannel = .mockDMChannel(currentlyTypingUsers: Set(arrayLiteral: typingUser))
+        channelController.simulate(
+            channel: channel,
+            change: .update(channel),
+            typingUsers: Set(arrayLiteral: typingUser)
+        )
+
+        // Then
+        XCTAssertFalse(viewModel.shouldShowNavigationBarTypingIndicator)
+        XCTAssertTrue(viewModel.shouldShowInlineTypingIndicator)
     }
 
     func test_chatChannelVM_skipChanges() {
@@ -459,20 +612,20 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
 
     func test_chatChannelVM_threadMessage() {
         // Given
-        let channelController = makeChannelController()
-        let viewModel = ChatChannelViewModel(channelController: channelController)
         let message = ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Some text",
             author: .mock(id: .unique)
         )
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
 
         // When
         NotificationCenter.default.post(
-            name: NSNotification.Name(MessageRepliesConstants.selectedMessageThread),
+            name: MessageRepliesConstants.threadMessageNavigationNotification,
             object: nil,
-            userInfo: [MessageRepliesConstants.selectedMessage: message]
+            userInfo: [MessageRepliesConstants.threadMessageParentId: message.messageId]
         )
 
         // Then
@@ -600,20 +753,20 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
 
     func test_chatChannelVM_selectedMessageThread_opensThread() {
         // Given
-        let channelController = makeChannelController()
-        let viewModel = ChatChannelViewModel(channelController: channelController)
         let message = ChatMessage.mock(
             id: .unique,
             cid: .unique,
             text: "Test message",
             author: .mock(id: .unique)
         )
+        let channelController = makeChannelController(messages: [message])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
 
         // When
         NotificationCenter.default.post(
-            name: NSNotification.Name(MessageRepliesConstants.selectedMessageThread),
+            name: MessageRepliesConstants.threadMessageNavigationNotification,
             object: nil,
-            userInfo: [MessageRepliesConstants.selectedMessage: message]
+            userInfo: [MessageRepliesConstants.threadMessageParentId: message.messageId]
         )
 
         // Then
@@ -623,8 +776,6 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
 
     func test_chatChannelVM_selectedMessageThread_withThreadReplyMessage_opensThread() {
         // Given
-        let channelController = makeChannelController()
-        let viewModel = ChatChannelViewModel(channelController: channelController)
         let parentMessage = ChatMessage.mock(
             id: .unique,
             cid: .unique,
@@ -638,14 +789,16 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
             author: .mock(id: .unique),
             parentMessageId: parentMessage.id
         )
+        let channelController = makeChannelController(messages: [parentMessage, replyMessage])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
 
         // When
         NotificationCenter.default.post(
-            name: NSNotification.Name(MessageRepliesConstants.selectedMessageThread),
+            name: MessageRepliesConstants.threadMessageNavigationNotification,
             object: nil,
             userInfo: [
-                MessageRepliesConstants.selectedMessage: parentMessage,
-                MessageRepliesConstants.threadReplyMessage: replyMessage
+                MessageRepliesConstants.threadMessageParentId: parentMessage.messageId,
+                MessageRepliesConstants.threadMessageReplyId: replyMessage.messageId
             ]
         )
 
@@ -661,7 +814,7 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         let message3 = ChatMessage.mock()
         let channelController = makeChannelController(messages: [message1, message2])
         let viewModel = ChatChannelViewModel(channelController: channelController)
-        let newMessages = LazyCachedMapCollection(elements: [message1, message2, message3])
+        let newMessages = [message1, message2, message3]
         
         // When
         viewModel.dataSource(
@@ -676,6 +829,27 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         
         // Then
         XCTAssertEqual(3, viewModel.messages.count)
+    }
+
+    func test_chatChannelVM_handleMessageAppear_whenDisplayedMessagesAreBehindDataSourceMessages_doesNotCrash() {
+        // Given
+        let message1 = ChatMessage.mock()
+        let message2 = ChatMessage.mock()
+        let replacementMessage = ChatMessage.mock()
+        let channelController = makeChannelController(messages: [message1, message2])
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        
+        viewModel.dataSource(
+            channelDataSource: ChatChannelDataSource(controller: channelController),
+            didUpdateMessages: [replacementMessage],
+            changes: [.remove(message2, index: IndexPath(row: 1, section: 0))]
+        )
+        
+        // When
+        viewModel.handleMessageAppear(index: 1, scrollDirection: .down)
+        
+        // Then
+        XCTAssertEqual([replacementMessage], viewModel.messages)
     }
     
     func test_chatChannelVM_keepFirstUnreadIndexSetAfterMarkingTheChannelAsRead() {
@@ -822,8 +996,93 @@ class ChatChannelViewModel_Tests: StreamChatTestCase {
         XCTAssert(true)
     }
 
+    // MARK: - Pending markRead Tests
+
+    func test_chatChannelVM_sendReadEventIfNeeded_whenLatestMessageIsLocalOnly_thenMarkReadIsNotCalled() {
+        // Given - the latest message is still in flight (e.g., the user's first message
+        // in an empty channel).
+        let pendingMessage = ChatMessage.mock(localState: .pendingSend)
+        let channelController = makeChannelController(messages: [pendingMessage])
+        channelController.channel_mock = .mockDMChannel(reads: [])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.currentUserMarkedMessageUnread = false
+        viewModel.throttler = Throttler_Mock(interval: 0)
+
+        // When
+        viewModel.handleMessageAppear(index: 0, scrollDirection: .down)
+
+        // Then - markRead must not be called while the message is still local-only.
+        XCTAssertEqual(0, channelController.markReadCallCount)
+    }
+
+    func test_chatChannelVM_sendReadEventIfNeeded_whenPendingMessageBecomesSent_thenMarkReadIsCalled() {
+        // Given - empty channel that received a local pendingSend message.
+        let messageId: MessageId = .unique
+        let pendingMessage = ChatMessage.mock(id: messageId, localState: .pendingSend)
+        let channelController = makeChannelController(messages: [pendingMessage])
+        channelController.channel_mock = .mockDMChannel(reads: [])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.currentUserMarkedMessageUnread = false
+        viewModel.throttler = Throttler_Mock(interval: 0)
+        viewModel.handleMessageAppear(index: 0, scrollDirection: .down)
+        XCTAssertEqual(0, channelController.markReadCallCount)
+
+        // When - the same message transitions to fully sent (localState becomes nil).
+        let sentMessage = ChatMessage.mock(id: messageId, localState: nil)
+        channelController.messages_mock = [sentMessage]
+        let dataSource = ChatChannelDataSource(controller: channelController)
+        viewModel.dataSource(
+            channelDataSource: dataSource,
+            didUpdateMessages: [sentMessage],
+            changes: [.update(sentMessage, index: IndexPath(row: 0, section: 0))]
+        )
+
+        // Then - markRead fires exactly once for the now-sent latest message.
+        XCTAssertEqual(1, channelController.markReadCallCount)
+    }
+
+    func test_chatChannelVM_sendReadEventIfNeeded_whenNonEmptyChannelReceivesPendingMessage_thenMarkReadIsCalledOnlyAfterSent() {
+        // Given - non-empty channel already at the bottom.
+        let existing = ChatMessage.mock(id: .unique, localState: nil)
+        let channelController = makeChannelController(messages: [existing])
+        channelController.channel_mock = .mockDMChannel(reads: [])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.currentUserMarkedMessageUnread = false
+        viewModel.throttler = Throttler_Mock(interval: 0)
+        viewModel.handleMessageAppear(index: 0, scrollDirection: .down)
+        let baseline = channelController.markReadCallCount
+
+        // When - user sends a new message; it appears in `.pendingSend` first.
+        let newId: MessageId = .unique
+        let pendingMessage = ChatMessage.mock(id: newId, localState: .pendingSend)
+        channelController.messages_mock = [pendingMessage, existing]
+        let dataSource = ChatChannelDataSource(controller: channelController)
+        viewModel.dataSource(
+            channelDataSource: dataSource,
+            didUpdateMessages: [pendingMessage, existing],
+            changes: [.insert(pendingMessage, index: IndexPath(row: 0, section: 0))]
+        )
+        viewModel.handleMessageAppear(index: 0, scrollDirection: .down)
+        XCTAssertEqual(baseline, channelController.markReadCallCount)
+
+        // When - the new message transitions to sent.
+        let sentMessage = ChatMessage.mock(id: newId, localState: nil)
+        channelController.messages_mock = [sentMessage, existing]
+        viewModel.dataSource(
+            channelDataSource: dataSource,
+            didUpdateMessages: [sentMessage, existing],
+            changes: [.update(sentMessage, index: IndexPath(row: 0, section: 0))]
+        )
+
+        // Then - markRead fires exactly once for the now-sent latest message.
+        XCTAssertEqual(baseline + 1, channelController.markReadCallCount)
+    }
+
     // MARK: - highlightMessage Tests
-    
+
     func test_highlightMessage_highlightsWhenSkipHighlightMessageIdIsNotSet() {
         // Given
         let message = ChatMessage.mock()

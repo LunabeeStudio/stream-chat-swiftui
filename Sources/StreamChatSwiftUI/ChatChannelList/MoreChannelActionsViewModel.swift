@@ -2,23 +2,22 @@
 // Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
+import Combine
 import Foundation
 import StreamChat
 import SwiftUI
 import UIKit
 
 /// View model for the more channel actions.
-open class MoreChannelActionsViewModel: ObservableObject {
+@MainActor open class MoreChannelActionsViewModel: ObservableObject {
     /// Context provided values.
     @Injected(\.utils) private var utils
     @Injected(\.chatClient) private var chatClient
     @Injected(\.images) private var images
 
     /// Private vars.
-    private lazy var channelNamer = utils.channelNamer
-    private lazy var imageLoader = utils.imageLoader
-    private lazy var imageCDN = utils.imageCDN
-    private lazy var placeholder2 = images.userAvatarPlaceholder2
+    private lazy var channelNameFormatter = utils.channelNameFormatter
+    private lazy var mediaLoader = utils.mediaLoader
 
     /// Published vars.
     @Published var channelActions: [ChannelAction]
@@ -29,12 +28,11 @@ open class MoreChannelActionsViewModel: ObservableObject {
         }
     }
 
-    @Published var memberAvatars = [String: UIImage]()
     @Published var members = [ChatChannelMember]()
 
     /// Computed vars.
     public var chatName: String {
-        name(forChannel: channel)
+        name(for: channel)
     }
 
     public var subtitleText: String {
@@ -56,49 +54,25 @@ open class MoreChannelActionsViewModel: ObservableObject {
         members = channel.lastActiveMembers
     }
 
-    /// Returns an image for a member.
-    ///
-    /// - Parameter member: the chat channel member.
-    /// - Returns: downloaded image or a placeholder.
-    public func image(for member: ChatChannelMember) -> UIImage {
-        if let image = memberAvatars[member.id] {
-            return image
-        }
-
-        imageLoader.loadImage(
-            url: member.imageURL,
-            imageCDN: imageCDN,
-            resize: true,
-            preferredSize: .avatarThumbnailSize
-        ) { [weak self] result in
-            guard let self = self else { return }
-            switch result {
-            case let .success(image):
-                self.memberAvatars[member.id] = image
-            case let .failure(error):
-                log.error("error loading image: \(error.localizedDescription)")
-            }
-        }
-
-        return placeholder2
-    }
-
     // MARK: - private
 
-    private func name(forChannel channel: ChatChannel) -> String {
-        channelNamer(channel, chatClient.currentUserId) ?? ""
+    private func name(for channel: ChatChannel) -> String {
+        utils.channelNameFormatter.format(
+            channel: channel,
+            forCurrentUserId: chatClient.currentUserId
+        ) ?? ""
     }
 }
 
 /// Model describing a channel action.
-public final class ChannelAction: Identifiable {
+public final class ChannelAction: Identifiable, @unchecked Sendable {
     public var id: String {
         "\(title)-\(iconName)"
     }
 
     public let title: String
     public let iconName: String
-    public let action: () -> Void
+    public let action: @MainActor () -> Void
     public let confirmationPopup: ConfirmationPopup?
     public let isDestructive: Bool
     public var navigationDestination: AnyView?
@@ -106,7 +80,7 @@ public final class ChannelAction: Identifiable {
     public init(
         title: String,
         iconName: String,
-        action: @escaping () -> Void,
+        action: @escaping @MainActor () -> Void,
         confirmationPopup: ConfirmationPopup?,
         isDestructive: Bool
     ) {
@@ -119,7 +93,7 @@ public final class ChannelAction: Identifiable {
 }
 
 /// Model describing confirmation popup data.
-public final class ConfirmationPopup {
+public final class ConfirmationPopup: Sendable {
     public init(title: String, message: String?, buttonTitle: String) {
         self.title = title
         self.message = message

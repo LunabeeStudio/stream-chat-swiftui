@@ -14,21 +14,22 @@ class DemoAppFactory: ViewFactory {
     private var mentionsHandler = MentionsHandler()
 
     public static let shared = DemoAppFactory()
+    
+    public var styles = DemoAppStyles()
 
-    func makeChannelListHeaderViewModifier(title: String) -> some ChannelListHeaderViewModifier {
-        CustomChannelModifier(title: title)
+    func makeChannelListHeaderViewModifier(options: ChannelListHeaderViewModifierOptions) -> some ChannelListHeaderViewModifier {
+        CustomChannelModifier(title: options.title)
     }
     
     func supportedMoreChannelActions(
-        for channel: ChatChannel,
-        onDismiss: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        options: SupportedMoreChannelActionsOptions
     ) -> [ChannelAction] {
+        let channel = options.channel
+        let onDismiss = options.onDismiss
+        let onError = options.onError
+        
         var actions = ChannelAction.defaultActions(
-            for: channel,
-            chatClient: chatClient,
-            onDismiss: onDismiss,
-            onError: onError
+            for: .init(channel: channel, onDismiss: onDismiss, onError: onError)
         )
         let archiveChannel = archiveChannelAction(for: channel, onDismiss: onDismiss, onError: onError)
         actions.insert(archiveChannel, at: actions.count - 2)
@@ -42,24 +43,21 @@ class DemoAppFactory: ViewFactory {
     }
     
     func makeChannelListItem(
-        channel: ChatChannel,
-        channelName: String,
-        avatar: UIImage,
-        onlineIndicatorShown: Bool,
-        disabled: Bool,
-        selectedChannel: Binding<ChannelSelectionInfo?>,
-        swipedChannelId: Binding<String?>,
-        channelDestination: @escaping (ChannelSelectionInfo) -> ChatChannelView<DemoAppFactory>,
-        onItemTap: @escaping (ChatChannel) -> Void,
-        trailingSwipeRightButtonTapped: @escaping (ChatChannel) -> Void,
-        trailingSwipeLeftButtonTapped: @escaping (ChatChannel) -> Void,
-        leadingSwipeButtonTapped: @escaping (ChatChannel) -> Void
+        options: ChannelListItemOptions<ChannelDestination>
     ) -> some View {
+        let channel = options.channel
+        let channelName = options.channelName
+        let disabled = options.disabled
+        let selectedChannel = options.selectedChannel
+        let swipedChannelId = options.swipedChannelId
+        let channelDestination = options.channelDestination
+        let onItemTap = options.onItemTap
+        let trailingSwipeRightButtonTapped = options.trailingSwipeRightButtonTapped
+        let trailingSwipeLeftButtonTapped = options.trailingSwipeLeftButtonTapped
+        let leadingSwipeButtonTapped = options.leadingSwipeButtonTapped
         let listItem = DemoAppChatChannelNavigatableListItem(
             channel: channel,
             channelName: channelName,
-            avatar: avatar,
-            onlineIndicatorShown: onlineIndicatorShown,
             disabled: disabled,
             selectedChannel: selectedChannel,
             channelDestination: channelDestination,
@@ -83,18 +81,18 @@ class DemoAppFactory: ViewFactory {
     
     private func archiveChannelAction(
         for channel: ChatChannel,
-        onDismiss: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        onDismiss: @escaping @MainActor () -> Void,
+        onError: @escaping @MainActor (Error) -> Void
     ) -> ChannelAction {
         ChannelAction(
             title: channel.isArchived ? "Unarchive Channel" : "Archive Channel",
             iconName: "archivebox",
             action: { [weak self] in
                 guard let self else { return }
-                let channelController = self.chatClient.channelController(for: channel.cid)
+                let channelController = chatClient.channelController(for: channel.cid)
                 if channel.isArchived {
                     channelController.unarchive { error in
-                        if let error = error {
+                        if let error {
                             onError(error)
                         } else {
                             onDismiss()
@@ -102,7 +100,7 @@ class DemoAppFactory: ViewFactory {
                     }
                 } else {
                     channelController.archive { error in
-                        if let error = error {
+                        if let error {
                             onError(error)
                         } else {
                             onDismiss()
@@ -117,18 +115,18 @@ class DemoAppFactory: ViewFactory {
     
     private func pinChannelAction(
         for channel: ChatChannel,
-        onDismiss: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        onDismiss: @escaping @MainActor () -> Void,
+        onError: @escaping @MainActor (Error) -> Void
     ) -> ChannelAction {
         let pinChannel = ChannelAction(
             title: channel.isPinned ? "Unpin Channel" : "Pin Channel",
             iconName: "pin.fill",
             action: { [weak self] in
                 guard let self else { return }
-                let channelController = self.chatClient.channelController(for: channel.cid)
+                let channelController = chatClient.channelController(for: channel.cid)
                 if channel.isPinned {
                     channelController.unpin { error in
-                        if let error = error {
+                        if let error {
                             onError(error)
                         } else {
                             onDismiss()
@@ -136,7 +134,7 @@ class DemoAppFactory: ViewFactory {
                     }
                 } else {
                     channelController.pin { error in
-                        if let error = error {
+                        if let error {
                             onError(error)
                         } else {
                             onDismiss()
@@ -159,7 +157,7 @@ struct ShowProfileModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .modifier(
-                DefaultViewFactory.shared.makeMessageViewModifier(for: messageModifierInfo)
+                DefaultViewFactory.shared.styles.makeMessageViewModifier(for: messageModifierInfo)
             )
             .modifier(
                 ProfileURLModifier(
@@ -203,7 +201,7 @@ struct ProfileURLModifier: ViewModifier {
                 }, content: {
                     if let user = mentionsHandler.selectedUser {
                         VStack {
-                            MessageAvatarView(avatarURL: user.imageURL)
+                            UserAvatar(user: user, size: AvatarSize.medium)
                             Text(user.name ?? user.id)
                         }
                     }
@@ -224,25 +222,101 @@ struct CustomChannelDestination: View {
     }
 }
 
+// MARK: - DemoAppStyles
+
+/// A `Styles` implementation that switches between `RegularStyles` and `LiquidGlassStyles`
+/// at runtime based on the current `AppConfiguration.appStyle`.
+class DemoAppStyles: Styles {
+    @Injected(\.tokens) var tokens
+
+    var composerPlacement: ComposerPlacement {
+        get { isLiquidGlass ? .floating : .docked }
+        set {}
+    }
+
+    private var isLiquidGlass: Bool {
+        AppConfiguration.default.appStyle == .liquidGlass
+    }
+
+    func makeComposerInputViewModifier(options: ComposerInputModifierOptions) -> some ViewModifier {
+        StyleSwitchModifier(
+            isLiquidGlass: isLiquidGlass,
+            regular: RegularInputViewModifier(),
+            liquidGlass: LiquidGlassModifier(shape: RoundedRectangle(cornerRadius: tokens.radius3xl), isInteractive: true)
+        )
+    }
+
+    func makeComposerButtonViewModifier(options: ComposerButtonModifierOptions) -> some ViewModifier {
+        StyleSwitchModifier(
+            isLiquidGlass: isLiquidGlass,
+            regular: RegularButtonViewModifier(),
+            liquidGlass: LiquidGlassModifier(shape: .circle, isInteractive: true)
+        )
+    }
+
+    func makeScrollToBottomButtonModifier(options: ScrollToBottomButtonModifierOptions) -> some ViewModifier {
+        StyleSwitchModifier(
+            isLiquidGlass: isLiquidGlass,
+            regular: RegularScrollToBottomButtonModifier(),
+            liquidGlass: LiquidGlassScrollToBottomButtonModifier()
+        )
+    }
+
+    func makeComposerViewModifier(options: ComposerViewModifierOptions) -> some ViewModifier {
+        StyleSwitchModifier(
+            isLiquidGlass: isLiquidGlass,
+            regular: ComposerBackgroundRegularViewModifier(),
+            liquidGlass: EmptyViewModifier()
+        )
+    }
+
+    func makeSuggestionsContainerModifier(options: SuggestionsContainerModifierOptions) -> some ViewModifier {
+        StyleSwitchModifier(
+            isLiquidGlass: isLiquidGlass,
+            regular: SuggestionsRegularContainerModifier(),
+            liquidGlass: SuggestionsLiquidGlassContainerModifier()
+        )
+    }
+}
+
+/// A generic modifier that switches between two concrete modifiers based on a boolean flag.
+struct StyleSwitchModifier<Regular: ViewModifier, LiquidGlass: ViewModifier>: ViewModifier {
+    let isLiquidGlass: Bool
+    let regular: Regular
+    let liquidGlass: LiquidGlass
+
+    func body(content: Content) -> some View {
+        if isLiquidGlass {
+            content.modifier(liquidGlass)
+        } else {
+            content.modifier(regular)
+        }
+    }
+}
+
+// MARK: - CustomFactory
+
 class CustomFactory: ViewFactory {
     @Injected(\.chatClient) public var chatClient
 
+    public var styles = LiquidGlassStyles()
+    
     private init() {}
 
     public static let shared = CustomFactory()
 
-    func makeGiphyBadgeViewType(for message: ChatMessage, availableWidth: CGFloat) -> some View {
+    func makeGiphyBadgeViewType(options: GiphyBadgeViewTypeOptions) -> some View {
         EmptyView()
     }
 
-    func makeLoadingView() -> some View {
+    func makeLoadingView(options: LoadingViewOptions) -> some View {
         VStack {
             Text("This is custom loading view")
             ProgressView()
         }
     }
 
-    func makeNoChannelsView() -> some View {
+    func makeEmptyChannelsView(options: EmptyChannelsViewOptions) -> some View {
         VStack {
             Spacer()
             Text("This is our own custom no channels view.")
@@ -250,27 +324,25 @@ class CustomFactory: ViewFactory {
         }
     }
 
-    func makeChannelListHeaderViewModifier(title: String) -> some ChannelListHeaderViewModifier {
-        CustomChannelModifier(title: title)
+    func makeChannelListHeaderViewModifier(options: ChannelListHeaderViewModifierOptions) -> some ChannelListHeaderViewModifier {
+        CustomChannelModifier(title: options.title)
     }
 
     // Example for an injected action. Uncomment to see it in action.
     func supportedMoreChannelActions(
-        for channel: ChatChannel,
-        onDismiss: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        options: SupportedMoreChannelActionsOptions
     ) -> [ChannelAction] {
+        let channel = options.channel
+        let onDismiss = options.onDismiss
+        let onError = options.onError
+        
         var defaultActions = ChannelAction.defaultActions(
-            for: channel,
-            chatClient: chatClient,
-            onDismiss: onDismiss,
-            onError: onError
+            for: .init(channel: channel, onDismiss: onDismiss, onError: onError)
         )
-
-        let freeze = {
+        let freeze: @MainActor () -> Void = {
             let controller = self.chatClient.channelController(for: channel.cid)
             controller.freezeChannel { error in
-                if let error = error {
+                if let error {
                     onError(error)
                 } else {
                     onDismiss()
@@ -297,16 +369,14 @@ class CustomFactory: ViewFactory {
     }
 
     func makeMoreChannelActionsView(
-        for channel: ChatChannel,
-        onDismiss: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        options: MoreChannelActionsViewOptions
     ) -> some View {
         VStack {
             Text("This is our custom view")
             Spacer()
             HStack {
                 Button {
-                    onDismiss()
+                    options.onDismiss()
                 } label: {
                     Text("Action")
                 }
@@ -316,23 +386,23 @@ class CustomFactory: ViewFactory {
     }
 
     func makeMessageTextView(
-        for message: ChatMessage,
-        isFirst: Bool,
-        availableWidth: CGFloat
+        options: MessageTextViewOptions
     ) -> some View {
-        CustomMessageTextView(
+        let message = options.message
+        let isFirst = options.isFirst
+        return CustomMessageTextView(
             message: message,
             isFirst: isFirst
         )
     }
 
     func makeCustomAttachmentViewType(
-        for message: ChatMessage,
-        layout: CustomAttachmentLayout,
-        isFirst: Bool,
-        availableWidth: CGFloat
+        options: CustomAttachmentViewTypeOptions
     ) -> some View {
-        CustomAttachmentView(
+        let message = options.message
+        let isFirst = options.isFirst
+        let availableWidth = options.availableWidth
+        return CustomAttachmentView(
             message: message,
             width: availableWidth,
             isFirst: isFirst

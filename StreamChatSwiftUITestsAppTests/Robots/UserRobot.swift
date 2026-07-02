@@ -273,7 +273,7 @@ extension UserRobot {
 
     @discardableResult
     func tapOnScrollToBottomButton() -> Self {
-        MessageListPage.scrollToBottomButton.safeTap()
+        MessageListPage.scrollToBottomButton.wait().safeTap()
         return self
     }
 
@@ -376,7 +376,8 @@ extension UserRobot {
             sendMessage("\(text)", waitForAppearance: false)
         } else {
             typeText("/giphy")
-            sendMessage(text, waitForAppearance: false)
+            typeText(text)
+            composer.confirmButton.safeTap()
         }
         MessageListPage.Attributes.actionButtons().firstMatch.wait()
         if send { tapOnSendGiphyButton() }

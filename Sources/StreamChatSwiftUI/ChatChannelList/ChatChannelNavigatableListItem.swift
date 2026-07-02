@@ -5,89 +5,84 @@
 import StreamChat
 import SwiftUI
 
-/// Chat channel list item that supports navigating to a destination.
-/// It's generic over the channel destination.
-public struct ChatChannelNavigatableListItem<Factory: ViewFactory, ChannelDestination: View>: View {
-    private var factory: Factory
+/// Chat channel list item wrapper that adds navigation behavior to any
+/// channel item view.
+///
+/// It is generic over the channel item and the channel destination. Inject
+/// your own channel item view (for example the default ``ChatChannelListItem``
+/// or a fully custom one) and this wrapper renders it alongside a hidden
+/// `NavigationLink` that activates when `selectedChannel` matches the channel.
+public struct ChatChannelNavigatableListItem<ChannelListItem: View, ChannelDestination: View>: View {
     private var channel: ChatChannel
-    private var channelName: String
-    private var avatar: UIImage
-    private var disabled: Bool
-    private var onlineIndicatorShown: Bool
+    private var channelListItem: ChannelListItem
+    private var channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)?
     private var handleTabBarVisibility: Bool
     @Binding private var selectedChannel: ChannelSelectionInfo?
-    private var channelDestination: (ChannelSelectionInfo) -> ChannelDestination
-    private var onItemTap: (ChatChannel) -> Void
 
+    /// Wraps a channel item view with navigation behavior.
+    ///
+    /// The provided `channelListItem` is rendered as-is and is responsible
+    /// for handling its own taps. To trigger navigation, the item should
+    /// mutate the `selectedChannel` binding (typically by invoking the
+    /// `onItemTap` callback from ``ChannelListItemOptions``) so the
+    /// navigation overlay can push the configured destination.
+    ///
+    /// - Parameters:
+    ///   - channel: The channel represented by this item.
+    ///   - channelListItem: The view rendered as the channel item content.
+    ///   - channelDestination: Closure that builds the destination view for
+    ///     the channel.
+    ///   - selectedChannel: Binding to the currently selected channel; the
+    ///     navigation link activates when this matches the current channel.
+    ///   - handleTabBarVisibility: Whether to hide the tab bar when the
+    ///     destination is presented on iOS 16.0-16.2.
     public init(
-        factory: Factory = DefaultViewFactory.shared,
         channel: ChatChannel,
-        channelName: String,
-        avatar: UIImage,
-        onlineIndicatorShown: Bool,
-        disabled: Bool = false,
-        handleTabBarVisibility: Bool = true,
+        channelListItem: ChannelListItem,
+        channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)? = nil,
         selectedChannel: Binding<ChannelSelectionInfo?>,
-        channelDestination: @escaping (ChannelSelectionInfo) -> ChannelDestination,
-        onItemTap: @escaping (ChatChannel) -> Void
+        handleTabBarVisibility: Bool = true
     ) {
-        self.factory = factory
         self.channel = channel
-        self.channelName = channelName
+        self.channelListItem = channelListItem
         self.channelDestination = channelDestination
-        self.onItemTap = onItemTap
-        self.avatar = avatar
-        self.onlineIndicatorShown = onlineIndicatorShown
-        self.disabled = disabled
         _selectedChannel = selectedChannel
-        self.handleTabBarVisibility = true
+        self.handleTabBarVisibility = handleTabBarVisibility
     }
 
     public var body: some View {
         ZStack {
-            ChatChannelListItem(
-                factory: factory,
-                channel: channel,
-                channelName: channelName,
-                injectedChannelInfo: injectedChannelInfo,
-                avatar: avatar,
-                onlineIndicatorShown: onlineIndicatorShown,
-                disabled: disabled,
-                onItemTap: onItemTap
-            )
+            channelListItem
 
-            NavigationLink(
-                tag: channel.channelSelectionInfo,
-                selection: $selectedChannel
-            ) {
-                LazyView(
-                    channelDestination(channel.channelSelectionInfo)
-                        .modifier(
-                            HideTabBarModifierForiOS16(
-                                handleTabBarVisibility: handleTabBarVisibility
+            if let channelDestination {
+                NavigationLink(
+                    tag: channel.channelSelectionInfo,
+                    selection: $selectedChannel
+                ) {
+                    LazyView(
+                        channelDestination(channel.channelSelectionInfo)
+                            .modifier(
+                                HideTabBarModifierForiOS16(
+                                    handleTabBarVisibility: handleTabBarVisibility
+                                )
                             )
-                        )
-                )
-            } label: {
-                EmptyView()
+                    )
+                } label: {
+                    EmptyView()
+                }
+                .opacity(0) // Fixes showing accessibility button shape
             }
-            .opacity(0) // Fixes showing accessibility button shape
         }
-    }
-
-    private var injectedChannelInfo: InjectedChannelInfo? {
-        selectedChannel?.channel.cid.rawValue == channel.cid.rawValue ? selectedChannel?.injectedChannelInfo : nil
     }
 }
 
 /// Used for representing selection of an item in the channel list.
 /// The optional message is used in case we need to scroll to a particular one in the message list.
-public final class ChannelSelectionInfo: Identifiable {
+public final class ChannelSelectionInfo: Identifiable, @unchecked Sendable {
     public let id: String
     public let channel: ChatChannel
     public let message: ChatMessage?
-    public var injectedChannelInfo: InjectedChannelInfo?
-    public var searchType: ChannelListSearchType
+    public let searchType: ChannelListSearchType
 
     public init(
         channel: ChatChannel,
@@ -97,7 +92,7 @@ public final class ChannelSelectionInfo: Identifiable {
         self.channel = channel
         self.message = message
         self.searchType = searchType
-        if let message = message {
+        if let message {
             id = "\(channel.cid.id)-\(message.id)"
         } else {
             id = channel.cid.id
@@ -138,5 +133,66 @@ struct HideTabBarModifierForiOS16: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+// MARK: - Convenience Initializers
+
+public extension ChatChannelNavigatableListItem {
+    /// Convenience initializer that builds the default ``ChatChannelListItem``
+    /// internally and wraps it with navigation behavior.
+    init<Factory: ViewFactory>(
+        factory: Factory,
+        channel: ChatChannel,
+        channelName: String,
+        disabled: Bool = false,
+        handleTabBarVisibility: Bool = true,
+        selectedChannel: Binding<ChannelSelectionInfo?>,
+        channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)? = nil,
+        onItemTap: @escaping (ChatChannel) -> Void
+    ) where ChannelListItem == ChatChannelListItem<Factory> {
+        self.init(
+            channel: channel,
+            channelListItem: ChatChannelListItem(
+                factory: factory,
+                channel: channel,
+                channelName: channelName,
+                isSelected: selectedChannel.wrappedValue?.channel.cid == channel.cid,
+                disabled: disabled,
+                onItemTap: onItemTap
+            ),
+            channelDestination: channelDestination,
+            selectedChannel: selectedChannel,
+            handleTabBarVisibility: handleTabBarVisibility
+        )
+    }
+
+    /// Convenience initializer that builds the default ``ChatChannelListItem``
+    /// internally and wraps it with navigation behavior, defaulting to the
+    /// shared ``DefaultViewFactory``.
+    init<Factory: DefaultViewFactory>(
+        factory: Factory = .shared,
+        channel: ChatChannel,
+        channelName: String,
+        disabled: Bool = false,
+        handleTabBarVisibility: Bool = true,
+        selectedChannel: Binding<ChannelSelectionInfo?>,
+        channelDestination: ((ChannelSelectionInfo) -> ChannelDestination)? = nil,
+        onItemTap: @escaping (ChatChannel) -> Void
+    ) where ChannelListItem == ChatChannelListItem<DefaultViewFactory> {
+        self.init(
+            channel: channel,
+            channelListItem: ChatChannelListItem(
+                factory: factory,
+                channel: channel,
+                channelName: channelName,
+                isSelected: selectedChannel.wrappedValue?.channel.cid == channel.cid,
+                disabled: disabled,
+                onItemTap: onItemTap
+            ),
+            channelDestination: channelDestination,
+            selectedChannel: selectedChannel,
+            handleTabBarVisibility: handleTabBarVisibility
+        )
     }
 }

@@ -12,8 +12,8 @@ final class SortReactions_Tests: StreamChatTestCase {
 
     func test_utils_defaultSorting() {
         // Given
-        let reactions = images.availableReactions.keys
-            .map { $0 }
+        let reactions = images.defaultReactions.keys
+            .map(\.self)
         let expected: [MessageReactionType] = [
             .init(rawValue: "haha"),
             .init(rawValue: "like"),
@@ -31,8 +31,8 @@ final class SortReactions_Tests: StreamChatTestCase {
     
     func test_utils_customSorting() {
         // Given
-        let reactions = images.availableReactions.keys
-            .map { $0 }
+        let reactions = images.defaultReactions.keys
+            .map(\.self)
         let expected: [MessageReactionType] = [
             .init(rawValue: "wow"),
             .init(rawValue: "sad"),

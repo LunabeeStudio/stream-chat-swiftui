@@ -37,7 +37,6 @@ struct LoginView: View {
                     DemoUserView(user: user)
                 }
                 .padding(.vertical, 4)
-                .animation(nil)
             }
             .listStyle(.plain)
 
@@ -65,15 +64,17 @@ struct DemoUserView: View {
             if user.isGuest {
                 Image(systemName: "person.fill")
                     .resizable()
-                    .foregroundColor(colors.tintColor)
+                    .foregroundColor(Color(colors.accentPrimary))
                     .frame(width: imageSize, height: imageSize)
                     .aspectRatio(contentMode: .fit)
-                    .background(Color(colors.background6))
+                    .background(Color(colors.backgroundCoreSurfaceDefault))
                     .clipShape(Circle())
             } else {
-                StreamLazyImage(
+                UserAvatar(
                     url: user.avatarURL,
-                    size: CGSize(width: imageSize, height: imageSize)
+                    initials: "",
+                    size: imageSize,
+                    indicator: .none
                 )
             }
 
@@ -82,14 +83,14 @@ struct DemoUserView: View {
                     .font(fonts.bodyBold)
                 Text(user.isGuest ? "Login as Guest" : "Stream test account")
                     .font(fonts.footnote)
-                    .foregroundColor(Color(colors.textLowEmphasis))
+                    .foregroundColor(Color(colors.textTertiary))
             }
 
             Spacer()
 
             Image(systemName: "arrow.forward")
                 .renderingMode(.template)
-                .foregroundColor(colors.tintColor)
+                .foregroundColor(Color(colors.accentPrimary))
         }
     }
 }

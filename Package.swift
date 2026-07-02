@@ -1,4 +1,4 @@
-// swift-tools-version:5.10
+// swift-tools-version:6.0
 
 import Foundation
 import PackageDescription
@@ -16,12 +16,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "4.101.1")
+        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "5.5.1")
     ],
     targets: [
         .target(
             name: "StreamChatSwiftUI",
-            dependencies: [.product(name: "StreamChat", package: "stream-chat-swift")],
+            dependencies: [
+                .product(name: "StreamChat", package: "stream-chat-swift"),
+                .product(name: "StreamChatCommonUI", package: "stream-chat-swift")
+            ],
             exclude: ["README.md", "Info.plist", "Generated/L10n_template.stencil"],
             resources: [.process("Resources")]
         )

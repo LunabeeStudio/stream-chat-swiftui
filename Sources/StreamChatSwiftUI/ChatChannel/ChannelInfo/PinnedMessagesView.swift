@@ -35,7 +35,9 @@ public struct PinnedMessagesView<Factory: ViewFactory>: View {
 
     public var body: some View {
         ZStack {
-            if !viewModel.pinnedMessages.isEmpty {
+            if viewModel.isLoading {
+                ProgressView()
+            } else if !viewModel.pinnedMessages.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(viewModel.pinnedMessages) { message in
@@ -65,11 +67,10 @@ public struct PinnedMessagesView<Factory: ViewFactory>: View {
                     }
                 }
             } else {
-                NoContentView(
-                    image: images.noContent,
+                EmptyContentView(
+                    image: images.pin,
                     title: L10n.ChatInfo.PinnedMessages.emptyTitle,
-                    description: L10n.ChatInfo.PinnedMessages.emptyDesc,
-                    shouldRotateImage: true
+                    description: L10n.ChatInfo.PinnedMessages.emptyDesc
                 )
             }
         }
@@ -108,8 +109,9 @@ struct PinnedMessageView<Factory: ViewFactory>: View {
     @Injected(\.fonts) private var fonts
     @Injected(\.colors) private var colors
     @Injected(\.utils) private var utils
+    @Injected(\.tokens) private var tokens
 
-    private let avatarSize = CGSize(width: 56, height: 56)
+    private let avatarSize: CGFloat = AvatarSize.large
 
     var factory: Factory
     var message: ChatMessage
@@ -117,42 +119,57 @@ struct PinnedMessageView<Factory: ViewFactory>: View {
 
     var body: some View {
         HStack {
-            factory.makeMessageAvatarView(
-                for: UserDisplayInfo(
-                    id: message.author.id,
-                    name: message.author.name ?? "",
-                    imageURL: message.author.imageURL,
+            factory.makeUserAvatarView(
+                options: .init(
+                    user: message.author,
                     size: avatarSize,
-                    extraData: message.author.extraData
+                    showsIndicator: false
                 )
             )
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: tokens.spacingXxs) {
                 Text(message.author.name ?? message.author.id)
                     .font(fonts.bodyBold)
-                    .foregroundColor(Color(colors.text))
+                    .foregroundColor(Color(colors.textPrimary))
 
                 HStack {
-                    Text(pinnedMessageSubtitle)
-                        .font(fonts.footnote)
-                        .foregroundColor(Color(colors.textLowEmphasis))
+                    HStack(spacing: tokens.spacingXxs) {
+                        attachmentIconView
+                        Text(pinnedMessageSubtitle)
+                    }
+                    .lineLimit(1)
+                    .font(fonts.footnote)
+                    .foregroundColor(Color(colors.textTertiary))
 
                     Spacer()
 
                     SubtitleText(
-                        text: utils.messageRelativeDateFormatter.string(from: message.createdAt)
+                        text: utils.messageTimestampFormatter.format(message.createdAt)
                     )
                 }
             }
         }
-        .padding(.all, 8)
+        .padding(.all, tokens.spacingMd)
     }
-    
-    private var pinnedMessageSubtitle: String {
-        if message.poll != nil {
-            return "📊 \(L10n.Channel.Item.poll)"
+
+    private var previewAttachmentIconImage: UIImage? {
+        let resolver = MessageAttachmentPreviewResolver(message: message)
+        guard let previewIcon = resolver.previewIcon else { return nil }
+        return utils.messageAttachmentPreviewIconProvider.image(for: previewIcon)
+    }
+
+    @ViewBuilder
+    private var attachmentIconView: some View {
+        if let iconImage = previewAttachmentIconImage {
+            Image(uiImage: iconImage)
+                .customizable()
+                .frame(width: tokens.iconSizeSm, height: tokens.iconSizeSm)
+                .accessibilityHidden(true)
         }
-        let messageFormatter = InjectedValues[\.utils].messagePreviewFormatter
+    }
+
+    private var pinnedMessageSubtitle: String {
+        let messageFormatter = utils.messagePreviewFormatter
         return messageFormatter.formatAttachmentContent(for: message, in: channel) ?? message.adjustedText
     }
 }

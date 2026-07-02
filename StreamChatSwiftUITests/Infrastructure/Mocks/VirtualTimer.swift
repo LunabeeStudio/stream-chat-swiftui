@@ -6,11 +6,11 @@ import Foundation
 @testable import StreamChat
 import XCTest
 
-struct VirtualTimeTimer: StreamChat.Timer {
+struct VirtualTimeTimer: TimerScheduling {
     static var time: VirtualTime!
 
     static func schedule(timeInterval: TimeInterval, queue: DispatchQueue, onFire: @escaping () -> Void) -> TimerControl {
-        Self.time.scheduleTimer(
+        time.scheduleTimer(
             interval: timeInterval,
             repeating: false,
             callback: { _ in onFire() }
@@ -22,7 +22,7 @@ struct VirtualTimeTimer: StreamChat.Timer {
         queue: DispatchQueue,
         onFire: @escaping () -> Void
     ) -> RepeatingTimerControl {
-        Self.time.scheduleTimer(
+        time.scheduleTimer(
             interval: timeInterval,
             repeating: true,
             callback: { _ in onFire() }
@@ -77,7 +77,7 @@ class VirtualTime {
                 .sorted { $0.nextFireTime! < $1.nextFireTime! }
 
             let nextTime = sortedTimers.first?.nextFireTime
-            if let nextTime = nextTime, nextTime > currentTime, nextTime <= targetTime {
+            if let nextTime, nextTime > currentTime, nextTime <= targetTime {
                 currentTime = nextTime
             } else {
                 // If `numberOfSeconds` was specified, set the current time to the target time.
@@ -123,7 +123,7 @@ class VirtualTime {
 
 extension VirtualTime {
     /// Internal representation of a timer scheduled with `VirtualTime`. Not meant to be used directly.
-    class TimerControl {
+    class TimerControl: @unchecked Sendable {
         private(set) var isActive = true
 
         var repeatingPeriod: TimeInterval

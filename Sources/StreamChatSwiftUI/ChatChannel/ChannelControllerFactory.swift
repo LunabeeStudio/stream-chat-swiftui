@@ -6,7 +6,7 @@ import StreamChat
 import SwiftUI
 
 /// Factory for creating channel controllers.
-class ChannelControllerFactory {
+@MainActor class ChannelControllerFactory {
     @Injected(\.chatClient) var chatClient
 
     var currentChannelController: ChatChannelController?
@@ -16,7 +16,7 @@ class ChannelControllerFactory {
     /// - Parameter channelId: the channel's id.
     /// - Returns: `ChatChannelController`
     func makeChannelController(for channelId: ChannelId) -> ChatChannelController {
-        if let currentChannelController = currentChannelController, channelId == currentChannelController.cid {
+        if let currentChannelController, channelId == currentChannelController.cid {
             return currentChannelController
         }
         let controller = chatClient.channelController(for: channelId)
