@@ -172,7 +172,23 @@ struct MessageContainerView<Factory: ViewFactory>: View {
     @ViewBuilder
     private var deliveryStatusView: some View {
         if message.isSentByCurrentUser && channel.config.readEventsEnabled {
-            HStack(spacing: tokens.spacingXxs) {
+            // Fix deliveryStatusView adding padding for nothing here when messageDateShown is false
+            if messageViewModel.messageDateShown {
+                HStack(spacing: tokens.spacingXxs) {
+                    factory.makeMessageReadIndicatorView(
+                        options: MessageReadIndicatorViewOptions(
+                            channel: channel,
+                            message: message,
+                            usesInvertedStyle: shownAsPreview
+                        )
+                    )
+
+                    factory.makeMessageDateView(
+                        options: MessageDateViewOptions(message: message, usesInvertedStyle: shownAsPreview)
+                    )
+                }
+                .padding(.bottom, tokens.spacingXxs)
+            } else {
                 factory.makeMessageReadIndicatorView(
                     options: MessageReadIndicatorViewOptions(
                         channel: channel,
@@ -180,14 +196,8 @@ struct MessageContainerView<Factory: ViewFactory>: View {
                         usesInvertedStyle: shownAsPreview
                     )
                 )
-
-                if messageViewModel.messageDateShown {
-                    factory.makeMessageDateView(
-                        options: MessageDateViewOptions(message: message, usesInvertedStyle: shownAsPreview)
-                    )
-                }
+                .padding(.bottom, tokens.spacingXxs)
             }
-            .padding(.bottom, tokens.spacingXxs)
         } else if messageViewModel.authorAndDateShown {
             factory.makeMessageAuthorAndDateView(
                 options: MessageAuthorAndDateViewOptions(message: message, usesInvertedStyle: shownAsPreview)
