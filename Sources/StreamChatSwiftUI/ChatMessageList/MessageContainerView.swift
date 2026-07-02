@@ -154,6 +154,12 @@ struct MessageContainerView<Factory: ViewFactory>: View {
         .overlay(
             messageViewModel.failureIndicatorShown ? SendFailureIndicator() : nil
         )
+        .contentShape(Rectangle())
+        .modifier(MessageActionsGestureModifier(
+            shownAsPreview: shownAsPreview,
+            isDoubleTapEnabled: messageViewModel.isDoubleTapOverlayEnabled,
+            onActionsTriggered: { onGesture(true) }
+        ))
         .frame(maxWidth: contentWidth, alignment: messageViewModel.isRightAligned ? .trailing : .leading)
     }
 

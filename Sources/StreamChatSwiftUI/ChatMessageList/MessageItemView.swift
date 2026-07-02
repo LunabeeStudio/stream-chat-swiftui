@@ -121,12 +121,6 @@ public struct MessageItemView<Factory: ViewFactory>: View {
                             })
                     }
                 )
-                .contentShape(Rectangle())
-                .modifier(MessageActionsGestureModifier(
-                    shownAsPreview: shownAsPreview,
-                    isDoubleTapEnabled: messageViewModel.isDoubleTapOverlayEnabled,
-                    onActionsTriggered: { handleGestureForMessage(showsMessageActions: true) }
-                ))
                 .modifier(SwipeToReplyModifier(
                     message: message,
                     channel: channel,
