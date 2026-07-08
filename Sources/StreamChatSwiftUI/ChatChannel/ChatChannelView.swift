@@ -229,7 +229,10 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                 .allowsHitTesting(false)
         )
         .padding(.bottom, contentBottomPadding)
-        .ignoresSafeArea(.container, edges: tabBarAvailable ? .bottom : [])
+        // Fork: also ignore the bottom safe area for a floating composer (not just when a tab bar is
+        // present), so the message list scrolls under the floating composer into the bottom safe area.
+        // The composer is kept above the safe area via `floatingComposerBottomPadding`.
+        .ignoresSafeArea(.container, edges: (tabBarAvailable || composerPlacement == .floating) ? .bottom : [])
         .alertBanner(isPresented: $viewModel.showAlertBanner)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ChatChannelView")
@@ -273,9 +276,13 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         topVC()?.view.safeAreaInsets.bottom ?? 0
     }
 
-    /// Whether bottom safe-area compensation is needed.
-    /// When the tab bar is visible the bottom safe area is ignored,
-    /// so we must add padding manually — unless the keyboard already provides it.
+    /// Whether the main **content** needs manual bottom safe-area compensation.
+    ///
+    /// Drives `contentBottomPadding` only, and is intentionally **tab-bar-only**. A floating composer
+    /// must NOT be included here: in that case the content ignores the bottom safe area (so it can
+    /// scroll under the composer) and the composer owns the padding instead (`floatingComposerBottomPadding`).
+    /// Adding `.floating` here double-pads — the content shifts up **and** the composer pads — which
+    /// breaks the floating layout.
     private var needsBottomSafeAreaPadding: Bool {
         !keyboardShown && tabBarAvailable
     }
@@ -294,11 +301,18 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     }
 
     /// Bottom padding for the floating composer overlay.
-    /// In threads and during snapshot generation, the main content skips
-    /// its bottom padding, so the floating composer compensates.
+    ///
+    /// Uses its **own** condition (not `needsBottomSafeAreaPadding`, which is content/tab-bar only) so
+    /// exactly one of {content, composer} owns the bottom safe area per case:
+    /// - thread / snapshot → composer owns it (the content skips its own padding).
+    /// - no tab bar → the content ignores the bottom safe area and scrolls under, so the composer must
+    ///   sit above it — matching the `+ bottomPadding` reserved in `floatingComposerHeight`.
+    /// - tab bar → `0`; the content owns it via `contentBottomPadding`.
+    /// - keyboard shown → `0`; the keyboard already provides the inset (and `bottomInset` subtracts it).
     private var floatingComposerBottomPadding: CGFloat {
-        guard needsBottomSafeAreaPadding, floatingComposerOwnsBottomPadding else { return 0 }
-        return bottomPadding
+        guard composerPlacement == .floating, !keyboardShown else { return 0 }
+        if floatingComposerOwnsBottomPadding { return bottomPadding } // thread/snapshot
+        return tabBarAvailable ? 0 : bottomPadding // no tab bar → composer owns it
     }
 
     private func hideComposerCommandsAndAttachmentsPicker() {
