@@ -83,6 +83,7 @@ Lets custom attachments render in **two independent slots** (before/after the re
   - `needsBottomSafeAreaPadding` kept **tab-bar-only** (`!keyboardShown && tabBarAvailable`) — it drives `contentBottomPadding`; a floating composer must be excluded or the content double-pads (shifts up **and** the composer pads).
   - `floatingComposerBottomPadding` uses its **own** condition (`floating && !keyboardShown`): composer owns the safe-area padding when there's no tab bar, `0` with a tab bar (content owns it), `bottomPadding` for thread/snapshot — matching the `+ bottomPadding` reserved in `floatingComposerHeight`.
   - Invariant: exactly one of {content, composer} owns the bottom safe-area padding per case.
+  - **Min composer bottom inset** (`minComposerBottomInset = 8`, `composerBottomInset = max(bottomPadding, 8)`): both the docked and floating composer use it so they aren't flush on devices with **no bottom safe area** (iPhone SE / Touch-ID). Docked adds `composerBottomInset − bottomPadding`; floating uses `composerBottomInset` for its padding **and** the `floatingComposerHeight` reserve. On devices with a home indicator this is a no-op (safe area ≥ 8). Not a v4 regression — upstream/v4 also left the composer flush on SE — this is a new fix.
 
 ## 6. Reactions overlay
 

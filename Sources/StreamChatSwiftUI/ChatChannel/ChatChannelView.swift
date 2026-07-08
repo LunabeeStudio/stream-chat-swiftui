@@ -137,6 +137,9 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                                 utils.messageListConfig.messagePopoverEnabled && messageDisplayInfo != nil && !viewModel
                                     .reactionsShown && viewModel.channel?.isFrozen == false
                             ) ? 0 : 1)
+                            // Ensure a minimum gap on devices with no bottom safe area (e.g. iPhone SE);
+                            // 0 on devices where the safe area already provides it.
+                            .padding(.bottom, composerBottomInset - bottomPadding)
                     }
 
                     NavigationLink(
@@ -196,7 +199,9 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         }
         .onPreferenceChange(FloatingComposerHeightPreferenceKey.self) { value in
             guard composerPlacement == .floating, value > 0 else { return }
-            floatingComposerHeight = value + bottomPadding
+            // Reserve `composerBottomInset` (not raw safe area) so the last message clears the composer
+            // even on devices with no bottom safe area.
+            floatingComposerHeight = value + composerBottomInset
         }
         .navigationBarTitleDisplayMode(utils.messageListConfig.navigationBarDisplayMode)
         .onReceive(keyboardWillChangePublisher, perform: { visible in
@@ -276,6 +281,16 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         topVC()?.view.safeAreaInsets.bottom ?? 0
     }
 
+    /// Minimum gap below the composer, so it isn't flush on devices with **no bottom safe area**
+    /// (e.g. iPhone SE / Touch-ID iPhones).
+    private let minComposerBottomInset: CGFloat = 8
+
+    /// The composer's effective bottom inset: the bottom safe area, or `minComposerBottomInset` when the
+    /// device has no safe area. Used by both the docked and floating composer so neither sits flush.
+    private var composerBottomInset: CGFloat {
+        max(bottomPadding, minComposerBottomInset)
+    }
+
     /// Whether the main **content** needs manual bottom safe-area compensation.
     ///
     /// Drives `contentBottomPadding` only, and is intentionally **tab-bar-only**. A floating composer
@@ -306,13 +321,13 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     /// exactly one of {content, composer} owns the bottom safe area per case:
     /// - thread / snapshot → composer owns it (the content skips its own padding).
     /// - no tab bar → the content ignores the bottom safe area and scrolls under, so the composer must
-    ///   sit above it — matching the `+ bottomPadding` reserved in `floatingComposerHeight`.
+    ///   sit above it — matching the `+ composerBottomInset` reserved in `floatingComposerHeight`.
     /// - tab bar → `0`; the content owns it via `contentBottomPadding`.
     /// - keyboard shown → `0`; the keyboard already provides the inset (and `bottomInset` subtracts it).
     private var floatingComposerBottomPadding: CGFloat {
         guard composerPlacement == .floating, !keyboardShown else { return 0 }
-        if floatingComposerOwnsBottomPadding { return bottomPadding } // thread/snapshot
-        return tabBarAvailable ? 0 : bottomPadding // no tab bar → composer owns it
+        if floatingComposerOwnsBottomPadding { return composerBottomInset } // thread/snapshot
+        return tabBarAvailable ? 0 : composerBottomInset // no tab bar → composer owns it
     }
 
     private func hideComposerCommandsAndAttachmentsPicker() {
