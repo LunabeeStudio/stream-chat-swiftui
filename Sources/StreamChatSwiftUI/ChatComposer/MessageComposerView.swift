@@ -65,6 +65,14 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
         viewModel.recordingState.isRecording || isLockedOrStopped
     }
 
+    /// Minimum gap below the interactive composer, so it isn't flush on devices with **no bottom safe
+    /// area** (e.g. iPhone SE / Touch-ID iPhones). The parent slot reserves only the real safe area;
+    /// the composer owns this extra gap, so a flush composer (e.g. a locked one) simply omits it.
+    /// Dropped while the keyboard is shown — the keyboard already provides the bottom boundary.
+    private var minBottomInset: CGFloat {
+        (bottomSafeArea == 0 && !keyboardShown) ? 8 : 0
+    }
+
     public var body: some View {
         VStack(spacing: tokens.spacingSm) {
             // - Note: Fork change — center alignment instead of v5's `.bottom`, so the leading
@@ -331,6 +339,8 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
         }
         .preference(key: FloatingComposerHeightPreferenceKey.self, value: composerHeight)
         .accessibilityElement(children: .contain)
+        // Keep the interactive composer off the very bottom on devices with no safe area.
+        .padding(.bottom, minBottomInset)
     }
 
     private static var initialLockOffset: CGFloat { -70 }
