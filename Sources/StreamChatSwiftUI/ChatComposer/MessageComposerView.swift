@@ -65,12 +65,15 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
         viewModel.recordingState.isRecording || isLockedOrStopped
     }
 
-    /// Minimum gap below the interactive composer, so it isn't flush on devices with **no bottom safe
-    /// area** (e.g. iPhone SE / Touch-ID iPhones). The parent slot reserves only the real safe area;
-    /// the composer owns this extra gap, so a flush composer (e.g. a locked one) simply omits it.
-    /// Dropped while the keyboard is shown — the keyboard already provides the bottom boundary.
+    /// Minimum gap below the interactive composer, so it never sits flush against the bottom boundary.
+    /// Two cases need it:
+    /// - **Keyboard shown** — keep a gap between the composer and the top of the keyboard.
+    /// - **No bottom safe area** (e.g. iPhone SE / Touch-ID iPhones) — keep a gap above the physical
+    ///   screen edge (on home-indicator devices the safe area already provides this).
+    /// The parent slot reserves only the real safe area; the composer owns this extra gap, so a flush
+    /// composer (e.g. a locked one) simply omits it.
     private var minBottomInset: CGFloat {
-        (bottomSafeArea == 0 && !keyboardShown) ? 8 : 0
+        (keyboardShown || bottomSafeArea == 0) ? 8 : 0
     }
 
     public var body: some View {
