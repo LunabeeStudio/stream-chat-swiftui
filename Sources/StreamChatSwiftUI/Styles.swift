@@ -203,9 +203,11 @@ public struct RegularInputViewModifier: ViewModifier {
     public init() {}
 
     public func body(content: Content) -> some View {
-        content
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        return content
             .background(Color(colors.backgroundCoreElevation1))
-            .modifier(BorderModifier(shape: .roundedRect(cornerRadius)))
+            .clipShape(shape)
+            .overlay(shape.stroke(Color(colors.borderCoreSubtle), lineWidth: 0.8))
     }
 
     private var cornerRadius: CGFloat {

@@ -80,7 +80,7 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
         VStack(spacing: tokens.spacingSm) {
             // - Note: Fork change — center alignment instead of v5's `.bottom`, so the leading
             //   composer button stays vertically centered with the input field.
-            HStack(alignment: .center, spacing: tokens.spacingXs) {
+            HStack(alignment: .center, spacing: tokens.spacingXxs) {
                 factory.makeLeadingComposerView(
                     options: LeadingComposerViewOptions(
                         state: $viewModel.pickerTypeState,
@@ -141,6 +141,9 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
                         onTap: { viewModel.sendMessage() }
                     )
                 )
+                // Fork change — extra horizontal margin around the send button (doubles the gap to the
+                // input on its left and to the screen edge on its right) without touching the pill's own margins.
+                .padding(.horizontal, tokens.spacingXxs)
                 .alert(isPresented: $viewModel.errorShown) {
                     Alert.defaultErrorAlert
                 }
@@ -149,8 +152,8 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
                 .animation(.easeInOut(duration: 0.25), value: viewModel.recordingState.showsComposer)
             }
             .animation(.composerVoiceRecordingSpring, value: viewModel.recordingState.showsComposer)
-            .padding(.top, tokens.spacingMd)
-            .padding(.horizontal, tokens.spacingMd)
+            .padding(.top, tokens.spacingXs)
+            .padding(.horizontal, tokens.spacingXxs)
             .overlay(
                 ZStack {
                     if showsRecordingOverlay {
@@ -374,8 +377,8 @@ public struct MessageComposerView<Factory: ViewFactory>: View, KeyboardReadable 
     
     private var composerDivider: some View {
         Rectangle()
-            .frame(width: nil, height: 1, alignment: .top)
-            .foregroundColor(Color(colors.borderCoreDefault))
+            .frame(width: nil, height: 0.8, alignment: .top)
+            .foregroundColor(Color(colors.borderCoreSubtle))
     }
 }
 
@@ -588,7 +591,6 @@ public struct ComposerInputView<Factory: ViewFactory>: View, KeyboardReadable {
                     .accessibilityElement(children: .contain)
                 }
                 .frame(height: textFieldHeight)
-                .padding(.vertical, tokens.spacingXxs)
 
                 if sendInChannelShown {
                     factory.makeSendInChannelView(
