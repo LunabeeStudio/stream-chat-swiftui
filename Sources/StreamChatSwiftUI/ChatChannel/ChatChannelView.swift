@@ -351,20 +351,10 @@ private struct FloatingComposerContainer<Composer: View>: ViewModifier {
         if composerPlacement == .docked {
             content
         } else {
-            if #available(iOS 15.0, *) {
-                content
-                    .overlay(alignment: .bottom) {
-                        composer()
-                    }
-            } else {
-                content
-                    .overlay(
-                        VStack {
-                            Spacer()
-                            composer()
-                        }
-                    )
-            }
+            content
+                .overlay(alignment: .bottom) {
+                    composer()
+                }
         }
     }
 }
