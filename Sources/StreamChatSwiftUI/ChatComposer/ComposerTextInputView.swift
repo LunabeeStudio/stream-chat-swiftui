@@ -107,13 +107,7 @@ struct ComposerTextInputView: UIViewRepresentable {
                 height = TextSizeConstants.minimumHeight
             }
             if textInput.height != height {
-                if shouldAnimate {
-                    withAnimation {
-                        textInput.height = height
-                    }
-                } else {
-                    textInput.height = height
-                }
+                textInput.height = height
             }
         }
 
