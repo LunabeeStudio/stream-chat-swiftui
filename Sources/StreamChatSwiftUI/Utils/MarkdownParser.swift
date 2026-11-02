@@ -5,8 +5,16 @@
 import Foundation
 
 /// A parser for markdown which generates a styled attributed string.
-public struct MarkdownParser {
-    public init() {}
+///
+/// Copy of `StreamChat.MarkdownParser` which never mutates an `AttributedString` in place: mutating an
+/// `AttributedString` which has many runs (`replaceSubrange`, `insert`, `mergeAttributes`, `transformingAttributes`)
+/// can trap inside Foundation ("Path out of bounds"). When a run is coalesced with the following one, the run removal
+/// can rebalance the internal rope and leave a stale index behind. Every edit is therefore done by rebuilding the
+/// string with `append`, which only coalesces with the preceding run.
+///
+/// Internal, so that it shadows `StreamChat.MarkdownParser` inside this module only.
+struct MarkdownParser {
+    init() {}
     
     /// Creates an attributed string from a Markdown-formatted string using the provided style attributes.
     ///
@@ -39,7 +47,7 @@ public struct MarkdownParser {
     ///   - presentationIntentAttributes: The closure for customising attributes for presentation intents. Called for quote, code, list item, and headers.
     @available(iOS 15, *)
     @available(macOS 12, *)
-    public func style(
+    func style(
         markdown: String,
         options: ParsingOptions,
         attributes: AttributeContainer,
@@ -66,24 +74,24 @@ public struct MarkdownParser {
         attributedString.trimNewlines()
         
         // Default attributes
-        attributedString.mergeAttributes(attributes)
+        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { $0.merging(attributes) }
         
         // Most inline intents are handled by rendering automatically
         for (inlinePresentationIntent, range) in attributedString.runs[\.inlinePresentationIntent].reversed() {
             guard let inlinePresentationIntent else { continue }
             if let attributes = inlinePresentationIntentAttributes(inlinePresentationIntent) {
-                attributedString[range].mergeAttributes(attributes)
+                attributedString.safeTransformAttributes(in: range) { $0.merging(attributes) }
             }
             switch inlinePresentationIntent {
             case .lineBreak:
                 // Appears as a space with inline attribute, therefore we need to replace it for preserving the line break
                 let insertedString = AttributedString("\n", attributes: attributes)
-                attributedString.replaceSubrange(range, with: insertedString)
+                attributedString.safeReplaceSubrange(range, with: insertedString)
             case .inlineHTML:
                 // Note: there are others like: em, strong
                 if String(attributedString[range].characters) == "<br/>" {
                     let insertedString = AttributedString("\n", attributes: attributes)
-                    attributedString.replaceSubrange(range, with: insertedString)
+                    attributedString.safeReplaceSubrange(range, with: insertedString)
                 }
             default:
                 break
@@ -100,8 +108,10 @@ public struct MarkdownParser {
         }
         
         // Remove presentation intent attributes from the final string because they are handled below.
-        attributedString = attributedString.transformingAttributes(\.presentationIntent) { attribute in
-            attribute.value = nil
+        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { container in
+            var container = container
+            container.presentationIntent = nil
+            return container
         }
         
         var previousPresentationIntentStyling: PresentationIntentStyling?
@@ -196,7 +206,7 @@ public struct MarkdownParser {
             }
             // Additional attributes
             if let attributes = presentationIntentStyling.mergedAttributes {
-                attributedString[range].mergeAttributes(attributes)
+                attributedString.safeTransformAttributes(in: range) { $0.merging(attributes) }
             }
             // Inserting additional characters (list items etc)
             if !presentationIntentStyling.prependedString.isEmpty {
@@ -220,11 +230,13 @@ public struct MarkdownParser {
         }
         
         // Support links like "getstream.io" (URL parsing considers it as a path, not host)
-        attributedString = attributedString.transformingAttributes(\.link) { attribute in
-            guard let url = attribute.value, url.scheme == nil, url.host == nil else { return }
+        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { container in
+            guard let url = container.link, url.scheme == nil, url.host == nil else { return container }
             let urlString = "https://" + url.absoluteString
-            guard let urlWithScheme = URL(string: urlString) else { return }
-            attribute.value = urlWithScheme
+            guard let urlWithScheme = URL(string: urlString) else { return container }
+            var container = container
+            container.link = urlWithScheme
+            return container
         }
         return attributedString
     }
@@ -234,13 +246,13 @@ public struct MarkdownParser {
 @available(macOS 12, *)
 extension MarkdownParser {
     /// Options that affect how the Markdown string is parsed and styled.
-    public struct ParsingOptions {
-        public init(layoutDirectionLeftToRight: Bool = true) {
+    struct ParsingOptions {
+        init(layoutDirectionLeftToRight: Bool = true) {
             self.layoutDirectionLeftToRight = layoutDirectionLeftToRight
         }
         
         /// Affects insertion index for additional characters like bullets and numbers for lists.
-        public var layoutDirectionLeftToRight = true
+        var layoutDirectionLeftToRight = true
     }
 }
 
@@ -278,21 +290,51 @@ private extension AttributedString {
         return runs[\.link].contains(where: { link, _ in link != nil })
     }
     
-    mutating func insertSafely(_ s: some AttributedStringProtocol, at index: AttributedString.Index) {
+    mutating func insertSafely(_ s: AttributedString, at index: AttributedString.Index) {
         // Inserting at the end index is same as appending
         guard index >= startIndex, index <= endIndex else { return }
-        insert(s, at: index)
+        safeReplaceSubrange(index..<index, with: s)
     }
     
     mutating func trimNewlines() {
         let firstValidIndex = characters.firstIndex(where: { !$0.isNewline })
         if let firstValidIndex, firstValidIndex != startIndex {
-            self = AttributedString(self[firstValidIndex...])
+            self = rebuilt(firstValidIndex..<endIndex)
         }
         let lastValidIndex = characters.lastIndex(where: { !$0.isNewline })
         if let lastValidIndex, lastValidIndex < index(beforeCharacter: endIndex) {
-            self = AttributedString(self[...lastValidIndex])
+            self = rebuilt(startIndex..<index(afterCharacter: lastValidIndex))
         }
+    }
+    
+    /// A copy of the range, built by appending its runs with optionally transformed attributes.
+    func rebuilt(
+        _ range: Range<AttributedString.Index>,
+        transform: (AttributeContainer) -> AttributeContainer = { $0 }
+    ) -> AttributedString {
+        var result = AttributedString()
+        for run in self[range].runs {
+            let text = String(String.UnicodeScalarView(unicodeScalars[run.range]))
+            result.append(AttributedString(text, attributes: transform(run.attributes)))
+        }
+        return result
+    }
+    
+    mutating func safeReplaceSubrange(_ range: Range<AttributedString.Index>, with s: AttributedString) {
+        var result = rebuilt(startIndex..<range.lowerBound)
+        result.append(s)
+        result.append(rebuilt(range.upperBound..<endIndex))
+        self = result
+    }
+    
+    mutating func safeTransformAttributes(
+        in range: Range<AttributedString.Index>,
+        _ transform: (AttributeContainer) -> AttributeContainer
+    ) {
+        var result = rebuilt(startIndex..<range.lowerBound)
+        result.append(rebuilt(range, transform: transform))
+        result.append(rebuilt(range.upperBound..<endIndex))
+        self = result
     }
 }
 
