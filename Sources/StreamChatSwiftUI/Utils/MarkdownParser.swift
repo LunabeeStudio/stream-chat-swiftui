@@ -9,8 +9,9 @@ import Foundation
 /// Copy of `StreamChat.MarkdownParser` which never mutates an `AttributedString` in place: mutating an
 /// `AttributedString` which has many runs (`replaceSubrange`, `insert`, `mergeAttributes`, `transformingAttributes`)
 /// can trap inside Foundation ("Path out of bounds"). When a run is coalesced with the following one, the run removal
-/// can rebalance the internal rope and leave a stale index behind. Every edit is therefore done by rebuilding the
-/// string with `append`, which only coalesces with the preceding run.
+/// can rebalance the internal rope and leave a stale index behind. The runs of the parsed string are therefore copied
+/// into an array of `MarkdownSegment`, every edit is done on that array, and the result is built once with `append`,
+/// which only coalesces with the preceding run.
 ///
 /// Internal, so that it shadows `StreamChat.MarkdownParser` inside this module only.
 struct MarkdownParser {
@@ -70,57 +71,60 @@ struct MarkdownParser {
             return AttributedString(markdown, attributes: attributes)
         }
         
+        var segments = attributedString.runs.map { run in
+            MarkdownSegment(text: String(attributedString[run.range].characters), attributes: run.attributes)
+        }
+        
         // Trim newlines which remain after initial parsing (e.g. code blocks)
-        attributedString.trimNewlines()
+        segments.trimNewlines()
         
         // Default attributes
-        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { $0.merging(attributes) }
+        for index in segments.indices {
+            segments[index].attributes.merge(attributes)
+        }
         
         // Most inline intents are handled by rendering automatically
-        for (inlinePresentationIntent, range) in attributedString.runs[\.inlinePresentationIntent].reversed() {
+        for (inlinePresentationIntent, range) in segments.groups(by: \.inlinePresentationIntent).reversed() {
             guard let inlinePresentationIntent else { continue }
             if let attributes = inlinePresentationIntentAttributes(inlinePresentationIntent) {
-                attributedString.safeTransformAttributes(in: range) { $0.merging(attributes) }
+                for index in range {
+                    segments[index].attributes.merge(attributes)
+                }
             }
             switch inlinePresentationIntent {
             case .lineBreak:
                 // Appears as a space with inline attribute, therefore we need to replace it for preserving the line break
-                let insertedString = AttributedString("\n", attributes: attributes)
-                attributedString.safeReplaceSubrange(range, with: insertedString)
+                segments.replaceSubrange(range, with: [MarkdownSegment(text: "\n", attributes: attributes)])
             case .inlineHTML:
                 // Note: there are others like: em, strong
-                if String(attributedString[range].characters) == "<br/>" {
-                    let insertedString = AttributedString("\n", attributes: attributes)
-                    attributedString.safeReplaceSubrange(range, with: insertedString)
+                if segments[range].map(\.text).joined() == "<br/>" {
+                    segments.replaceSubrange(range, with: [MarkdownSegment(text: "\n", attributes: attributes)])
                 }
             default:
                 break
             }
         }
         
-        let initialCharacters = attributedString.characters
-        var presentationIntentEntries: [(intent: PresentationIntent, lowerOffset: Int, upperOffset: Int)] = []
-        for (presentationIntent, range) in attributedString.runs[\.presentationIntent] {
-            guard let presentationIntent else { continue }
-            let lowerOffset = initialCharacters.distance(from: initialCharacters.startIndex, to: range.lowerBound)
-            let upperOffset = initialCharacters.distance(from: initialCharacters.startIndex, to: range.upperBound)
-            presentationIntentEntries.append((presentationIntent, lowerOffset, upperOffset))
+        let presentationIntentEntries = segments.groups(by: \.presentationIntent).compactMap { presentationIntent, range in
+            presentationIntent.map { (intent: $0, range: range) }
         }
         
         // Remove presentation intent attributes from the final string because they are handled below.
-        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { container in
-            var container = container
-            container.presentationIntent = nil
-            return container
+        for index in segments.indices {
+            segments[index].attributes.presentationIntent = nil
+        }
+        
+        // Segments to insert before the segment at the key index (or at the end for `segments.endIndex`). As the
+        // enumeration is reversed, a later insertion at the same index goes before the earlier ones.
+        var insertions: [Int: [MarkdownSegment]] = [:]
+        func insert(_ text: String, attributes: AttributeContainer, at index: Int) {
+            insertions[index, default: []].insert(MarkdownSegment(text: text, attributes: attributes), at: 0)
         }
         
         var previousPresentationIntentStyling: PresentationIntentStyling?
         for entry in presentationIntentEntries.reversed() {
             let presentationIntent = entry.intent
-            let currentCharacters = attributedString.characters
-            let lowerBound = currentCharacters.index(currentCharacters.startIndex, offsetBy: entry.lowerOffset)
-            let upperBound = currentCharacters.index(currentCharacters.startIndex, offsetBy: entry.upperOffset)
-            let range = lowerBound..<upperBound
+            let range = entry.range
             var presentationIntentStyling = PresentationIntentStyling(range: range, components: presentationIntent.components)
             
             for intentType in presentationIntent.components {
@@ -201,44 +205,49 @@ struct MarkdownParser {
             // Inserting additional space after the current block (reverse enumeration, therefore use the previous range)
             if presentationIntentStyling.succeedingNewlineCount > 0, let previousPresentationIntentStyling {
                 let newlineString = String(repeating: "\n", count: presentationIntentStyling.succeedingNewlineCount)
-                let insertedString = AttributedString(newlineString, attributes: attributes)
-                attributedString.insertSafely(insertedString, at: previousPresentationIntentStyling.range.lowerBound)
+                insert(newlineString, attributes: attributes, at: previousPresentationIntentStyling.range.lowerBound)
             }
             // Additional attributes
             if let attributes = presentationIntentStyling.mergedAttributes {
-                attributedString.safeTransformAttributes(in: range) { $0.merging(attributes) }
+                for index in range {
+                    segments[index].attributes.merge(attributes)
+                }
             }
             // Inserting additional characters (list items etc)
             if !presentationIntentStyling.prependedString.isEmpty {
                 let attributes = attributes.merging(presentationIntentStyling.mergedAttributes ?? AttributeContainer())
                 if options.layoutDirectionLeftToRight {
-                    let insertedString = AttributedString(presentationIntentStyling.prependedString, attributes: attributes)
-                    attributedString.insertSafely(insertedString, at: range.lowerBound)
+                    insert(presentationIntentStyling.prependedString, attributes: attributes, at: range.lowerBound)
                 } else {
-                    let insertedString = AttributedString(presentationIntentStyling.prependedString.reversed(), attributes: attributes)
-                    attributedString.insertSafely(insertedString, at: range.upperBound)
+                    insert(String(presentationIntentStyling.prependedString.reversed()), attributes: attributes, at: range.upperBound)
                 }
             }
             // Spacing before the block
-            if presentationIntentStyling.precedingNewlineCount > 0, attributedString.startIndex != range.lowerBound {
+            if presentationIntentStyling.precedingNewlineCount > 0, range.lowerBound != segments.startIndex {
                 let newlineString = String(repeating: "\n", count: presentationIntentStyling.precedingNewlineCount)
-                let insertedString = AttributedString(newlineString, attributes: attributes)
-                attributedString.insertSafely(insertedString, at: range.lowerBound)
+                insert(newlineString, attributes: attributes, at: range.lowerBound)
             }
             
             previousPresentationIntentStyling = presentationIntentStyling
         }
         
-        // Support links like "getstream.io" (URL parsing considers it as a path, not host)
-        attributedString.safeTransformAttributes(in: attributedString.startIndex..<attributedString.endIndex) { container in
-            guard let url = container.link, url.scheme == nil, url.host == nil else { return container }
-            let urlString = "https://" + url.absoluteString
-            guard let urlWithScheme = URL(string: urlString) else { return container }
-            var container = container
-            container.link = urlWithScheme
-            return container
+        var result = AttributedString()
+        for index in 0...segments.count {
+            var orderedSegments = insertions[index] ?? []
+            if index < segments.endIndex {
+                orderedSegments.append(segments[index])
+            }
+            for segment in orderedSegments {
+                var attributes = segment.attributes
+                // Support links like "getstream.io" (URL parsing considers it as a path, not host)
+                if let url = attributes.link, url.scheme == nil, url.host == nil,
+                   let urlWithScheme = URL(string: "https://" + url.absoluteString) {
+                    attributes.link = urlWithScheme
+                }
+                result.append(AttributedString(segment.text, attributes: attributes))
+            }
         }
-        return attributedString
+        return result
     }
 }
 
@@ -289,60 +298,13 @@ private extension AttributedString {
         // Markdown links get the same link attribute
         return runs[\.link].contains(where: { link, _ in link != nil })
     }
-    
-    mutating func insertSafely(_ s: AttributedString, at index: AttributedString.Index) {
-        // Inserting at the end index is same as appending
-        guard index >= startIndex, index <= endIndex else { return }
-        safeReplaceSubrange(index..<index, with: s)
-    }
-    
-    mutating func trimNewlines() {
-        let firstValidIndex = characters.firstIndex(where: { !$0.isNewline })
-        if let firstValidIndex, firstValidIndex != startIndex {
-            self = rebuilt(firstValidIndex..<endIndex)
-        }
-        let lastValidIndex = characters.lastIndex(where: { !$0.isNewline })
-        if let lastValidIndex, lastValidIndex < index(beforeCharacter: endIndex) {
-            self = rebuilt(startIndex..<index(afterCharacter: lastValidIndex))
-        }
-    }
-    
-    /// A copy of the range, built by appending its runs with optionally transformed attributes.
-    func rebuilt(
-        _ range: Range<AttributedString.Index>,
-        transform: (AttributeContainer) -> AttributeContainer = { $0 }
-    ) -> AttributedString {
-        var result = AttributedString()
-        for run in self[range].runs {
-            let text = String(String.UnicodeScalarView(unicodeScalars[run.range]))
-            result.append(AttributedString(text, attributes: transform(run.attributes)))
-        }
-        return result
-    }
-    
-    mutating func safeReplaceSubrange(_ range: Range<AttributedString.Index>, with s: AttributedString) {
-        var result = rebuilt(startIndex..<range.lowerBound)
-        result.append(s)
-        result.append(rebuilt(range.upperBound..<endIndex))
-        self = result
-    }
-    
-    mutating func safeTransformAttributes(
-        in range: Range<AttributedString.Index>,
-        _ transform: (AttributeContainer) -> AttributeContainer
-    ) {
-        var result = rebuilt(startIndex..<range.lowerBound)
-        result.append(rebuilt(range, transform: transform))
-        result.append(rebuilt(range.upperBound..<endIndex))
-        self = result
-    }
 }
 
 // Note: newlines are used instead of paragraph style because SwiftUI does render paragraph styles
 @available(iOS 15.0, *)
 @available(macOS 12, *)
 private struct PresentationIntentStyling {
-    let range: Range<AttributedString.Index>
+    let range: Range<Int>
     let components: [PresentationIntent.IntentType]
     var paragraphId: Int?
     var quoteBlockId: Int?
@@ -357,5 +319,49 @@ private struct PresentationIntentStyling {
     var isOnlyParagraph: Bool {
         components.count == 1 &&
             components.allSatisfy { $0.kind == .paragraph }
+    }
+}
+
+/// A run of the parsed markdown: its text and its attributes.
+@available(iOS 15.0, *)
+@available(macOS 12, *)
+private struct MarkdownSegment {
+    var text: String
+    var attributes: AttributeContainer
+}
+
+@available(iOS 15.0, *)
+@available(macOS 12, *)
+private extension Array where Element == MarkdownSegment {
+    /// Ranges of adjacent segments sharing the same attribute value, like `AttributedString.runs[keyPath]`.
+    func groups<Value: Equatable>(
+        by keyPath: KeyPath<AttributeContainer, Value?>
+    ) -> [(value: Value?, range: Range<Int>)] {
+        var groups: [(value: Value?, range: Range<Int>)] = []
+        for index in indices {
+            let value = self[index].attributes[keyPath: keyPath]
+            if let last = groups.last, last.value == value {
+                groups[groups.count - 1].range = last.range.lowerBound..<(index + 1)
+            } else {
+                groups.append((value, index..<(index + 1)))
+            }
+        }
+        return groups
+    }
+    
+    mutating func trimNewlines() {
+        guard contains(where: { $0.text.contains { !$0.isNewline } }) else { return }
+        while self[startIndex].text.first?.isNewline == true {
+            self[startIndex].text.removeFirst()
+            if self[startIndex].text.isEmpty {
+                removeFirst()
+            }
+        }
+        while self[endIndex - 1].text.last?.isNewline == true {
+            self[endIndex - 1].text.removeLast()
+            if self[endIndex - 1].text.isEmpty {
+                removeLast()
+            }
+        }
     }
 }
