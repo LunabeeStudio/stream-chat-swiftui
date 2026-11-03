@@ -46,6 +46,10 @@ public struct MarkdownParser {
         inlinePresentationIntentAttributes: (InlinePresentationIntent) -> AttributeContainer?,
         presentationIntentAttributes: (PresentationIntent.Kind, PresentationIntent) -> AttributeContainer?
     ) throws -> AttributedString {
+        // Quickfix: markdown parsing crashes on iOS 18 and earlier, so the text is returned unstyled there.
+        if #unavailable(iOS 26) {
+            return AttributedString(markdown, attributes: attributes)
+        }
         var attributedString = try AttributedString(
             markdown: markdown,
             options: AttributedString.MarkdownParsingOptions(
