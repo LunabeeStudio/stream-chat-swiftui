@@ -5,6 +5,8 @@ between this fork (`feature/v5-migration`) and the upstream release it is based 
 (git tag `5.5.1`). Use it when reconciling against future upstream bumps.
 
 Scope of diff: `git diff 5.5.1..feature/v5-migration` — 19 SDK source files (+ demo + tests).
+Later commits (composer look, composer height animation, `MarkdownParser` crash fix — §9 to §11) were made on
+`fix/markdown-parser-rope-crash`, the branch the Amata app pins.
 Every forked SDK file carries an inline `- Note:` comment describing its divergence; grep for
 `Fork` / `Changes from original implementation` to find them.
 
@@ -16,7 +18,9 @@ Every forked SDK file carries an inline `- Note:` comment describing its diverge
 - Removed all `if #available(iOS 15)` / `@available(iOS 15)` fallbacks:
   `BouncedMessageActionsModifier` (drops the iOS-14 `actionSheet` branch, keeps `.alert`),
   `ChatChannelListView` (`setupTabBarAppeareance`), `ChatChannelListViewModel` (`checkTabBarAppearance`),
-  `AlertBannerViewModifier`, `AttributedString+Extensions`, `MarkdownFormatter`.
+  `AlertBannerViewModifier`, `AttributedString+Extensions`, `MarkdownFormatter`,
+  `ChatChannelView` (`FloatingComposerContainer` keeps only `.overlay(alignment: .bottom)`; the iOS-14
+  `VStack { Spacer(); composer() }` overlay branch is removed — commit `2dc36e58` "Fix crash").
 
 These should become no-op conflicts as upstream also requires iOS 15+.
 
@@ -110,6 +114,47 @@ The previous fork look (clear border, fixed radius 12) is documented in an inlin
 - `LinkAttachmentView.swift`: **no functional fork change** — full upstream v5; only inline
   `- Note:` comments recording the previous image-only fork design.
 
+## 9. Composer look — pre-v5 appearance restored (Amata)
+
+Commit `0bccab8b`. Reproduces the composer the app had before the v5 redesign.
+
+- `ChatComposer/MessageComposerView.swift`:
+  - Leading `HStack` spacing `spacingXs` → `spacingXxs`.
+  - Composer outer padding: top `spacingMd` → `spacingXs`, horizontal `spacingMd` → `spacingXxs`.
+  - Send button gets `.padding(.horizontal, tokens.spacingXxs)`: doubles the gap to the input and to the screen
+    edge without widening the input pill.
+  - `composerDivider`: height `1` → `0.8`, color `borderCoreDefault` → `borderCoreSubtle`.
+  - `ComposerInputView`: removed `.padding(.vertical, tokens.spacingXxs)` after `.frame(height: textFieldHeight)`,
+    so the pill is not taller than its frame height.
+- `Styles.swift` — `RegularInputViewModifier`: `BorderModifier(shape: .roundedRect(cornerRadius))` replaced by
+  `.clipShape(RoundedRectangle)` + `.overlay(stroke(borderCoreSubtle, lineWidth: 0.8))` (lighter, thinner border).
+- `Resources/en.lproj/Localizable.strings`: `composer.placeholder.message` `"Message"` → `"Send a message"`.
+
+## 10. Composer input height — no animation
+
+Commit `9b6900d9`. `ChatComposer/ComposerTextInputView.swift` — `Coordinator.updateHeight(_:shouldAnimate:)` always
+sets `textInput.height = height` directly; upstream wraps it in `withAnimation` when `shouldAnimate` is true. The
+animation made the message list flicker on iOS 27. `shouldAnimate` is still computed and passed, but no longer used.
+
+## 11. `MarkdownParser` — local copy without in-place `AttributedString` mutations
+
+Commits `37317a00`, `7051c4ad`, `08c34296`. Fixes a crash in Foundation ("Path out of bounds") while formatting
+markdown messages.
+
+- `Utils/MarkdownParser.swift` (new file): copy of `StreamChat.MarkdownParser` (StreamChat **5.5.1**,
+  `Sources/StreamChat/Utils/MarkdownParser.swift`), declared **internal** so it shadows the StreamChat type inside
+  this module only. `MarkdownFormatter` (`MarkdownParser()`, `MarkdownParser.ParsingOptions`) picks it up with no
+  code change.
+- Cause: mutating an `AttributedString` with many runs (`replaceSubrange`, `insert`, `mergeAttributes`,
+  `transformingAttributes`) can trap when a run is coalesced with the next one (the internal rope is rebalanced and
+  an index goes stale). A first fix (`7051c4ad`) rebuilt the string for each edit, but still crashed: offsets taken
+  before the edits could point past the end of the rebuilt string.
+- Final fix (`08c34296`): the parsed runs are copied into an array of `MarkdownSegment`, every edit is done on that
+  array with integer positions, and the result is built once with `append` (which only coalesces with the
+  preceding run).
+- ⚠️ On each StreamChat bump, diff upstream `MarkdownParser.swift` against 5.5.1 and port its changes into the copy.
+  Drop the copy if upstream fixes the crash.
+
 ## Demo & tests
 
 - `DemoAppSwiftUI/`: `CustomAttachment`, `CustomComposerAttachmentView`, `ViewFactoryExamples`,
@@ -124,4 +169,7 @@ The previous fork look (clear border, fixed radius 12) is documented in an inlin
 2. **`MessageView` composition** — upstream reworks message rendering frequently.
 3. **`showBubble` plumbing** — spans `MessageItemView`/`MessageContainerView`/`MessageView`/`MessageBubble`/`Styles`.
 4. **Padding/spacer** (`MessageItemView`, `MessageContainerView`), **reactions offset**.
-5. Platform availability, composer alignment, misc — usually trivial.
+5. **`MarkdownParser` copy** — no merge conflict, but it silently drifts from StreamChat's version (see §11).
+6. **Composer look** (`MessageComposerView`, `RegularInputViewModifier`, placeholder string) and composer height
+   animation — small, local edits.
+7. Platform availability, composer alignment, misc — usually trivial.
