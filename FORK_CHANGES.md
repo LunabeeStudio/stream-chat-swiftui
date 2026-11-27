@@ -100,9 +100,10 @@ Lets custom attachments render in **two independent slots** (before/after the re
   `deliveryStatusView` phantom-padding fix (only builds the read-indicator + date `HStack` when the
   date is shown; it keeps upstream's `MessageViewModel.isDeliveryStatusShown(for:in:)` condition);
   `showBubble` passed to `MessageView` in `messageView`; the message-actions gesture
-  (`MessageActionsGestureModifier` + `contentShape`) is applied at the end of `messageBubbleContent`
-  (after the accessibility modifiers and the reactions overlay, before `.frame`) rather than on the whole row
-  in `MessageItemView`, so it only triggers on the bubble. Upstream 5.18.0 split the bubble into
+  (`MessageActionsGestureModifier` + `contentShape`) is applied in `messageBubbleContent` after the bubble's
+  accessibility modifiers and **before** the reactions overlay, rather than on the whole row in `MessageItemView`,
+  so it only triggers on the bubble and its named VoiceOver "actions" action (added upstream in 5.18.0) lands on
+  the bubble element. The reactions view handles its own tap and long press. Upstream 5.18.0 split the bubble into
   `messageView` / `bubbleView` / `reactionsOverlay` / `messageBubbleContent` and dropped the
   `usesScrollView` wrapper (deprecated); the fork follows that structure.
 - `ChatComposer/MessageComposerView.swift`: leading composer `HStack` alignment `.center`
@@ -114,7 +115,7 @@ Lets custom attachments render in **two independent slots** (before/after the re
   ignores the bottom safe area when a tab bar is present, so with a floating composer and **no** tab
   bar the message list stops above the safe area. Fork makes the list scroll **under** the floating
   composer into the bottom safe area while the composer stays **above** it:
-  - `.ignoresSafeArea(.container, edges:)` ignores `.bottom` when `ignoresBottomSafeArea || composerPlacement == .floating` (upstream: `ignoresBottomSafeArea` only, which is `tabBarAvailable && !isInSplitView` since 5.18.0); `MessageListView` also carries `.edgesIgnoringSafeArea(.bottom)`.
+  - `.ignoresSafeArea(.container, edges:)` ignores `.bottom` when `ignoresBottomSafeArea || (composerPlacement == .floating && !isInSplitView)` (upstream: `ignoresBottomSafeArea` only, which is `tabBarAvailable && !isInSplitView` since 5.18.0). Split view is excluded because `bottomPadding` is `0` there, so ignoring the safe area would put the floating composer under the home indicator; `MessageListView` also carries `.edgesIgnoringSafeArea(.bottom)`.
   - `needsBottomSafeAreaPadding` kept **tab-bar-only** (`!keyboardShown && ignoresBottomSafeArea`, as upstream) — it drives `contentBottomPadding`; a floating composer must be excluded or the content double-pads (shifts up **and** the composer pads).
   - `floatingComposerBottomPadding` uses its **own** condition (`floating && !keyboardShown`): composer owns the safe-area padding when there's no tab bar, `0` with a tab bar (content owns it), `bottomPadding` for thread/snapshot — matching the `+ bottomPadding` reserved in `floatingComposerHeight`.
   - Invariant: exactly one of {content, composer} owns the bottom safe-area padding per case.
@@ -218,7 +219,7 @@ and every section above was checked in the merged code afterwards.
 | File | Resolution |
 |---|---|
 | `StreamChatSwiftUI.xcodeproj/project.pbxproj` | Fork: deployment target `15.6` (§1; raised to `16.0` afterwards). |
-| `ChatChannel/ChatChannelView.swift` | Fork floating rule on top of upstream's new `ignoresBottomSafeArea` (§5); fork overlay without the iOS-14 branch (§1). |
+| `ChatChannel/ChatChannelView.swift` | Fork floating rule on top of upstream's new `ignoresBottomSafeArea`, excluding split view (§5); fork overlay without the iOS-14 branch (§1). |
 | `ChatChannelList/ChatChannelListView.swift` | Upstream: `setupTabBarAppeareance()` and its caller were removed upstream (`c19b51f0`), so the fork no longer changes this file. |
 | `ChatMessageList/MessageContainerView.swift` | Upstream structure + fork `showBubble`, bubble gesture and `deliveryStatusView` (§5). |
 | `ChatMessageList/MessageView.swift` | Poll view: fork `availableWidth` + upstream `translationLanguage`. |

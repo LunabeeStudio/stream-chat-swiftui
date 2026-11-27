@@ -244,7 +244,11 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         // Fork: also ignore the bottom safe area for a floating composer (not just when a tab bar is
         // present), so the message list scrolls under the floating composer into the bottom safe area.
         // The composer is kept above the safe area via `floatingComposerBottomPadding`.
-        .ignoresSafeArea(.container, edges: (ignoresBottomSafeArea || composerPlacement == .floating) ? .bottom : [])
+        // Not in split view: `bottomPadding` is 0 there, so nothing would keep the composer above the home indicator.
+        .ignoresSafeArea(
+            .container,
+            edges: (ignoresBottomSafeArea || (composerPlacement == .floating && !isInSplitView)) ? .bottom : []
+        )
         .alertBanner(isPresented: $viewModel.showAlertBanner)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ChatChannelView")

@@ -172,20 +172,22 @@ struct MessageContainerView<Factory: ViewFactory>: View {
             // reactions overlay) so the overlay keeps its own accessibility
             // identity instead of inheriting "MessageView".
             .accessibilityIdentifier("MessageView")
-            // Applied after the accessibility element so reactions remain a separate
-            // focusable element rather than being merged into the bubble.
-            .overlay(
-                reactionsOverlay,
-                alignment: messageViewModel.isRightAligned ? .trailing : .leading
-            )
             // - Note: Fork change — the message actions gesture is applied here on the bubble content
             //   instead of on the whole row in `MessageItemView`, so it only triggers on the bubble.
+            //   It is applied before the reactions overlay so its named VoiceOver action lands on the
+            //   bubble element; the reactions view handles its own tap and long press.
             .contentShape(Rectangle())
             .modifier(MessageActionsGestureModifier(
                 shownAsPreview: shownAsPreview,
                 isDoubleTapEnabled: messageViewModel.isDoubleTapOverlayEnabled,
                 onActionsTriggered: { onGesture(true) }
             ))
+            // Applied after the accessibility element so reactions remain a separate
+            // focusable element rather than being merged into the bubble.
+            .overlay(
+                reactionsOverlay,
+                alignment: messageViewModel.isRightAligned ? .trailing : .leading
+            )
             .frame(maxWidth: contentWidth, alignment: messageViewModel.isRightAligned ? .trailing : .leading)
     }
 
