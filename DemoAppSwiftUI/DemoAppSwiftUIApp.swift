@@ -137,11 +137,7 @@ struct RootView: View {
         guard unreadCount != didChangeCurrentUserUnreadCount else { return }
         unreadCount = didChangeCurrentUserUnreadCount
         let totalUnreadBadge = unreadCount.channels + unreadCount.threads
-        if #available(iOS 16.0, *) {
-            UNUserNotificationCenter.current().setBadgeCount(totalUnreadBadge)
-        } else {
-            UIApplication.shared.applicationIconBadgeNumber = totalUnreadBadge
-        }
+        UNUserNotificationCenter.current().setBadgeCount(totalUnreadBadge)
     }
 }
 

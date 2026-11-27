@@ -73,11 +73,9 @@ struct AppConfigurationView: View {
                 } footer: {
                     Text("Takes effect on the next app launch. Downloaded files are stored in a StreamAttachmentDownloads subfolder.")
                 }
-                if #available(iOS 16.0, *) {
-                    Section("Logging") {
-                        NavigationLink("Log Settings") {
-                            LogSettingsView()
-                        }
+                Section("Logging") {
+                    NavigationLink("Log Settings") {
+                        LogSettingsView()
                     }
                 }
             }

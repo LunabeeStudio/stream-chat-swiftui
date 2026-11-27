@@ -136,7 +136,7 @@ struct AudioAttachmentView: View {
             handler.togglePlayback(for: playbackURL)
         }
         .audioPlaybackStateUpdates(handler: handler, url: url)
-        .compatibility.task(id: url) { @MainActor in
+        .task(id: url) { @MainActor in
             guard knownDuration == nil else { return }
             loadedDuration = await AVURLAsset(url: url).loadDuration()
         }

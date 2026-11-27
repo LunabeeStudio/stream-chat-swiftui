@@ -104,7 +104,7 @@ public struct StreamAsyncImage<Content: View>: View {
         ZStack {
             content(resolvedPhase)
         }
-        .compatibility.task(id: taskIdentity) { @MainActor in
+        .task(id: taskIdentity) { @MainActor in
             await loadImage()
         }
     }

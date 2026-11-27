@@ -22,20 +22,14 @@ struct SearchBar: View, KeyboardReadable {
                     .foregroundColor(Color(colors.inputTextIcon))
                     .frame(width: tokens.iconSizeMd, height: tokens.iconSizeMd)
 
-                if #available(iOS 15.0, *) {
-                    TextField(
-                        "",
-                        text: $text,
-                        prompt: Text(L10n.Message.Search.title)
-                            .foregroundColor(Color(colors.inputTextPlaceholder))
-                    )
-                    .font(fonts.body)
-                    .foregroundColor(Color(colors.textPrimary))
-                } else {
-                    TextField(L10n.Message.Search.title, text: $text)
-                        .font(fonts.body)
-                        .foregroundColor(Color(colors.textPrimary))
-                }
+                TextField(
+                    "",
+                    text: $text,
+                    prompt: Text(L10n.Message.Search.title)
+                        .foregroundColor(Color(colors.inputTextPlaceholder))
+                )
+                .font(fonts.body)
+                .foregroundColor(Color(colors.textPrimary))
 
                 if !text.isEmpty {
                     Button(action: {

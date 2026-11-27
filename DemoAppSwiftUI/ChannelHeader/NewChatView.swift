@@ -143,11 +143,7 @@ struct SidebarBackButtonModifier: ViewModifier {
 
 struct TabBarVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            content.toolbar(.hidden, for: .tabBar)
-        } else {
-            content
-        }
+        content.toolbar(.hidden, for: .tabBar)
     }
 }
 

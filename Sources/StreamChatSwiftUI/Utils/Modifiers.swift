@@ -62,25 +62,21 @@ struct ChangeChannelBarsVisibilityModifier: ViewModifier {
     var shouldShow: Bool
     
     func body(content: Content) -> some View {
-        if #available(iOS 16, *), !utils.messageListConfig.handleTabBarVisibility {
+        if !utils.messageListConfig.handleTabBarVisibility {
             content
                 .navigationBarHidden(!shouldShow)
                 .toolbar(shouldShow ? .visible : .hidden, for: .tabBar)
                 .toolbar(navigationBarVisibility, for: .navigationBar)
-        } else if #available(iOS 16, *) {
-            content
-                .navigationBarHidden(!shouldShow)
-                .toolbar(navigationBarVisibility, for: .navigationBar)
         } else {
             content
                 .navigationBarHidden(!shouldShow)
+                .toolbar(navigationBarVisibility, for: .navigationBar)
         }
     }
 
     // `navigationBarHidden` alone is not honored by `NavigationStack` / `NavigationSplitView`.
     // `.visible` is used instead of `.automatic` because `.automatic` does not bring the bar
     // back when the view is hosted in a `UIHostingController` inside a `UINavigationController`.
-    @available(iOS 16, *)
     private var navigationBarVisibility: Visibility {
         shouldShow ? .visible : .hidden
     }

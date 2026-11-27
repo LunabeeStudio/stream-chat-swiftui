@@ -194,23 +194,8 @@ private struct CreatePollToolbarModifier<Factory: ViewFactory>: ViewModifier {
 // MARK: - Form
 
 /// The form body composing the two interactive sections (question +
-/// options) and, on iOS 15+, coordinating keyboard focus across them.
-/// Hides the availability split from `CreatePollView.body` so the
-/// parent can reference a single entry point.
+/// options) and coordinating keyboard focus across them.
 private struct CreatePollForm: View {
-    @ObservedObject var viewModel: CreatePollViewModel
-
-    var body: some View {
-        if #available(iOS 15.0, *) {
-            CreatePollFocusedForm(viewModel: viewModel)
-        } else {
-            CreatePollPlainForm(viewModel: viewModel)
-        }
-    }
-}
-
-@available(iOS 15.0, *)
-private struct CreatePollFocusedForm: View {
     @ObservedObject var viewModel: CreatePollViewModel
     @FocusState private var focused: CreatePollInputField?
 
@@ -248,23 +233,13 @@ private struct CreatePollFocusedForm: View {
     }
 }
 
-private struct CreatePollPlainForm: View {
-    @ObservedObject var viewModel: CreatePollViewModel
-
-    var body: some View {
-        CreatePollQuestion(text: $viewModel.question)
-        CreatePollOptions(viewModel: viewModel)
-    }
-}
-
 private enum CreatePollInputField: Hashable {
     case question
     case option(UUID)
 }
 
 /// Wraps a `TextField` so the keyboard's `Next` button moves focus to the
-/// caller-supplied next target. iOS 15+ only.
-@available(iOS 15.0, *)
+/// caller-supplied next target.
 private struct CreatePollInputFieldFocus: ViewModifier {
     let focused: FocusState<CreatePollInputField?>.Binding
     let field: CreatePollInputField
@@ -312,12 +287,6 @@ private struct CreatePollQuestion<DecoratedField: View>: View {
             topSpacing: tokens.spacingXxs,
             bottomSpacing: tokens.spacingSm
         ))
-    }
-}
-
-extension CreatePollQuestion where DecoratedField == TextField<Text> {
-    init(text: Binding<String>) {
-        self.init(text: text, decorate: { $0 })
     }
 }
 
@@ -381,12 +350,6 @@ private struct CreatePollOptions<DecoratedField: View>: View {
             topSpacing: tokens.spacingXxs,
             bottomSpacing: tokens.spacingXxs
         ))
-    }
-}
-
-extension CreatePollOptions where DecoratedField == TextField<Text> {
-    init(viewModel: CreatePollViewModel) {
-        self.init(viewModel: viewModel) { _, textField in textField }
     }
 }
 
@@ -666,14 +629,10 @@ private struct CreatePollMaxVotesStepper: View {
 
 /// Dismisses the keyboard interactively when the user drags the list. Lets
 /// people pull the keyboard down without first tapping outside any text
-/// field. Gated on iOS 16+ where `scrollDismissesKeyboard` is available.
+/// field.
 private struct CreatePollScrollDismissesKeyboardModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            content.scrollDismissesKeyboard(.interactively)
-        } else {
-            content
-        }
+        content.scrollDismissesKeyboard(.interactively)
     }
 }
 
@@ -687,21 +646,14 @@ private struct CreatePollRowModifier: ViewModifier {
     var bottomSpacing: CGFloat
 
     func body(content: Content) -> some View {
-        if #available(iOS 15.0, *) {
-            content
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color(colors.backgroundCoreElevation1))
-                .listRowInsets(EdgeInsets(
-                    top: topSpacing,
-                    leading: tokens.spacingMd,
-                    bottom: bottomSpacing,
-                    trailing: tokens.spacingMd
-                ))
-        } else {
-            content
-                .padding(.horizontal, tokens.spacingMd)
-                .padding(.top, topSpacing)
-                .padding(.bottom, bottomSpacing)
-        }
+        content
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color(colors.backgroundCoreElevation1))
+            .listRowInsets(EdgeInsets(
+                top: topSpacing,
+                leading: tokens.spacingMd,
+                bottom: bottomSpacing,
+                trailing: tokens.spacingMd
+            ))
     }
 }

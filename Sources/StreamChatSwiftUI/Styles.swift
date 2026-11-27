@@ -354,34 +354,17 @@ public struct RegularScrollToBottomButtonModifier: ViewModifier {
     }
 }
 
-/// Styles a toolbar confirm action button using the native platform appearance.
-///
-/// On iOS 26+, applies a glass button style with the accent tint.
-/// On earlier versions, falls back to a solid primary ``StreamButtonStyle``.
+/// Styles a toolbar confirm action button using the native platform appearance:
+/// a bordered prominent button style with the accent tint.
 public struct DefaultToolbarConfirmActionModifier: ViewModifier {
     @Injected(\.colors) private var colors
 
     public init() {}
 
     public func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            content
-                .buttonStyle(.borderedProminent)
-                .tint(Color(colors.accentPrimary))
-        } else {
-            solidStyle(content: content)
-        }
-    }
-
-    private func solidStyle(content: Content) -> some View {
-        content.buttonStyle(
-            StreamButtonStyle(
-                role: .primary,
-                style: .solid,
-                size: .medium,
-                isIconOnly: true
-            )
-        )
+        content
+            .buttonStyle(.borderedProminent)
+            .tint(Color(colors.accentPrimary))
     }
 }
 

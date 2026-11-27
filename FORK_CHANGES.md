@@ -13,21 +13,38 @@ Every forked SDK file carries an inline `- Note:` comment describing its diverge
 
 ---
 
-## 1. Platform — minimum iOS 14 → 15
+## 1. Platform — minimum iOS 14 → 16
 
-- `Package.swift`: `.iOS(.v14)` → `.iOS(.v15)`; Xcode deployment target `15.6` on the 3 SDK build configs
-  (upstream 5.18.0: `15.0`).
-- Removed the `if #available(iOS 15)` / `@available(iOS 15)` fallbacks in:
-  `BouncedMessageActionsModifier` (drops the iOS-14 `actionSheet` branch, keeps `.alert`),
-  `ChatChannelListViewModel` (`checkTabBarAppearance`), `AlertBannerViewModifier`,
-  `AttributedString+Extensions`, `MarkdownFormatter`,
-  `ChatChannelView` (`FloatingComposerContainer` keeps only `.overlay(alignment: .bottom)`; the iOS-14 overlay
-  branch is removed — commit `2dc36e58` "Fix crash").
-- Other upstream files still have `#available(iOS 15)` checks (e.g. `CreatePollView`, `SearchBar`). They are harmless
-  and left as upstream.
+- `Package.swift`: `.iOS(.v14)` → `.iOS(.v16)` (`.macOS(.v11)` unchanged); Xcode `IPHONEOS_DEPLOYMENT_TARGET = 16.0`
+  on every build configuration (SDK, demo app, tests). Upstream 5.18.0: `.iOS(.v14)`, targets `15.0` / `15`.
+- Every `#available` / `@available` / `#unavailable` check for iOS 16.0 or earlier is removed; only the iOS 16+ branch
+  is kept and the fallback code is deleted. Checks for later versions (`#unavailable(iOS 16.3)` in
+  `HideTabBarModifierForiOS16`, `#available(iOS 16.4, *)` in `Compatibility+ScrollBounceBehavior`, iOS 17+, 26+)
+  stay as upstream.
+  - iOS 15 (from the first v5 migration): `BouncedMessageActionsModifier` (keeps `.alert`, drops `actionSheet`),
+    `ChatChannelListViewModel` (`checkTabBarAppearance`), `AlertBannerViewModifier`, `AttributedString+Extensions`,
+    `ChatChannelView` (`FloatingComposerContainer` keeps only `.overlay(alignment: .bottom)` — commit `2dc36e58`
+    "Fix crash").
+  - iOS 15 / 16 (move to iOS 16): `ChannelInfoActionsView` (`ConfirmationAlertModifier`), `ChatChannelListView`
+    (split view always available, `usesAdaptiveSplitView` reduced to its config checks),
+    `ChatChannelNavigatableListItem`, `SendMessageButton` (preview), `ComposerTextInputView`
+    (`InputTextView(usingTextLayoutManager: false)`), `CreatePollView` (focused form only: removed
+    `CreatePollPlainForm` and the plain `CreatePollQuestion` / `CreatePollOptions` initializers), `MessageView`
+    (`StreamTextView` always uses the attributed text, its `textContent` property is removed),
+    `ReactionsOverlayView` (`PresentationDetentsModifier`, `SheetSize`), `NavigationBarThemeViewModifier`, `SearchBar`,
+    `Styles` (`DefaultToolbarConfirmActionModifier` is always `.borderedProminent`, `solidStyle` removed),
+    `AVURLAsset+Duration` (`load(.duration)` only), `AccessibilityFocusRestoration`, `ChatMessage+Extensions`,
+    `HideTabBarModifier` (`.toolbar(.hidden, for: .tabBar)` only), `Modifiers` (`ChangeChannelBarsVisibilityModifier`),
+    `NavigationContainerView`, `SwiftUI+UIAlertController` (SwiftUI alert only; the `UIAlertControllerView` fallback
+    is removed), `UIImage+SwiftyGif`, `MarkdownFormatter`, `MarkdownParser` (fork copy, §11).
+  - `Utils/Common/Compatibility+TaskViewModifier.swift` is deleted; its two callers (`AudioAttachmentContainerView`,
+    `StreamAsyncImage`) use SwiftUI's `.task(id:)`.
+  - Demo app: `AppConfigurationView`, `NewChatView` (`TabBarVisibilityModifier`), `DemoAppSwiftUIApp`
+    (`setBadgeCount`).
 
-Upstream 5.18.0 still supports iOS 14 (`.iOS(.v14)`), so these edits keep conflicting on each bump whenever upstream
-touches the same lines. Resolve them by keeping the fork side.
+Upstream 5.18.0 still supports iOS 14, so these edits conflict on each bump whenever upstream touches the same lines.
+Resolve them by keeping the fork side. After each bump, look for new checks with
+`git grep -nE 'available\([^)]*iOS,? *(1[0-5](\.[0-9]+)?|16(\.0)?)[,) ]' -- '*.swift'` and remove them.
 
 ## 2. Message rendering — composition layout (the core divergence)
 
@@ -190,7 +207,8 @@ markdown messages.
 5. **`MarkdownParser` copy** — no merge conflict, but it silently drifts from StreamChat's version (see §11).
 6. **Composer look** (`MessageComposerView`, `RegularInputViewModifier`, placeholder string) and composer height
    animation — small, local edits.
-7. Platform availability, composer alignment, misc — usually trivial.
+7. Platform availability (iOS 16 minimum, many small edits across ~25 files — keep the fork side), composer
+   alignment, misc — usually trivial.
 
 ## Merge notes — 5.18.0
 
@@ -199,7 +217,7 @@ and every section above was checked in the merged code afterwards.
 
 | File | Resolution |
 |---|---|
-| `StreamChatSwiftUI.xcodeproj/project.pbxproj` | Fork: deployment target `15.6` (§1). |
+| `StreamChatSwiftUI.xcodeproj/project.pbxproj` | Fork: deployment target `15.6` (§1; raised to `16.0` afterwards). |
 | `ChatChannel/ChatChannelView.swift` | Fork floating rule on top of upstream's new `ignoresBottomSafeArea` (§5); fork overlay without the iOS-14 branch (§1). |
 | `ChatChannelList/ChatChannelListView.swift` | Upstream: `setupTabBarAppeareance()` and its caller were removed upstream (`c19b51f0`), so the fork no longer changes this file. |
 | `ChatMessageList/MessageContainerView.swift` | Upstream structure + fork `showBubble`, bubble gesture and `deliveryStatusView` (§5). |

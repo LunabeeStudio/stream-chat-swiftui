@@ -21,12 +21,7 @@ struct ComposerTextInputView: UIViewRepresentable {
     var onImagePasted: @MainActor (UIImage) -> Void
 
     func makeUIView(context: Context) -> InputTextView {
-        let inputTextView: InputTextView
-        if #available(iOS 16.0, *) {
-            inputTextView = InputTextView(usingTextLayoutManager: false)
-        } else {
-            inputTextView = InputTextView()
-        }
+        let inputTextView = InputTextView(usingTextLayoutManager: false)
         context.coordinator.textView = inputTextView
         inputTextView.delegate = context.coordinator
         inputTextView.isEditable = editable

@@ -15,25 +15,12 @@ extension View {
     /// keeps a small delay so the dismissal animation can settle before
     /// VoiceOver moves focus.
     ///
-    /// Uses `@AccessibilityFocusState` on iOS 15+. On iOS 14 it falls back
-    /// to a `screenChanged` notification so VoiceOver at least re-picks a
-    /// focusable element on the current screen.
-    @ViewBuilder
+    /// Uses `@AccessibilityFocusState`.
     func restoresAccessibilityFocusOnDismiss(of isPresented: Binding<Bool>) -> some View {
-        if #available(iOS 15.0, *) {
-            modifier(RestoresAccessibilityFocusOnDismissModifier(isPresented: isPresented))
-        } else {
-            onChange(of: isPresented.wrappedValue) { isShown in
-                guard !isShown else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    UIAccessibility.post(notification: .screenChanged, argument: nil)
-                }
-            }
-        }
+        modifier(RestoresAccessibilityFocusOnDismissModifier(isPresented: isPresented))
     }
 }
 
-@available(iOS 15.0, *)
 private struct RestoresAccessibilityFocusOnDismissModifier: ViewModifier {
     @Binding var isPresented: Bool
     @AccessibilityFocusState private var isFocused: Bool

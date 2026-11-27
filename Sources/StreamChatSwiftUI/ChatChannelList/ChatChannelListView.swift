@@ -94,15 +94,13 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
     @ViewBuilder
     private var containerView: some View {
         if usesAdaptiveSplitView {
-            if #available(iOS 16, *) {
-                NavigationSplitView {
-                    content
-                } detail: {
-                    splitViewDetail()
-                }
-                .accentColor(Color(colors.navigationBarTintColor))
-                .environment(\.splitViewSelectedChannelId, viewModel.selectedChannel?.id)
+            NavigationSplitView {
+                content
+            } detail: {
+                splitViewDetail()
             }
+            .accentColor(Color(colors.navigationBarTintColor))
+            .environment(\.splitViewSelectedChannelId, viewModel.selectedChannel?.id)
         } else {
             NavigationContainerView(embedInNavigationView: embedInNavigationView) {
                 content
@@ -172,17 +170,9 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
     }
 
     private var usesAdaptiveSplitView: Bool {
-        guard embedInNavigationView,
-              horizontalSizeClass == .regular,
-              utils.messageListConfig.iPadSplitViewEnabled else {
-            return false
-        }
-
-        if #available(iOS 16, *) {
-            return true
-        } else {
-            return false
-        }
+        embedInNavigationView
+            && horizontalSizeClass == .regular
+            && utils.messageListConfig.iPadSplitViewEnabled
     }
 
     private var channelDestination: @MainActor (ChannelSelectionInfo) -> Factory.ChannelDestination {
@@ -217,7 +207,6 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
         }
     }
 
-    @available(iOS 16.0, *)
     @ViewBuilder
     private func splitViewDetail() -> some View {
         NavigationStack {

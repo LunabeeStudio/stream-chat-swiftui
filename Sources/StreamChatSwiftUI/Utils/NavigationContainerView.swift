@@ -14,7 +14,7 @@ struct NavigationContainerView<Content: View>: View {
 
     var body: some View {
         if embedInNavigationView == true {
-            if #available(iOS 16, *), horizontalSizeClass != .regular {
+            if horizontalSizeClass != .regular {
                 NavigationStack {
                     content()
                 }

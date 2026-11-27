@@ -109,7 +109,6 @@ public extension ChatMessage {
     }
 }
 
-@available(iOS 15, *)
 extension ChatMessage {
     /// Options controlling how the message text is converted into an `AttributedString`.
     @MainActor public final class AttributedTextOptions {

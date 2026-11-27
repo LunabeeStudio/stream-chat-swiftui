@@ -498,12 +498,8 @@ struct PresentationDetentsModifier: ViewModifier {
     var sheetSizes: [SheetSize]
     
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            content
-                .presentationDetents(Set(sheetSizes.map(\.toPresentationDetent)))
-        } else {
-            content
-        }
+        content
+            .presentationDetents(Set(sheetSizes.map(\.toPresentationDetent)))
     }
 }
 
@@ -512,7 +508,6 @@ enum SheetSize {
     case medium
     case large
     
-    @available(iOS 16.0, *)
     var toPresentationDetent: PresentationDetent {
         switch self {
         case .custom(let height):

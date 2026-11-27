@@ -313,29 +313,21 @@ struct StreamTextView: View {
     @Injected(\.fonts) var fonts
 
     let message: ChatMessage
-    let textContent: String
     let translationLanguage: TranslationLanguage?
 
     init(message: ChatMessage, translationLanguage: TranslationLanguage?) {
         self.message = message
-        self.textContent = message.textContent(for: translationLanguage) ?? message.adjustedText
         self.translationLanguage = translationLanguage
     }
 
     var body: some View {
-        if #available(iOS 15, *) {
-            let attributedText = message.attributedTextContent(
-                layoutDirection: layoutDirection,
-                translationLanguage: translationLanguage
-            )
-            Text(attributedText)
-                .foregroundColor(textColor(for: message))
-                .font(fonts.body)
-                .tint(Color(colors.accentPrimary))
-        } else {
-            Text(textContent)
-                .foregroundColor(textColor(for: message))
-                .font(fonts.body)
-        }
+        let attributedText = message.attributedTextContent(
+            layoutDirection: layoutDirection,
+            translationLanguage: translationLanguage
+        )
+        Text(attributedText)
+            .foregroundColor(textColor(for: message))
+            .font(fonts.body)
+            .tint(Color(colors.accentPrimary))
     }
 }

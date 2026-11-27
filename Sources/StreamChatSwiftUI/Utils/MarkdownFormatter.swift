@@ -13,7 +13,6 @@ import SwiftUI
     ///   - attributes: Base attributes applied to the entire string; Markdown-specific styling is merged on top of these defaults.
     ///   - layoutDirection: The text layout direction (left-to-right or right-to-left) used when interpreting and rendering Markdown blocks (for example, lists, block quotes, and headings).
     /// - Returns: An `AttributedString` containing the rendered Markdown with the resolved attributes.
-    @available(iOS 15, *)
     func format(
         _ string: String,
         attributes: AttributeContainer,

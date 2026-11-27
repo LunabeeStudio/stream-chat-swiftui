@@ -121,15 +121,11 @@ struct HideTabBarModifierForiOS16: ViewModifier {
     var handleTabBarVisibility: Bool
 
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            if #unavailable(iOS 16.3) {
-                content
-                    .modifier(HideTabBarModifier(
-                        handleTabBarVisibility: handleTabBarVisibility
-                    ))
-            } else {
-                content
-            }
+        if #unavailable(iOS 16.3) {
+            content
+                .modifier(HideTabBarModifier(
+                    handleTabBarVisibility: handleTabBarVisibility
+                ))
         } else {
             content
         }
