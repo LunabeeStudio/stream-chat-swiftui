@@ -35,61 +35,36 @@ final class Reactions_Tests: StreamTestCase {
         WHEN("user sends the message: '\(message)'") {
             userRobot.sendMessage(message)
         }
+        AND("participant adds the reaction") {
+            participantRobot.addReaction(type: .love)
+            userRobot.assertReaction(type: .love, isPresent: true)
+        }
         AND("user adds the reaction") {
             userRobot
                 .addReaction(type: .wow)
-                .waitForNewReaction()
+                .assertReaction(type: .wow, isPresent: true)
         }
-        AND("user removes the reaction") {
-            userRobot.deleteReaction(type: .wow)
+        AND("user opens the reaction authors") {
+            userRobot.tapOnMessageReactions()
+        }
+        THEN("the reaction authors show the user and the participant") {
+            userRobot
+                .assertReactionAuthor(MessageListPage.Reactions.currentUserAuthorName)
+                .assertReactionAuthor(participantRobot.name)
+        }
+        WHEN("user removes the reaction") {
+            userRobot
+                .closeReactionAuthors()
+                .deleteReaction(type: .wow)
         }
         THEN("the reaction is removed") {
-            userRobot.assertReaction(isPresent: false)
+            userRobot.assertReaction(type: .wow, isPresent: false)
         }
-    }
-
-    func test_reactionIsAdded_whenReactingToParticipantsMessage() throws {
-        linkToScenario(withId: 249)
-
-        let message = "test message"
-
-        GIVEN("user opens the channel") {
-            userRobot.login().openChannel()
-        }
-        WHEN("participant sends the message: '\(message)'") {
-            participantRobot.sendMessage(message)
-        }
-        AND("user adds the reaction") {
+        AND("the reaction authors show only the participant") {
             userRobot
-                .addReaction(type: .love)
-                .waitForNewReaction()
-        }
-        THEN("the reaction is added") {
-            userRobot.assertReaction(isPresent: true)
-        }
-    }
-
-    func test_removesReaction_whenUnReactingToParticipantsMessage() throws {
-        linkToScenario(withId: 250)
-
-        let message = "test message"
-
-        GIVEN("user opens the channel") {
-            userRobot.login().openChannel()
-        }
-        WHEN("participant sends the message: '\(message)'") {
-            participantRobot.sendMessage(message)
-        }
-        AND("user adds the reaction") {
-            userRobot
-                .addReaction(type: .lol)
-                .waitForNewReaction()
-        }
-        AND("user removes the reaction") {
-            userRobot.deleteReaction(type: .lol)
-        }
-        THEN("the reaction is removed") {
-            userRobot.assertReaction(isPresent: false)
+                .tapOnMessageReactions()
+                .assertReactionAuthor(participantRobot.name)
+                .assertReactionAuthor(MessageListPage.Reactions.currentUserAuthorName, isPresent: false)
         }
     }
 
@@ -182,10 +157,8 @@ final class Reactions_Tests: StreamTestCase {
     }
 
     func test_addReactionWhileOffline() throws {
-        linkToScenario(withId: 94)
+        linkToScenario(withId: 3416)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-1315")
-
         let message = "test message"
 
         GIVEN("user opens the channel") {

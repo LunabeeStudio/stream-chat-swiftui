@@ -40,8 +40,10 @@ import SwiftUI
         hidesCommandsOverlayOnMessageListTap: Bool = true,
         hidesAttachmentsPickersOnMessageListTap: Bool = true,
         attachmentPreviewWidth: CGFloat = 256,
+        videoAttachmentCachingPolicy: VideoAttachmentCachingPolicy? = nil,
         navigationBarDisplayMode: NavigationBarItem.TitleDisplayMode = .inline,
-        supportedMessageActions: @escaping @MainActor (SupportedMessageActionsOptions) -> [MessageAction] = MessageAction.defaultActions(for:)
+        supportedMessageActions: @escaping @MainActor (SupportedMessageActionsOptions) -> [MessageAction] = { MessageAction.defaultActions(for: $0) },
+        shouldMessagesStartAtTheTop: Bool = false
     ) {
         self.messageListType = messageListType
         self.typingIndicatorPlacement = typingIndicatorPlacement
@@ -74,8 +76,10 @@ import SwiftUI
         self.hidesCommandsOverlayOnMessageListTap = hidesCommandsOverlayOnMessageListTap
         self.hidesAttachmentsPickersOnMessageListTap = hidesAttachmentsPickersOnMessageListTap
         self.attachmentPreviewWidth = attachmentPreviewWidth
+        self.videoAttachmentCachingPolicy = videoAttachmentCachingPolicy
         self.navigationBarDisplayMode = navigationBarDisplayMode
         self.supportedMessageActions = supportedMessageActions
+        self.shouldMessagesStartAtTheTop = shouldMessagesStartAtTheTop
     }
 
     public let messageListType: MessageListType
@@ -101,6 +105,13 @@ import SwiftUI
     public let localLinkDetectionEnabled: Bool
     public let isMessageEditedLabelEnabled: Bool
     public let markdownSupportEnabled: Bool
+    /// The policy describing how video attachments are cached on disk.
+    ///
+    /// When `nil`, video attachment caching is disabled. This is the default.
+    public let videoAttachmentCachingPolicy: VideoAttachmentCachingPolicy?
+    /// Whether users can block and unblock other users.
+    ///
+    /// When `false`, the block and unblock actions are hidden in message actions, channel list actions and the channel info screen.
     public let userBlockingEnabled: Bool
 
     /// A boolean to enable hiding the commands overlay when tapping the message list.
@@ -140,6 +151,10 @@ import SwiftUI
     /// - Parameter options: the options for getting supported message actions.
     /// - Returns: list of `MessageAction` items.
     public var supportedMessageActions: @MainActor (SupportedMessageActionsOptions) -> [MessageAction]
+
+    /// A boolean value that determines whether the messages should start at the top
+    /// of the list when there are few messages. By default it is `false`.
+    public let shouldMessagesStartAtTheTop: Bool
 }
 
 /// Contains information about the message paddings.
@@ -279,7 +294,7 @@ public final class MessageDisplayOptions {
     /// | 16+32+8+26 = 82   | up to 264  |   8   |    32    |  16   |
     public static var defaultSpacerWidth: @MainActor (CGFloat) -> (CGFloat) {
         { availableWidth in
-            if isIPad && availableWidth > 500 {
+            if availableWidth > 500 {
                 return (availableWidth * 0.4).rounded()
             } else {
                 @Injected(\.utils) var utils

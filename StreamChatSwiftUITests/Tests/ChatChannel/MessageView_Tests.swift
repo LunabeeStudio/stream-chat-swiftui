@@ -144,7 +144,143 @@ import XCTest
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-    
+
+    func test_attributedTextContent_highlightsAllMentionTypes() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Hey @Martin and @Alexey, @here @channel @admin @Engineering let's chat",
+            author: .mock(id: .unique),
+            mentionedUsers: [
+                .mock(id: "martin", name: "Martin"),
+                .mock(id: "alexey", name: "Alexey")
+            ],
+            mentionedHere: true,
+            mentionedChannel: true,
+            mentionedGroups: [.init(createdAt: .init(), id: "eng", name: "Engineering", updatedAt: .init())],
+            mentionedRoles: ["admin"]
+        )
+
+        // When
+        let attributed = message.attributedTextContent(
+            layoutDirection: .leftToRight,
+            translationLanguage: nil
+        )
+
+        // Then
+        let mentionTexts = attributed.runs.compactMap { run -> String? in
+            guard let link = run.link, link.scheme == "getstream" else { return nil }
+            return String(attributed[run.range].characters)
+        }
+        XCTAssertEqual(
+            Set(mentionTexts),
+            ["@Martin", "@Alexey", "@here", "@channel", "@admin", "@Engineering"]
+        )
+    }
+
+    func test_attributedTextContent_whenMarkdownLinkDisplayTextLooksLikeAURL_usesTheHrefFromMarkdown() {
+        // Given
+        let realURL = URL(string: "https://real-link.com")!
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "[https://text-link.com](https://real-link.com)",
+            author: .mock(id: .unique)
+        )
+
+        // When
+        let attributed = message.attributedTextContent(
+            layoutDirection: .leftToRight,
+            translationLanguage: nil
+        )
+
+        // Then
+        XCTAssertEqual(firstLink(in: attributed), realURL)
+    }
+
+    func test_attributedTextContent_whenPlainTextURLHasNoMarkdownLink_stillDetectsIt() {
+        // Given
+        let detectedURL = URL(string: "https://getstream.io")!
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "visit https://getstream.io now",
+            author: .mock(id: .unique)
+        )
+
+        // When
+        let attributed = message.attributedTextContent(
+            layoutDirection: .leftToRight,
+            translationLanguage: nil
+        )
+
+        // Then
+        XCTAssertEqual(firstLink(in: attributed), detectedURL)
+    }
+
+    func test_attributedTextContent_whenMentionsAndLinkDetectionToggledSeparately_appliesOnlyEnabledOne() {
+        // Given
+        let detectedURL = URL(string: "https://getstream.io")!
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Hey @Martin visit https://getstream.io",
+            author: .mock(id: .unique),
+            mentionedUsers: [.mock(id: "martin", name: "Martin")]
+        )
+
+        // When
+        let mentionsOnly = message.attributedTextContent(
+            options: .init(
+                layoutDirection: .leftToRight,
+                linkDetectionEnabled: false,
+                markdownEnabled: false,
+                mentionsEnabled: true
+            )
+        )
+        let linksOnly = message.attributedTextContent(
+            options: .init(
+                layoutDirection: .leftToRight,
+                linkDetectionEnabled: true,
+                markdownEnabled: false,
+                mentionsEnabled: false
+            )
+        )
+
+        // Then
+        XCTAssertEqual(mentionsOnly.runs.compactMap(\.link).map(\.scheme), ["getstream"])
+        XCTAssertEqual(linksOnly.runs.compactMap(\.link), [detectedURL])
+    }
+
+    func test_messageViewTextMentionAllTypes_snapshot() {
+        // Given
+        let textMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Hey @Martin, @here @channel @admin @Engineering let's chat",
+            author: .mock(id: .unique),
+            mentionedUsers: [.mock(id: "martin", name: "Martin")],
+            mentionedHere: true,
+            mentionedChannel: true,
+            mentionedGroups: [.init(createdAt: .init(), id: "eng", name: "Engineering", updatedAt: .init())],
+            mentionedRoles: ["admin"]
+        )
+
+        // When
+        let view = MessageView(
+            factory: DefaultViewFactory.shared,
+            message: textMessage,
+            contentWidth: defaultScreenSize.width,
+            isFirst: true,
+            scrolledId: .constant(nil)
+        )
+        .frame(width: defaultScreenSize.width, height: 100)
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
     func test_messageViewImage_snapshot() {
         // Given
         let imageMessage = ChatMessage.mock(
@@ -258,6 +394,39 @@ import XCTest
         AssertSnapshot(view, size: size)
     }
 
+    func test_messageViewAttachmentBubble_defaultSingleAudioWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.audio
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: DefaultViewFactory.shared,
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_defaultSingleAudioWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.audio
+        let caption = "Audio caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: DefaultViewFactory.shared,
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
     func test_messageViewAttachmentBubble_customSingleImageWithoutCaption_snapshot() {
         // Given
         let attachment = AttachmentBubbleSnapshotAttachment.image
@@ -309,6 +478,22 @@ import XCTest
     func test_messageViewAttachmentBubble_customSingleFileWithoutCaption_snapshot() {
         // Given
         let attachment = AttachmentBubbleSnapshotAttachment.file
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: nil
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleAudioWithoutCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.audio
         let size = attachmentBubbleSnapshotSize(for: attachment, caption: nil)
 
         // When
@@ -377,6 +562,23 @@ import XCTest
         // Given
         let attachment = AttachmentBubbleSnapshotAttachment.file
         let caption = "File caption"
+        let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
+
+        // When
+        let view = attachmentBubbleMessageView(
+            factory: CustomAttachmentBubbleFactory(),
+            attachment: attachment,
+            caption: caption
+        )
+
+        // Then
+        AssertSnapshot(view, size: size)
+    }
+
+    func test_messageViewAttachmentBubble_customSingleAudioWithCaption_snapshot() {
+        // Given
+        let attachment = AttachmentBubbleSnapshotAttachment.audio
+        let caption = "Audio caption"
         let size = attachmentBubbleSnapshotSize(for: attachment, caption: caption)
 
         // When
@@ -1109,7 +1311,7 @@ import XCTest
             duration: 10,
             waveform: [0, 0.1, 0.4, 0.7, 1.0, 0.8, 0.5, 0.3, 0.6, 0.9]
         )
-        let handler = VoiceRecordingHandler()
+        let handler = AudioSessionHandler()
         handler.isPlaying = true
         handler.context = AudioPlaybackContext(
             assetLocation: url,
@@ -1207,14 +1409,14 @@ import XCTest
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
-    
+
     func test_linkAttachmentView_customColors_snapshot() {
         // Given
         let colorPalette = Appearance.ColorPalette()
         colorPalette.textPrimary = .blue
         colorPalette.chatTextIncoming = .orange
         colorPalette.backgroundCoreElevation1 = .cyan
-        var appearance = Appearance()
+        let appearance = Appearance()
         appearance.colorPalette = colorPalette
         streamChat = StreamChat(
             chatClient: chatClient,
@@ -1283,6 +1485,24 @@ import XCTest
         let view = DeletedMessageView(message: message, isFirst: true)
             .applyDefaultSize()
         
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_deletedMessageView_accessibilityExtraExtraExtraLarge() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Deleted message",
+            author: .mock(id: .unique)
+        )
+
+        // When
+        let view = DeletedMessageView(message: message, isFirst: true)
+            .environment(\.sizeCategory, .accessibilityExtraExtraExtraLarge)
+            .applyDefaultSize()
+
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
@@ -1357,6 +1577,31 @@ import XCTest
         
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+    
+    func test_messageRepliesViewSentByCurrentUser_snapshot() {
+        // Given
+        let channel = ChatChannel.mockDMChannel()
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: channel.cid,
+            text: "Message with replies",
+            author: .mock(id: Self.currentUserId),
+            threadParticipants: [.mock(id: .unique)],
+            isSentByCurrentUser: true
+        )
+
+        // When
+        let view = MessageRepliesView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            message: message,
+            replyCount: 3
+        )
+        .frame(width: 300, height: 60)
+
+        // Then
+        AssertSnapshot(view, variants: .onlyUserInterfaceStyles, size: CGSize(width: 300, height: 60))
     }
     
     func test_topLeftView_snapshot() {
@@ -1864,9 +2109,16 @@ import XCTest
             return CGSize(width: defaultScreenSize.width, height: hasCaption ? 320 : 300)
         case .link:
             return CGSize(width: defaultScreenSize.width, height: 300)
-        case .file, .voice:
+        case .file, .voice, .audio:
             return CGSize(width: defaultScreenSize.width, height: hasCaption ? 220 : 180)
         }
+    }
+
+    private func firstLink(in attributedString: AttributedString) -> URL? {
+        for (value, _) in attributedString.runs[\.link] where value != nil {
+            return value
+        }
+        return nil
     }
 }
 
@@ -1875,6 +2127,7 @@ private enum AttachmentBubbleSnapshotAttachment {
     case video
     case voice
     case file
+    case audio
     case link
 
     var attachments: [AnyChatMessageAttachment] {
@@ -1891,6 +2144,8 @@ private enum AttachmentBubbleSnapshotAttachment {
             return ChatChannelTestHelpers.voiceRecordingAttachments
         case .file:
             return ChatChannelTestHelpers.fileAttachments
+        case .audio:
+            return ChatChannelTestHelpers.audioAttachments
         case .link:
             return ChatChannelTestHelpers.linkAttachments
         }

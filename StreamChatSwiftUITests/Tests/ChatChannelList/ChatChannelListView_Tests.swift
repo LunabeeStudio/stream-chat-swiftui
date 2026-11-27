@@ -96,7 +96,7 @@ import XCTest
 
     func test_trailingSwipeActionsView_unmuted_snapshot() {
         // Given - channel is not muted, swipe action shows mute (speaker.slash) icon
-        let channel = ChatChannel.mockDMChannel()
+        let channel = ChatChannel.mockDMChannel(ownCapabilities: [.muteChannel])
         let view = TrailingSwipeActionsView(
             channel: channel,
             offsetX: -160,
@@ -116,6 +116,7 @@ import XCTest
     func test_trailingSwipeActionsView_muted_snapshot() {
         // Given - channel is muted, swipe action shows unmute (speaker.wave.2) icon
         let channel = ChatChannel.mockDMChannel(
+            ownCapabilities: [.muteChannel],
             muteDetails: .init(createdAt: .unique, updatedAt: .unique, expiresAt: nil)
         )
         let view = TrailingSwipeActionsView(
@@ -134,10 +135,29 @@ import XCTest
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
 
+    func test_trailingSwipeActionsView_withoutMuteCapability_snapshot() {
+        // Given - user lacks the mute channel capability, only the more actions button is shown
+        let channel = ChatChannel.mockDMChannel()
+        let view = TrailingSwipeActionsView(
+            channel: channel,
+            offsetX: -80,
+            buttonWidth: 80,
+            leftButtonTapped: { _ in },
+            rightButtonTapped: { _ in }
+        )
+        .frame(
+            width: defaultScreenSize.width,
+            height: 64
+        )
+
+        // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
     func test_trailingSwipeActionsView_rightToLeft_snapshot() {
         // Given - in RTL, the action buttons should be aligned to the leading
         // (left) edge with the destructive/primary action appearing leftmost.
-        let channel = ChatChannel.mockDMChannel()
+        let channel = ChatChannel.mockDMChannel(ownCapabilities: [.muteChannel])
         let view = TrailingSwipeActionsView(
             channel: channel,
             offsetX: -160,
@@ -185,6 +205,32 @@ import XCTest
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
 
+    func test_channelListView_splitView_preselectsAndCollapses() {
+        // Given
+        let controller = makeChannelListController()
+        let viewModel = ChatChannelListViewModel(channelListController: controller)
+        let sizeClass = ChannelListSizeClassDriver(.regular)
+
+        // When
+        let host = showView(ChannelListSizeClassHost(driver: sizeClass) {
+            ChatChannelListView(viewModel: viewModel, channelListController: controller)
+        })
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+        // Then
+        XCTAssertEqual(viewModel.selectedChannel?.channel.cid, controller.channels.first?.cid)
+
+        // When
+        sizeClass.value = .compact
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
+
+        // Then
+        viewModel.selectedChannel = nil
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertNil(viewModel.selectedChannel)
+    }
+
     private func makeChannelListController() -> ChatChannelListController_Mock {
         let channelListController = ChatChannelListController_Mock.mock(client: chatClient)
         channelListController.simulateInitial(channels: mockChannels(), state: .initialized)
@@ -224,5 +270,22 @@ class ChannelAvatarViewRegularFactory: ViewFactory {
         Circle()
             .fill(.red)
             .frame(width: options.size, height: options.size)
+    }
+}
+
+final class ChannelListSizeClassDriver: ObservableObject {
+    @Published var value: UserInterfaceSizeClass?
+
+    init(_ value: UserInterfaceSizeClass?) {
+        self.value = value
+    }
+}
+
+struct ChannelListSizeClassHost<Content: View>: View {
+    @ObservedObject var driver: ChannelListSizeClassDriver
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content().environment(\.horizontalSizeClass, driver.value)
     }
 }

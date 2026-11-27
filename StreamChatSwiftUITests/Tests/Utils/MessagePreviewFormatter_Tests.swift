@@ -369,6 +369,60 @@ import XCTest
         XCTAssertEqual(result, "Report.pdf")
     }
 
+    func test_formatAttachmentContent_file_noTitle_emptyText() throws {
+        // Given
+        let message = try ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            attachments: [
+                .dummy(
+                    type: .file,
+                    payload: JSONEncoder().encode(FileAttachmentPayload(
+                        title: nil,
+                        assetRemoteURL: URL(string: "https://example.com/report.pdf")!,
+                        file: .init(type: .pdf, size: 123, mimeType: nil),
+                        extraData: nil
+                    ))
+                )
+            ]
+        )
+        let channel = ChatChannel.mock(cid: .unique)
+
+        // When
+        let result = formatter.formatAttachmentContent(for: message, in: channel)
+
+        // Then
+        XCTAssertEqual(result, L10n.Channel.Item.file)
+    }
+
+    func test_formatAttachmentContent_file_noTitle_usesText() throws {
+        // Given
+        let message = try ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Some text",
+            attachments: [
+                .dummy(
+                    type: .file,
+                    payload: JSONEncoder().encode(FileAttachmentPayload(
+                        title: nil,
+                        assetRemoteURL: URL(string: "https://example.com/report.pdf")!,
+                        file: .init(type: .pdf, size: 123, mimeType: nil),
+                        extraData: nil
+                    ))
+                )
+            ]
+        )
+        let channel = ChatChannel.mock(cid: .unique)
+
+        // When
+        let result = formatter.formatAttachmentContent(for: message, in: channel)
+
+        // Then
+        XCTAssertEqual(result, "Some text")
+    }
+
     func test_formatAttachmentContent_linkPreview() throws {
         // Given
         let url = URL(string: "https://example.com/article")!
@@ -424,5 +478,73 @@ import XCTest
         // Then
         XCTAssertFalse(result.contains("📊"))
         XCTAssertTrue(result.contains("Favorite color?"))
+    }
+
+    // MARK: - Poll translations
+
+    func test_format_poll_whenTranslated_usesTranslatedName() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            poll: .mock(
+                name: "What's for lunch?",
+                createdBy: .mock(id: .unique, name: "Han"),
+                latestVotes: [],
+                nameTranslations: [.spanish: "¿Qué hay de almuerzo?"],
+                originalLanguage: .english
+            )
+        )
+        let channel = ChatChannel.mock(cid: .unique, membership: .mock(id: .unique, language: .spanish))
+
+        // When
+        let result = formatter.format(message, in: channel)
+
+        // Then
+        XCTAssertTrue(result.contains("¿Qué hay de almuerzo?"))
+        XCTAssertFalse(result.contains("What's for lunch?"))
+    }
+
+    func test_formatAttachmentContent_poll_whenTranslated_usesTranslatedName() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            poll: .mock(
+                name: "What's for lunch?",
+                nameTranslations: [.spanish: "¿Qué hay de almuerzo?"],
+                originalLanguage: .english
+            )
+        )
+        let channel = ChatChannel.mock(cid: .unique, membership: .mock(id: .unique, language: .spanish))
+
+        // When
+        let result = formatter.formatAttachmentContent(for: message, in: channel)
+
+        // Then
+        XCTAssertEqual(result, "¿Qué hay de almuerzo?")
+    }
+
+    func test_formatAttachmentContent_poll_whenNoTranslationForLanguage_usesOriginalName() {
+        // Given
+        let message = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "",
+            poll: .mock(
+                name: "What's for lunch?",
+                nameTranslations: [.spanish: "¿Qué hay de almuerzo?"],
+                originalLanguage: .english
+            )
+        )
+        let channel = ChatChannel.mock(cid: .unique, membership: .mock(id: .unique, language: .french))
+
+        // When
+        let result = formatter.formatAttachmentContent(for: message, in: channel)
+
+        // Then
+        XCTAssertEqual(result, "What's for lunch?")
     }
 }

@@ -39,6 +39,19 @@ public class ChatMessageControllerSUI_Mock: ChatMessageController, @unchecked Se
         replies_mock ?? super.replies
     }
 
+    public var hasLoadedAllNextReplies_mock: Bool?
+    override public var hasLoadedAllNextReplies: Bool {
+        hasLoadedAllNextReplies_mock ?? super.hasLoadedAllNextReplies
+    }
+
+    var loadFirstPageCallCount = 0
+    override public func loadFirstPage(
+        limit: Int? = nil,
+        _ completion: (@MainActor (_ error: Error?) -> Void)? = nil
+    ) {
+        loadFirstPageCallCount += 1
+    }
+
     public var state_mock: State?
     override public var state: DataController.State {
         get { state_mock ?? super.state }
@@ -76,6 +89,31 @@ public class ChatMessageControllerSUI_Mock: ChatMessageController, @unchecked Se
     ) {
         updateDraftReply_callCount += 1
         updateDraftReply_text = text
+    }
+
+    var addReaction_types: [MessageReactionType] = []
+    var addReaction_enforceUnique: Bool?
+
+    override public func addReaction(
+        _ type: MessageReactionType,
+        score: Int = 1,
+        enforceUnique: Bool = false,
+        skipPush: Bool = false,
+        pushEmojiCode: String? = nil,
+        extraData: [String: RawJSON] = [:],
+        completion: (@MainActor (Error?) -> Void)? = nil
+    ) {
+        addReaction_types.append(type)
+        addReaction_enforceUnique = enforceUnique
+    }
+
+    var deleteReaction_types: [MessageReactionType] = []
+
+    override public func deleteReaction(
+        _ type: MessageReactionType,
+        completion: (@MainActor (Error?) -> Void)? = nil
+    ) {
+        deleteReaction_types.append(type)
     }
 
     var deleteDraftReply_callCount = 0

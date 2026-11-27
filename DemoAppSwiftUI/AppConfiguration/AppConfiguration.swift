@@ -5,6 +5,7 @@
 import Foundation
 import StreamChat
 import StreamChatSwiftUI
+import SwiftUI
 
 final class AppConfiguration {
     @MainActor static let `default` = AppConfiguration()
@@ -21,10 +22,110 @@ final class AppConfiguration {
     var appStyle: AppStyle = .regular
     /// When enabled, releasing a hold-to-record gesture sends the voice message instantly.
     var isVoiceRecordingAutoSendEnabled = false
+    /// When enabled, messages start at the top of the list when there are few messages.
+    var shouldMessagesStartAtTheTop = false
+    /// The channel list search strategy (channels or messages).
+    ///
+    /// Mirrors UIKit's `Components.default.channelListSearchStrategy`. In-memory only, like the
+    /// rest of the toggles above: it takes effect the next time the channel list is constructed
+    /// (e.g. after logging back in), not on the already-presented one.
+    var channelListSearchType: ChannelListSearchTypeOption = .messages
+    /// Base directory used for Stream Chat attachment downloads.
+    ///
+    /// Applied when creating `ChatClient`, so changes take effect on the next app launch.
+    var attachmentDownloadsDirectory: AttachmentDownloadsDirectory = .stored {
+        didSet { AttachmentDownloadsDirectory.stored = attachmentDownloadsDirectory }
+    }
 
     enum AppStyle: String, CaseIterable {
         case regular
         case liquidGlass
+    }
+
+    /// The channel list search backend to query from the search bar.
+    ///
+    /// A thin, `Hashable`, demo-app-local stand-in for `ChannelListSearchType` (which is a plain
+    /// `Equatable` class in the SDK and so isn't usable directly as a `Picker` selection).
+    enum ChannelListSearchTypeOption: String, CaseIterable, Identifiable {
+        case channels
+        case messages
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .channels: return "Channels"
+            case .messages: return "Messages"
+            }
+        }
+
+        var resolved: ChannelListSearchType {
+            switch self {
+            case .channels: return .channels
+            case .messages: return .messages
+            }
+        }
+    }
+
+    /// Common sandbox locations for storing downloaded attachments.
+    enum AttachmentDownloadsDirectory: String, CaseIterable, Identifiable {
+        case documents
+        case applicationSupport
+        case caches
+
+        private static let userDefaultsKey = "demo.attachmentDownloadsDirectory"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .documents:
+                return "Documents"
+            case .applicationSupport:
+                return "Application Support"
+            case .caches:
+                return "Caches"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .documents:
+                return "User-visible, included in backups"
+            case .applicationSupport:
+                return "Hidden, included in backups"
+            case .caches:
+                return "Hidden, excluded from backups"
+            }
+        }
+
+        /// Persisted selection used when building `ChatClientConfig`.
+        static var stored: AttachmentDownloadsDirectory {
+            get {
+                guard let rawValue = UserDefaults.standard.string(forKey: userDefaultsKey),
+                      let value = Self(rawValue: rawValue) else {
+                    return .documents
+                }
+                return value
+            }
+            set {
+                UserDefaults.standard.set(newValue.rawValue, forKey: userDefaultsKey)
+            }
+        }
+
+        var folderURL: URL? {
+            let fileManager = FileManager.default
+            switch self {
+            case .documents:
+                return fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+            case .applicationSupport:
+                return fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                    .appendingPathComponent("io.getstream.StreamChat", isDirectory: true)
+            case .caches:
+                return fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first?
+                    .appendingPathComponent("io.getstream.StreamChat", isDirectory: true)
+            }
+        }
     }
 
     /// Builds the demo app's `ComposerConfig` using current app configuration.
@@ -43,7 +144,14 @@ final class AppConfiguration {
             ),
             skipEditedMessageLabel: { message in
                 message.extraData["ai_generated"]?.boolValue == true
-            }
+            },
+            videoAttachmentCachingPolicy: VideoAttachmentCachingPolicy(maxCacheSize: 100 * 1024 * 1024),
+            shouldMessagesStartAtTheTop: AppConfiguration.default.shouldMessagesStartAtTheTop
         )
+    }
+
+    /// Builds the demo app's `CommandsConfig` using the enhanced mention suggestions provider.
+    @MainActor static func makeCommandsConfig() -> CommandsConfig {
+        EnhancedMentionsCommandsConfig()
     }
 }

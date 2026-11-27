@@ -16,6 +16,20 @@ import XCTest
         author: .mock(id: .unique)
     )
 
+    func test_viewFactory_makeChannelDestination_passesSplitViewState() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        let selection = ChannelSelectionInfo(channel: .mockDMChannel(), message: nil)
+
+        // When
+        let splitView = viewFactory.makeChannelDestination(options: ChannelDestinationOptions(isInSplitView: true))(selection)
+        let stackView = viewFactory.makeChannelDestination(options: ChannelDestinationOptions())(selection)
+
+        // Then
+        XCTAssertTrue(splitView.isInSplitView)
+        XCTAssertFalse(stackView.isInSplitView)
+    }
+
     func test_viewFactory_makeEmptyChannelsView() {
         // Given
         let viewFactory = DefaultViewFactory.shared
@@ -270,6 +284,24 @@ import XCTest
 
         // Then
         XCTAssert(view is FileAttachmentsContainer<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeAudioAttachmentView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+
+        // When
+        let view = viewFactory.makeAudioAttachmentView(
+            options: AudioAttachmentViewOptions(
+                message: message,
+                isFirst: true,
+                availableWidth: 300,
+                scrolledId: .constant(nil)
+            )
+        )
+
+        // Then
+        XCTAssert(view is AudioAttachmentContainerView<DefaultViewFactory>)
     }
 
     func test_viewFactory_makeDeletedMessageView() {
@@ -544,7 +576,7 @@ import XCTest
         )
 
         // Then
-        XCTAssert(view is EmptyView)
+        XCTAssertEqual(ObjectIdentifier(type(of: view)), ObjectIdentifier(EmptyView.self))
     }
 
     func test_viewFactory_makeTrailingSwipeActionsView() {
@@ -564,7 +596,7 @@ import XCTest
         )
 
         // Then
-        XCTAssert(view is TrailingSwipeActionsView)
+        XCTAssertEqual(ObjectIdentifier(type(of: view)), ObjectIdentifier(TrailingSwipeActionsView.self))
     }
 
     func test_viewFactory_makeMessageReadIndicatorView() {
@@ -1112,6 +1144,23 @@ import XCTest
         
         // Then
         XCTAssert(view is MemberAddView<DefaultViewFactory>)
+    }
+
+    func test_viewFactory_makeChannelInfoActionsView() {
+        // Given
+        let viewFactory = DefaultViewFactory.shared
+        let viewModel = ChatChannelInfoViewModel(channel: .mockDMChannel())
+
+        // When
+        let view = viewFactory.makeChannelInfoActionsView(
+            options: ChannelInfoActionsViewOptions(
+                viewModel: viewModel,
+                leaveConversation: {}
+            )
+        )
+
+        // Then
+        XCTAssert(view is ChannelInfoActionsView)
     }
 
     func test_viewFactory_makeStreamTextView() {

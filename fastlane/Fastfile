@@ -16,14 +16,27 @@ derived_data_path = 'derived_data'
 source_packages_path = 'spm_cache'
 is_localhost = !is_ci
 mock_server_driver_port = 4568
+e2e_coverage_dir = File.expand_path('test_output/e2e_coverage')
+e2e_coverage_map_path = File.expand_path('test_output/e2e_coverage_map.json')
+e2e_coverage_map_artifact = 'e2e-coverage-map'
+e2e_selection_path = File.expand_path("../#{derived_data_path}/Build/e2e_selection.json")
 swift_environment_path = File.absolute_path('../Sources/StreamChatSwiftUI/Generated/SystemEnvironment+Version.swift')
 @force_check = false
+xcodebuild_formatter = FastlaneCore::Globals.verbose? ? '' : nil
+@impact = nil
+
+# These lanes do not build anything, so they can run on Linux.
+lanes_without_xcode = [
+  :sonar_upload, :allure_launch, :allure_upload, :copyright, :merge_main, :pr, :release, :merge_release, :publish_release,
+  :lint_pr, :rubocop, :run_swift_format, :validate_public_interface, :required_checks
+]
 
 before_all do |lane|
+  @impact = impact_analysis
   if is_ci
     setup_ci
     setup_git_config
-    select_xcode(version: xcode_version) unless [:sonar_upload, :allure_launch, :allure_upload, :copyright, :merge_main, :pr].include?(lane)
+    select_xcode(version: xcode_version) unless lanes_without_xcode.include?(lane)
   end
 end
 
@@ -53,6 +66,9 @@ end
 
 desc 'Release a new version'
 lane :release do |options|
+  # Reuse the sizes from the SDK Size workflow, so no archive is needed.
+  sizes = benchmark_sdk_sizes
+
   extra_changes = lambda do |release_version|
     # Set the framework version in SystemEnvironment+Version.swift
     old_content = File.read(swift_environment_path)
@@ -61,9 +77,10 @@ lane :release do |options|
     File.open(swift_environment_path, 'w') { |f| f.puts(new_content) }
 
     # Update sdk sizes
-    Dir.chdir('fastlane') { update_img_shields_sdk_sizes }
+    Dir.chdir('fastlane') { update_img_shields_sdk_sizes(sizes: sizes) }
   end
 
+  lint_swift_package
   check_unsafe_flags
 
   release_ios_sdk(
@@ -96,6 +113,7 @@ lane :publish_release do |options|
   release_version = get_sdk_version_from_environment
   UI.user_error!("Release #{release_version} has already been published.") if git_tag_exists(tag: release_version, remote: true)
   UI.user_error!('Release version cannot be empty') if release_version.to_s.empty?
+  File.write(ENV['GITHUB_ENV'], "RELEASE_VERSION=#{release_version}\n", mode: 'a') if ENV['GITHUB_ENV']
   ensure_git_branch(branch: 'main')
 
   publish_ios_sdk(
@@ -117,37 +135,35 @@ end
 
 private_lane :appstore_api_key do
   @appstore_api_key ||= app_store_connect_api_key(
-    key_id: 'MT3PRT8TB7',
+    key_id: '8KCMZF773S',
     issuer_id: '69a6de96-0738-47e3-e053-5b8c7c11a4d1',
     key_content: ENV.fetch('APPSTORE_API_KEY', nil),
     in_house: false
   )
 end
 
-desc "Updates StreamChat dependency locally. Usage: `bundle exec fastlane update_stream_chat version:4.56.0`"
+desc "Updates StreamChat dependency locally. Usage: `bundle exec fastlane update_stream_chat version:5.9.0`"
 lane :update_stream_chat do |options|
-  raise UI.user_error!('Provide a version.') unless options[:version]
+  version = options[:version]
+  UI.user_error!('Provide a version.') unless version
 
   Dir.chdir('..') do
+    # The dependency is pinned to a develop revision between releases, so accept any requirement kind
     file = 'Package.swift'
-    current_stream_chat_version = File.read(file)[/stream-chat-swift\.git", from: "([^"]+)"\)/, 1]
-    UI.user_error!("Could not find current StreamChat version in #{file}") unless current_stream_chat_version
-
-    File.write(file, File.read(file).gsub(/(stream-chat-swift\.git", from: ")[^"]+"/, "\\1#{options[:version]}\""))
+    content = File.read(file)
+    dependency = /(stream-chat-swift\.git",\s*)(?:from|exact|branch|revision): "[^"]+"/
+    UI.user_error!("Could not find the StreamChat dependency in #{file}") unless content.match?(dependency)
+    File.write(file, content.sub(dependency, "\\1from: \"#{version}\""))
 
     file = 'StreamChatSwiftUI.xcodeproj/project.pbxproj'
     content = File.read(file)
-    if content.include?("minimumVersion = #{current_stream_chat_version}")
-      File.write(file, content.gsub("minimumVersion = #{current_stream_chat_version}", "minimumVersion = #{options[:version]}"))
-    elsif content.include?('branch = develop')
-      File.write(file, content.gsub('kind = branch', "minimumVersion = #{options[:version]}").gsub('branch = develop', 'kind = upToNextMajorVersion'))
-    else
-      UI.user_error!("Something went wrong after trying to modify #{file}.")
-    end
+    requirement = /(stream-chat-swift\.git";\s*requirement = \{)[^}]*\n(\s*)\};/
+    UI.user_error!("Could not find the StreamChat package reference in #{file}") unless content.match?(requirement)
+    File.write(file, content.sub(requirement) { "#{$1}\n#{$2}\tkind = upToNextMajorVersion;\n#{$2}\tminimumVersion = #{version};\n#{$2}};" })
   end
 
   pr_create(
-    title: "Update StreamChat dependency to #{options[:version]}",
+    title: "Update StreamChat dependency to #{version}",
     base_branch: 'develop',
     head_branch: "ci/update-stream-chat-dependency-#{Time.now.to_i}",
     github_repo: github_repo
@@ -189,27 +205,30 @@ end
 
 desc 'Runs tests in Debug config'
 lane :test_ui do |options|
-  next unless is_check_required(sources: sources_matrix[:ui], force_check: @force_check)
-
   record_mode = options[:record].to_s == 'true'
   remove_snapshots if record_mode
 
   update_testplan_on_ci(path: 'StreamChatSwiftUITests/Tests/StreamChatSwiftUI.xctestplan')
 
-  scan(
-    project: xcode_project,
-    scheme: 'StreamChatSwiftUI',
-    testplan: 'StreamChatSwiftUI',
-    configuration: 'Debug',
-    clean: is_localhost,
-    derived_data_path: derived_data_path,
-    cloned_source_packages_path: source_packages_path,
-    result_bundle: true,
-    devices: options[:device],
-    build_for_testing: options[:build_for_testing],
-    skip_build: options[:skip_build],
-    number_of_retries: options[:record].to_s.empty? ? 1 : nil,
-    fail_build: !record_mode
+  scan_with_retries(
+    scan_options: {
+      project: xcode_project,
+      scheme: 'StreamChatSwiftUI',
+      testplan: 'StreamChatSwiftUI',
+      configuration: 'Debug',
+      clean: is_localhost,
+      derived_data_path: derived_data_path,
+      cloned_source_packages_path: source_packages_path,
+      result_bundle: true,
+      devices: options[:device],
+      destination: options[:destination],
+      skip_detect_devices: !options[:destination].nil?,
+      build_for_testing: options[:build_for_testing],
+      skip_build: options[:skip_build],
+      fail_build: !record_mode,
+      xcodebuild_formatter: xcodebuild_formatter
+    },
+    retries: record_mode ? 0 : 1
   )
 
   if record_mode && is_ci
@@ -241,7 +260,8 @@ lane :build_test_app_and_frameworks do
     derived_data_path: derived_data_path,
     cloned_source_packages_path: source_packages_path,
     clean: is_localhost,
-    build_for_testing: true
+    build_for_testing: true,
+    xcodebuild_formatter: xcodebuild_formatter
   )
 end
 
@@ -276,9 +296,8 @@ end
 
 desc 'Runs e2e ui tests using mock server in Debug config'
 lane :test_e2e_mock do |options|
-  next unless is_check_required(sources: sources_matrix[:e2e], force_check: @force_check)
-
   start_mock_server
+  allow_photo_library_access(device: options[:device])
 
   scan_options = {
     project: xcode_project,
@@ -287,60 +306,198 @@ lane :test_e2e_mock do |options|
     result_bundle: true,
     derived_data_path: derived_data_path,
     cloned_source_packages_path: source_packages_path,
-    clean: is_localhost,
+    clean: is_localhost && !options[:test_without_building],
     test_without_building: options[:test_without_building],
     devices: options[:device],
     prelaunch_simulator: is_ci,
-    number_of_retries: 3
+    xcodebuild_formatter: xcodebuild_formatter
   }
 
-  if ENV['MATRIX_SIZE'] && options[:batch]
-    products_dir = File.expand_path("../#{derived_data_path}/Build/Products")
-    xctestrun = Dir.glob(File.expand_path("#{products_dir}/*.xctestrun")).first
-    tests = retrieve_xctest_names(xctestrun: xctestrun).values.flatten
-    slice_size = (tests.size / ENV['MATRIX_SIZE'].to_f).ceil
-    only_testing = []
-    tests.each_slice(slice_size) { |test| only_testing << test }
-    only_testing_batch = only_testing[options[:batch].to_i]
-    scan_options[:only_testing] = only_testing_batch
-    UI.important("Tests in total: #{only_testing.flatten.size}. Running #{only_testing_batch.size} of them ⌛️")
+  if options[:coverage]
+    scan(scan_options.merge(build_for_testing: true, code_coverage: true))
+    scan_options[:test_without_building] = true
+    scan_options[:clean] = false
+    FileUtils.rm_rf(e2e_coverage_dir)
+    ENV['TEST_RUNNER_E2E_COVERAGE_DIR'] = e2e_coverage_dir
   end
+
+  if ENV['MATRIX_SIZE'] && options[:batch]
+    tests = File.exist?(e2e_selection_path) ? JSON.parse(File.read(e2e_selection_path))['tests'] : all_e2e_tests
+    slice_size = [(tests.size / ENV['MATRIX_SIZE'].to_f).ceil, 1].max
+    only_testing_batch = tests.each_slice(slice_size).to_a[options[:batch].to_i].to_a
+    UI.important("Tests in total: #{tests.size}. Running #{only_testing_batch.size} of them ⌛️")
+    next if only_testing_batch.empty?
+
+    scan_options[:only_testing] = only_testing_batch
+  end
+
+  failed_tests = []
+  begin
+    scan_with_retries(scan_options: scan_options)
+  rescue StandardError
+    # Only the tests that failed on the last attempt stay failed for the coverage map, keyed as `Class/method`.
+    failed_tests = retreive_failed_tests.map { |test| test.delete_suffix('()') }
+    raise
+  ensure
+    build_e2e_coverage_map(failed_tests: failed_tests) if options[:coverage]
+  end
+end
+
+desc 'Picks the e2e tests the pull request can affect and exposes how many CI batches they need'
+lane :select_e2e_tests do |options|
+  all_tests = all_e2e_tests
+  UI.user_error!('No e2e tests found in the built xctestrun') if all_tests.empty?
+  tests = []
+  # A manual run's tip may be a "Merge develop" commit, which the selection would mistake for a pull request merge.
+  run_all_reason =
+    if is_ci && ENV['GITHUB_EVENT_NAME'] != 'pull_request'
+      'not a pull request'
+    elsif ENV['GITHUB_HEAD_REF'].to_s.start_with?('release/') || ENV['GITHUB_BASE_REF'] == 'main'
+      'release pull request'
+    end
+  if run_all_reason
+    UI.important("Running all #{all_tests.size} tests: #{run_all_reason}")
+    tests = all_tests
+    File.write(e2e_selection_path, JSON.generate(run_all: true, tests: tests, reasons: [run_all_reason]))
+  else
+    selection = select_impacted_tests(
+      all_tests: all_tests,
+      coverage_map: options[:coverage_map],
+      coverage_map_artifact: e2e_coverage_map_artifact,
+      diff_base: options[:diff_base],
+      changed_files: options[:changed_files]&.split(','),
+      source_paths: ['Sources', 'StreamChatSwiftUITestsApp'],
+      test_paths: ['StreamChatSwiftUITestsAppTests/Tests'],
+      ignore_paths: ['**/*.md', '**/*.stencil', '**/*.yml', 'Sources/*/Info.plist'],
+      run_all_paths: [
+        'StreamChatSwiftUITestsAppTests/Tests/BaseTestCase',
+        'StreamChatSwiftUITestsAppTests/Extensions',
+        'StreamChatSwiftUITestsAppTests/Pages',
+        'StreamChatSwiftUITestsAppTests/Robots',
+        'StreamChatSwiftUITestsAppTests/StreamChatSwiftUITestsApp.xctestplan',
+        'StreamChatSwiftUITestsAppTests/StreamChatSwiftUITests.swift',
+        'Package.swift'
+      ],
+      # Changes to code nearly every test runs (launch, login, channel list) take one test per class; the nightly run covers the rest.
+      hot_test_ratio: 0.9,
+      output_path: e2e_selection_path
+    )
+    tests = selection['tests']
+  end
+
+  # Up to 3 batches, none bigger than a third of the suite, so a small selection takes fewer runners.
+  max_batches = 3
+  batch_size = (all_tests.size / max_batches.to_f).ceil
+  batches = (0...[(tests.size / batch_size.to_f).ceil, max_batches].min).to_a
+  UI.important("E2E batches: #{batches.size}")
+  File.write(ENV['GITHUB_OUTPUT'], "e2e_batches=#{batches.to_json}\n", mode: 'a') if ENV['GITHUB_OUTPUT']
+  batches
+end
+
+private_lane :build_e2e_coverage_map do |options|
+  next UI.important('No e2e coverage was collected') if Dir.glob("#{e2e_coverage_dir}/*/*/*.profraw").empty?
+
+  app = Dir.glob(File.expand_path("../#{derived_data_path}/Build/Products/*-iphonesimulator/StreamChatSwiftUITestsApp.app")).first
+  executable = ["#{app}/StreamChatSwiftUITestsApp.debug.dylib", "#{app}/StreamChatSwiftUITestsApp"].find { |path| File.exist?(path) }
+  frameworks = Dir.glob("#{app}/Frameworks/*.framework").map { |framework| "#{framework}/#{File.basename(framework, '.framework')}" }
+
+  build_test_coverage_map(
+    coverage_dir: e2e_coverage_dir,
+    binaries: [executable] + frameworks,
+    output_path: e2e_coverage_map_path,
+    previous_map_artifact: e2e_coverage_map_artifact,
+    failed_tests: options[:failed_tests]
+  )
+end
+
+# The test runner saves a video to the photo library and the app's media picker reads it. Granting access up front
+# avoids the system prompts, which can be dismissed as "Don't Allow" when they're not answered in time and then
+# stay denied for every retry.
+private_lane :allow_photo_library_access do |options|
+  next UI.important('No device is given, photo library access is not granted') unless options[:device]
+
+  name, os_version = options[:device].match(/^(.+?)(?: \(([\d.]+)\))?$/).captures
+  simulators = FastlaneCore::DeviceManager.simulators('iOS')
+  simulator =
+    if os_version
+      simulators.find { |device| device.name == name && Gem::Version.new(device.os_version) == Gem::Version.new(os_version) }
+    else
+      # Same pick as `scan` makes for a device without a version, so both target the same simulator.
+      Scan::DetectValues.highest_compatible_simulator(simulators, name)
+    end
+  UI.user_error!("No simulator matches #{options[:device]}, photo library access cannot be granted") unless simulator
+
+  sh("xcrun simctl bootstatus #{simulator.udid} -b")
+  sh("xcrun simctl privacy #{simulator.udid} grant photos-add io.getstream.iOS.StreamChatSwiftUITestsAppTests.xctrunner")
+  sh("xcrun simctl privacy #{simulator.udid} grant photos io.getstream.iOS.StreamChatSwiftUITestsApp")
+end
+
+private_lane :all_e2e_tests do
+  xctestrun = Dir.glob(File.expand_path("../#{derived_data_path}/Build/Products/*.xctestrun")).first
+  retrieve_xctest_names(xctestrun: xctestrun).values.flatten
+end
+
+# Runs scan and re-runs only the tests that failed, up to `retries` times.
+# Every attempt recalculates the failing set from the previous run's result
+# bundle, so a shrinking set of flaky tests converges instead of dragging
+# the whole suite along.
+private_lane :scan_with_retries do |options|
+  scan_options = options[:scan_options].merge(result_bundle: true)
+  attempts_left = options[:retries] || 3
+  retry_number = 0
+  Dir.glob(File.expand_path("test_output/#{scan_options[:scheme]}-retry-*.xcresult")).each { |bundle| FileUtils.rm_rf(bundle) }
 
   begin
     scan(scan_options)
   rescue StandardError
+    raise if attempts_left.zero?
+
     failed_tests = retreive_failed_tests
-    UI.important("Re-running #{failed_tests.size} failed tests ⌛️")
-    scan(scan_options.merge(only_testing: failed_tests))
+    raise if failed_tests.empty?
+
+    attempts_left -= 1
+    UI.important("Re-running #{failed_tests.size} failed tests ⌛️ (#{attempts_left} retries left)")
+    # scan replaces the default result bundle on every run, so each retry keeps its own next to the full first run.
+    scan_options = scan_options.merge(
+      only_testing: failed_tests,
+      clean: false,
+      result_bundle_path: File.expand_path("test_output/#{scan_options[:scheme]}-retry-#{retry_number += 1}.xcresult")
+    )
+    retry
   end
 end
 
+# The tests that failed in the last scan, as `Bundle/Suite/test()` for `only_testing`.
+# Read from the result bundle rather than scan's junit report: scan skips the report when the
+# formatted output lacks a test summary, as xcbeautify's does for Swift Testing, and the report
+# names Swift Testing tests by their display names, which `only_testing` doesn't accept.
 private_lane :retreive_failed_tests do
-  report_path = 'test_output/report.junit'
-  raise UI.user_error!('There is no junit report to parse') unless File.file?(report_path)
+  result_bundle_path = lane_context[SharedValues::SCAN_GENERATED_XCRESULT_PATH]
+  next [] if result_bundle_path.nil? || !File.directory?(result_bundle_path)
 
-  junit_report = Nokogiri::XML(File.read(report_path))
-  failed_tests = []
-  passed_tests = []
-  suite_name = junit_report.xpath('//testsuite').first['name'].split('.').first
-  junit_report.xpath('//testcase').each do |testcase|
-    class_name = testcase['classname'].split('.').last
-    test_name = testcase['name'].delete('()')
-
-    if testcase.at_xpath('failure')
-      failed_tests << "#{suite_name}/#{class_name}/#{test_name}"
-    else
-      passed_tests << "#{suite_name}/#{class_name}/#{test_name}"
-    end
+  begin
+    results = JSON.parse(sh('xcrun', 'xcresulttool', 'get', 'test-results', 'tests', '--path', result_bundle_path, log: false))
+  rescue StandardError => e
+    UI.error("Couldn't read the failed tests from #{result_bundle_path}: #{e.message}")
+    next []
   end
 
-  (failed_tests - passed_tests).uniq
+  failed_tests = []
+  collect_failed = lambda do |node, bundle|
+    bundle = node['name'] if ['Unit test bundle', 'UI test bundle'].include?(node['nodeType'])
+    if node['nodeType'] == 'Test Case'
+      failed_tests << "#{bundle}/#{node['nodeIdentifier']}" if node['result'] == 'Failed' && bundle && node['nodeIdentifier']
+    else
+      node.fetch('children', []).each { |child| collect_failed.call(child, bundle) }
+    end
+  end
+  results.fetch('testNodes', []).each { |node| collect_failed.call(node, nil) }
+
+  failed_tests.uniq
 end
 
 desc 'Builds Demo app'
 lane :build_demo do |options|
-  next unless is_check_required(sources: sources_matrix[:sample_apps], force_check: @force_check)
-
   scan(
     project: xcode_project,
     scheme: 'DemoAppSwiftUI',
@@ -348,7 +505,10 @@ lane :build_demo do |options|
     derived_data_path: derived_data_path,
     cloned_source_packages_path: source_packages_path,
     build_for_testing: true,
-    devices: options[:device]
+    devices: options[:device],
+    destination: options[:destination],
+    skip_detect_devices: !options[:destination].nil?,
+    xcodebuild_formatter: xcodebuild_formatter
   )
 end
 
@@ -358,8 +518,6 @@ end
 
 desc 'Run fastlane linting'
 lane :rubocop do
-  next unless is_check_required(sources: sources_matrix[:ruby], force_check: @force_check)
-
   sh('bundle exec rubocop')
 end
 
@@ -371,7 +529,7 @@ end
 def check_foundation_import
   files_missing_imports = []
   Dir.glob("Sources/**/*.swift").each do |file|
-    next if file =~ /(StreamNuke|StreamSwiftyGif)/
+    next if file.include?('StreamSwiftyGif')
 
     files_missing_imports << file unless File.read(file).match?(/import (Foundation|UIKit|SwiftUI|Combine|StreamChat)/)
   end
@@ -424,16 +582,51 @@ lane :remove_snapshots do |options|
   end
 end
 
-lane :sources_matrix do
+lane :impact_analysis do
   {
-    e2e: ['Sources', 'StreamChatSwiftUITestsAppTests', 'StreamChatSwiftUITestsApp', '.github/workflows/smoke-checks.yml', xcode_project],
-    ui: ['Sources', 'StreamChatSwiftUITests', '.github/workflows/smoke-checks.yml', xcode_project],
-    sample_apps: ['Sources', 'DemoAppSwiftUI', '.github/workflows/smoke-checks.yml', xcode_project],
-    ruby: ['fastlane', 'Gemfile', 'Gemfile.lock', '.github/workflows/smoke-checks.yml'],
-    size: ['Sources', '.github/workflows/smoke-checks.yml', xcode_project],
-    sonar: ['Sources', '.github/workflows/smoke-checks.yml'],
-    public_interface: ['Sources', '.github/workflows/smoke-checks.yml']
+    e2e: {
+      sources: ['Sources', 'DemoAppSwiftUI', 'StreamChatSwiftUITestsAppTests', 'StreamChatSwiftUITestsApp', 'Package.swift'],
+      checks: ['Test E2E UI (Debug) Result']
+    },
+    ui: {
+      sources: ['Sources', 'StreamChatSwiftUITests', 'Package.swift'],
+      checks: ['Test SwiftUI (Debug)', 'Build SDKs (Old Xcode)']
+    },
+    sample_apps: {
+      sources: ['Sources', 'DemoAppSwiftUI', 'Package.swift', 'StreamChatSwiftUI.xcodeproj'],
+      checks: ['Build Demo App']
+    },
+    ruby: {
+      sources: ['fastlane', 'Gemfile', 'Gemfile.lock', '.github/workflows/smoke-checks.yml'],
+      checks: ['Automated Code Review']
+    },
+    size: {
+      sources: ['Sources'],
+      checks: ['Size Metrics']
+    },
+    sonar: {
+      sources: ['Sources'],
+      checks: ['Test SwiftUI (Debug)']
+    },
+    public_interface: {
+      sources: ['Sources'],
+      checks: ['Automated Code Review']
+    }
   }
+end
+
+desc 'Writes the checks this PR needs to GITHUB_OUTPUT, so CI can skip macOS jobs early'
+lane :required_checks do
+  checks = @impact.transform_values do |impact|
+    begin
+      is_check_required(sources: impact[:sources], force_check: @force_check, required_checks: impact[:checks])
+    rescue StandardError => e
+      UI.important("Lookup failed, so the check runs: #{e.message}")
+      true
+    end
+  end
+  UI.important("Required checks: #{checks}")
+  File.write(ENV.fetch('GITHUB_OUTPUT'), "checks=#{checks.to_json}\n", mode: 'a')
 end
 
 lane :copyright do
@@ -447,8 +640,6 @@ lane :copyright do
 end
 
 lane :validate_public_interface do
-  next unless is_check_required(sources: sources_matrix[:public_interface], force_check: @force_check)
-
   # Get branch names
   original_branch = current_branch
   target_branch = ENV['GITHUB_BASE_REF'] || (original_branch.include?('release/') ? 'main' : 'develop')
@@ -489,8 +680,6 @@ lane :validate_public_interface do
 end
 
 lane :show_frameworks_sizes do |options|
-  next unless is_check_required(sources: sources_matrix[:size], force_check: @force_check)
-
   sizes = options[:sizes] || frameworks_sizes
   show_sdk_size(branch_sizes: sizes, github_repo: github_repo)
   update_img_shields_sdk_sizes(sizes: sizes, open_pr: options[:open_pr]) if options[:update_readme]
@@ -502,6 +691,19 @@ lane :update_img_shields_sdk_sizes do |options|
     readme_path: 'README.md',
     sizes: options[:sizes] || frameworks_sizes
   )
+end
+
+# SDK sizes that the SDK Size workflow saved for the current branch.
+private_lane :benchmark_sdk_sizes do
+  Dir.mktmpdir do |dir|
+    clone_internal_metrics(path: dir)
+    path = File.join(dir, "#{github_repo.split('/').last}-size.json")
+    branch = current_branch
+    sizes = JSON.parse(File.read(path))[branch]
+    UI.user_error!("No SDK sizes for #{branch} in #{File.basename(path)}") if sizes.nil?
+
+    sizes
+  end
 end
 
 private_lane :frameworks_sizes do
@@ -529,8 +731,6 @@ private_lane :frameworks_sizes do
 end
 
 lane :size_analyze do
-  next unless is_check_required(sources: sources_matrix[:size], force_check: @force_check)
-
   gym(
     scheme: 'DemoAppSwiftUI',
     configuration: 'Release',
@@ -539,7 +739,8 @@ lane :size_analyze do
     skip_package_pkg: true,
     skip_codesigning: true,
     derived_data_path: derived_data_path,
-    cloned_source_packages_path: source_packages_path
+    cloned_source_packages_path: source_packages_path,
+    xcodebuild_formatter: xcodebuild_formatter
   )
 
   show_detailed_sdk_size(sdk_names: sdk_names, threshold: 42)

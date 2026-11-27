@@ -12,6 +12,7 @@ import StreamChat
 
     @Published public internal(set) var message: ChatMessage
     @Published public internal(set) var channel: ChatChannel
+    @available(*, deprecated, message: "No longer used. The reactions overlay now scrolls its whole content when it exceeds the screen, so the message no longer needs its own scroll view.")
     @Published public var usesScrollView: Bool = false
     public let isInThread: Bool
     private var cancellables = Set<AnyCancellable>()
@@ -98,6 +99,25 @@ import StreamChat
         message.isRightAligned
     }
 
+    /// Whether the message bubble contains elements that should remain separate
+    /// VoiceOver stops (attachments, polls, quotes, or failure affordances).
+    public var keepsBubbleAccessibilityChildrenFocusable: Bool {
+        if failureIndicatorShown {
+            return true
+        }
+        let resolver = utils.messageTypeResolver
+        if resolver.isDeleted(message: message) {
+            return false
+        }
+        if resolver.hasCustomAttachment(message: message, layout: .all) || resolver.hasGiphyAttachment(message: message) {
+            return true
+        }
+        if message.poll != nil || message.quotedMessage != nil || !message.attachmentCounts.isEmpty {
+            return true
+        }
+        return false
+    }
+
     public var messageAuthor: ChatUser? {
         guard messageListConfig.messageDisplayOptions.showAvatars(for: channel, incoming: !isRightAligned) else { return nil }
         return message.author
@@ -133,6 +153,13 @@ import StreamChat
         return nil
     }
 
+    /// Whether the message is shown translated: its text, or the name or options of its poll.
+    public var isTranslated: Bool {
+        if translatedText != nil { return true }
+        guard !message.isDeleted, let language = channel.membership?.language else { return false }
+        return message.poll?.hasTranslation(for: language) == true
+    }
+
     public var translatedLanguageText: String? {
         guard let localizedName = channel.membership?.language?.localizedName else {
             return nil
@@ -146,7 +173,7 @@ import StreamChat
             || sentInChannelShown
             || repliedToThreadShown
             || hasReminder
-            || translatedText != nil
+            || isTranslated
     }
 
     public var threadRepliesShown: Bool {
@@ -173,7 +200,83 @@ import StreamChat
         return utils.messageRemindersFormatter.format(remindAt)
     }
 
+    // MARK: - Accessibility
+
+    /// The VoiceOver sender prefix for the message: "You" for the current user's
+    /// messages, otherwise the author's display name. Always included so that
+    /// continuation messages keep their sender context.
+    public var accessibilitySenderName: String {
+        utils.messageAccessibilityFormatter.senderName(for: message)
+    }
+
+    /// Builds the combined VoiceOver announcement for a plain text/emoji message.
+    ///
+    /// The sender and time are always announced - including on continuation
+    /// messages in a sequence - so navigating directly to any message keeps the
+    /// "who" and "when" context. The delivery status is only announced on the
+    /// last message in a sequence, mirroring the visual UI.
+    ///
+    /// - Parameter showsAllInfo: Whether the message is the last in a sequence
+    ///   (and therefore shows the delivery status).
+    public func accessibilityLabel(showsAllInfo: Bool) -> String {
+        var parts = [
+            accessibilitySenderName,
+            accessibilityContentText,
+            L10n.Message.Accessibility.sentTime(accessibilityTimeText)
+        ]
+        if showsAllInfo, let status = accessibilityDeliveryStatusText {
+            parts.append(status)
+        }
+        return parts.filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// The composite label that an attachment caption should adopt so that
+    /// focusing the caption reads the same full context (sender, content, time
+    /// and delivery status) as a message without attachments.
+    ///
+    /// Returns `nil` for messages without a caption, so the label is only built
+    /// for the messages that actually consume it.
+    public func captionAccessibilityLabel(showsAllInfo: Bool) -> String? {
+        guard hasAttachmentCaption else { return nil }
+        return accessibilityLabel(showsAllInfo: showsAllInfo)
+    }
+
+    private var hasAttachmentCaption: Bool {
+        !message.text.isEmpty && !message.attachmentCounts.isEmpty
+    }
+
+    private var accessibilityContentText: String {
+        if utils.messageTypeResolver.isDeleted(message: message) {
+            return L10n.Message.deletedMessagePlaceholder
+        }
+        return message.textContent(for: translationLanguage) ?? message.adjustedText
+    }
+
+    private var accessibilityTimeText: String {
+        utils.messageAccessibilityFormatter.sentTime(for: message)
+    }
+
+    /// The delivery status announced for the current user's last message in a
+    /// sequence: "read", "delivered" or "sent". `nil` for incoming messages or
+    /// when read events are disabled.
+    private var accessibilityDeliveryStatusText: String? {
+        guard !utils.messageTypeResolver.isDeleted(message: message) else { return nil }
+        guard Self.isDeliveryStatusShown(for: message, in: channel) else { return nil }
+        let readUsers = channel.readUsers(currentUserId: chatClient.currentUserId, message: message)
+        if !readUsers.isEmpty {
+            return L10n.Message.Accessibility.statusRead
+        }
+        if message.deliveryStatus(for: channel) == .delivered {
+            return L10n.Message.Accessibility.statusDelivered
+        }
+        return L10n.Message.Accessibility.statusSent
+    }
+
     // MARK: - Helpers
+
+    static func isDeliveryStatusShown(for message: ChatMessage, in channel: ChatChannel) -> Bool {
+        message.isSentByCurrentUser && channel.config.readEventsEnabled
+    }
 
     private var messageListConfig: MessageListConfig {
         utils.messageListConfig

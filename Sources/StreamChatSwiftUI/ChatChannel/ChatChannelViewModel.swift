@@ -7,12 +7,13 @@ import StreamChat
 import SwiftUI
 
 /// View model for the `ChatChannelView`.
-@MainActor open class ChatChannelViewModel: ObservableObject, MessagesDataSource {
+@MainActor open class ChatChannelViewModel: ObservableObject, MessagesDataSource, EventsControllerDelegate {
     @Injected(\.chatClient) private var chatClient
     @Injected(\.utils) private var utils
     @Injected(\.images) private var images
     
     private var channelDataSource: ChannelDataSource
+    private var eventsController: EventsController?
     private var cancellables = Set<AnyCancellable>()
     private var lastRefreshThreshold = 200
     private let refreshThreshold = 200
@@ -34,7 +35,8 @@ import SwiftUI
 
     private var isActive = true
     private var readsString = ""
-    private var canMarkRead = false
+    /// Whether the channel can currently be marked as read (user has seen first unread / is caught up).
+    @Published public private(set) var canMarkRead = false
     private var hasSetInitialCanMarkRead = false
     private var pendingMarkReadMessageId: MessageId?
     private var currentUserSentNewMessage = false
@@ -45,6 +47,7 @@ import SwiftUI
     private var loadingPreviousMessages: Bool = false
     private var loadingMessagesAround: Bool = false
     private var scrollsToUnreadAfterJumpToMessage = false
+    private var scrollsToLatestAfterLoadingFirstPage = false
     private var disableDateIndicator = false
     private var channelName = ""
     private var onlineIndicatorShown = false
@@ -145,6 +148,12 @@ import SwiftUI
     // in the current session of the channel. If it is true,
     // it should not call markRead() in any scenario.
     public var currentUserMarkedMessageUnread: Bool = false
+
+    // A message the user marked as unread keeps the jump-to-unread button available,
+    // so the message list must not treat the channel as readable.
+    var canMarkReadInMessageList: Bool {
+        canMarkRead && !currentUserMarkedMessageUnread
+    }
 
     @Published public private(set) var channel: ChatChannel?
 
@@ -248,6 +257,9 @@ import SwiftUI
         channelName = channel?.name ?? ""
         checkHeaderType()
         checkUnreadCount()
+
+        eventsController = channelController.client.eventsController()
+        eventsController?.delegate = self
     }
 
     @objc
@@ -277,7 +289,6 @@ import SwiftUI
     
     @objc
     private func didReceiveMemoryWarning() {
-        ImageCache.shared.removeAll()
         messageCachingUtils.clearCache()
     }
     
@@ -295,13 +306,14 @@ import SwiftUI
     public func scrollToLastMessage() {
         if channelDataSource.hasLoadedAllNextMessages {
             updateScrolledIdToNewestMessage()
-        } else {
-            channelDataSource.loadFirstPage { [weak self] _ in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self?.scrolledId = self?.messages.first?.messageId
-                    self?.showScrollToLatestButton = false
-                }
-            }
+            showScrollToLatestButton = false
+            return
+        }
+
+        scrollsToLatestAfterLoadingFirstPage = true
+        channelDataSource.loadFirstPage { [weak self] _ in
+            guard let self, self.channelDataSource.hasLoadedAllNextMessages else { return }
+            self.finishScrollingToLatestAfterLoadingFirstPage()
         }
     }
 
@@ -510,10 +522,16 @@ import SwiftUI
             scrolledId = firstUnreadMessageId
         }
         
-        if !showScrollToLatestButton && scrolledId == nil && !loadingNextMessages {
+        if scrollsToLatestAfterLoadingFirstPage {
+            if channelDataSource.hasLoadedAllNextMessages {
+                finishScrollingToLatestAfterLoadingFirstPage()
+            }
+        } else if !showScrollToLatestButton && scrolledId == nil && !loadingNextMessages {
             updateScrolledIdToNewestMessage()
-        } else if changes.first?.isInsertion == true && currentUserSentNewMessage {
-            updateScrolledIdToNewestMessage()
+        } else if currentUserSentNewMessage && changes.contains(where: \.isInsertion) {
+            if channelDataSource.hasLoadedAllNextMessages {
+                updateScrolledIdToNewestMessage()
+            }
             currentUserSentNewMessage = false
         }
         
@@ -579,11 +597,30 @@ import SwiftUI
     }
     
     @objc public func onViewDissappear() {
+        guard isActive else { return }
         isActive = false
+        throttler.cancel()
+        if shouldMarkChannelRead {
+            channelController.markRead()
+        }
     }
     
     public func setActive() {
         isActive = true
+    }
+
+    open func eventsController(_ controller: EventsController, didReceiveEvent event: Event) {
+        guard let pendingEvent = event as? NewMessagePendingEvent else { return }
+        guard pendingEvent.cid == channelController.cid else { return }
+
+        let newMessage = pendingEvent.message
+        let isRelevantMessage = isMessageThread
+            ? newMessage.parentMessageId == messageController?.messageId
+            : !newMessage.isPartOfThread
+        guard newMessage.isSentByCurrentUser, isRelevantMessage else { return }
+        guard !channelDataSource.hasLoadedAllNextMessages else { return }
+
+        scrollToLastMessage()
     }
     
     // MARK: - private
@@ -658,9 +695,11 @@ import SwiftUI
             pendingMarkReadMessageId = message.id
             return
         }
+        // First request runs immediately via Throttler; later calls within the
+        // interval are coalesced. We keep `firstUnreadMessageId` set which keeps
+        // showing the new messages header in the channel view.
         throttler.execute { [weak self] in
             self?.channelController.markRead()
-            // We keep `firstUnreadMessageId` value set which keeps showing the new messages header in the channel view
         }
     }
     
@@ -767,6 +806,16 @@ import SwiftUI
         }
     }
 
+    private var shouldMarkChannelRead: Bool {
+        guard !isMessageThread else { return false }
+        guard hasSetInitialCanMarkRead, canMarkRead else { return false }
+        guard !currentUserMarkedMessageUnread else { return false }
+        guard !showScrollToLatestButton else { return false }
+        guard pendingMarkReadMessageId == nil else { return false }
+        guard messages.first?.isLocalOnly != true else { return false }
+        return channelDataSource.hasLoadedAllNextMessages
+    }
+
     private var shouldMarkThreadRead: Bool {
         guard UIApplication.shared.applicationState == .active else {
             return false
@@ -812,6 +861,12 @@ import SwiftUI
             switch change {
             case .insert,
                  .remove:
+                // When messages render from the top, insertions/removals must not
+                // animate: the implicit bottom spacer would resize and the whole
+                // stack would appear to shift instead of the row simply appearing.
+                if utils.messageListConfig.shouldMessagesStartAtTheTop {
+                    continue
+                }
                 return true
             case let .update(message, index: index):
                 guard index.row >= messages.startIndex, index.row < messages.endIndex else { continue }
@@ -864,13 +919,21 @@ import SwiftUI
         }
         scrolledId = messages.first?.messageId
     }
+
+    private func finishScrollingToLatestAfterLoadingFirstPage() {
+        guard scrollsToLatestAfterLoadingFirstPage else { return }
+        scrollsToLatestAfterLoadingFirstPage = false
+        updateScrolledIdToNewestMessage()
+        showScrollToLatestButton = false
+    }
     
     private func cleanupAudioPlayer() {
-        guard utils.composerConfig.isVoiceRecordingEnabled else { return }
-        utils.audioPlayer.seek(to: 0)
-        utils.audioPlayer.updateRate(.normal)
-        utils.audioPlayer.stop()
+        guard let audioPlayer = utils._audioPlayer else { return }
+        audioPlayer.seek(to: 0)
+        audioPlayer.updateRate(.normal)
+        audioPlayer.stop()
         utils._audioPlayer = nil
+        utils._audioSessionHandler?.resetPlaybackState()
     }
     
     deinit {
@@ -880,7 +943,7 @@ import SwiftUI
             if messageController == nil {
                 utils.channelControllerFactory.clearCurrentController()
                 cleanupAudioPlayer()
-                ImageCache.shared.trim(toCost: utils.messageListConfig.cacheSizeOnChatDismiss)
+                utils.mediaLoader.trimImageMemoryCache(toCost: utils.messageListConfig.cacheSizeOnChatDismiss)
             }
         }
     }

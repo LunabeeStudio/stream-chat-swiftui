@@ -43,6 +43,7 @@ public struct ComposerAttachmentPickerButton<Factory: ViewFactory>: View, Keyboa
         .foregroundColor(Color(colors.buttonSecondaryText))
         .modifier(factory.styles.makeComposerButtonViewModifier(options: .init()))
         .accessibilityLabel(isExpanded ? L10n.Composer.Attachment.Accessibility.close : L10n.Composer.Attachment.Accessibility.open)
+        .accessibilityIdentifier("ComposerAttachmentPickerButton")
         .onChange(of: pickerTypeState) { _ in
             triggerHapticFeedback(style: .soft)
         }
@@ -51,6 +52,7 @@ public struct ComposerAttachmentPickerButton<Factory: ViewFactory>: View, Keyboa
                 triggerHapticFeedback(style: .soft)
             }
         }
+        .isolatedGeometry()
     }
 
     private var isExpanded: Bool {

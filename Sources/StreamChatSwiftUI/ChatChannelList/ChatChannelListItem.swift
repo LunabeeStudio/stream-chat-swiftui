@@ -104,6 +104,8 @@ public struct ChatChannelListItem<Factory: ViewFactory>: View {
         }
         .foregroundColor(.black)
         .disabled(disabled)
+        .accessibilityLabel(viewModel.accessibilityLabel)
+        .accessibilityHint(Text(L10n.Channel.Item.Accessibility.openHint))
         .id("\(viewModel.channel.id)-base")
     }
 }
@@ -113,6 +115,8 @@ public struct ChatChannelListItem<Factory: ViewFactory>: View {
 /// Renders the channel name and, when `showInlineMutedIcon` is `true`,
 /// an inline muted icon after the name.
 public struct ChannelItemTitleView: View {
+    @ScaledMetric(relativeTo: .headline) private var iconScale: CGFloat = 1
+
     /// The channel display name.
     public let channelName: String
     /// Whether the muted icon should be shown inline next to the channel name.
@@ -131,7 +135,7 @@ public struct ChannelItemTitleView: View {
             ChatTitleView(name: channelName)
             if showInlineMutedIcon {
                 ChannelItemMutedIcon()
-                    .frame(maxHeight: 14)
+                    .frame(maxHeight: 14 * iconScale)
                     .padding(.bottom, -2)
             }
         }
@@ -144,14 +148,17 @@ public struct ChannelItemMutedIcon: View {
     @Injected(\.images) private var images
     @Injected(\.tokens) private var tokens
 
+    @ScaledMetric(relativeTo: .subheadline) private var iconScale: CGFloat = 1
+
     public init() {}
 
     public var body: some View {
         Image(uiImage: images.muted)
             .customizable()
-            .frame(height: tokens.iconSizeMd)
+            .frame(height: tokens.iconSizeMd * iconScale)
             .foregroundColor(Color(colors.textTertiary))
             .accessibilityLabel(Text(L10n.Channel.Item.muted))
+            .accessibilityIdentifier("ChannelItemMutedIcon")
     }
 }
 

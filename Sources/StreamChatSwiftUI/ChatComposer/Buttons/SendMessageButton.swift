@@ -37,7 +37,6 @@ public struct SendMessageButton: View {
     }
 }
 
-@available(iOS 15, *)
 #Preview {
     HStack(spacing: 16) {
         VStack {

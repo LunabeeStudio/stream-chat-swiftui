@@ -73,7 +73,7 @@ extension ViewFactory {
             channelListItem: listItem,
             swipedChannelId: options.swipedChannelId,
             channel: options.channel,
-            numberOfTrailingItems: 2,
+            numberOfTrailingItems: options.channel.ownCapabilities.contains(.muteChannel) ? 2 : 1,
             trailingRightButtonTapped: options.trailingSwipeRightButtonTapped,
             trailingLeftButtonTapped: options.trailingSwipeLeftButtonTapped,
             leadingSwipeButtonTapped: options.leadingSwipeButtonTapped
@@ -175,7 +175,8 @@ extension ViewFactory {
             return ChatChannelView(
                 viewFactory: self,
                 channelController: controller,
-                scrollToMessage: selectionInfo.message
+                scrollToMessage: selectionInfo.message,
+                isInSplitView: options.isInSplitView
             )
         }
     }
@@ -673,6 +674,12 @@ extension ViewFactory {
             scrolledId: options.scrolledId
         )
     }
+
+    public func makeAudioAttachmentView(
+        options: AudioAttachmentViewOptions
+    ) -> some View {
+        AudioAttachmentContainerView(factory: self, options: options)
+    }
     
     public func makeCustomAttachmentPickerView(
         options: CustomAttachmentPickerViewOptions
@@ -703,7 +710,8 @@ extension ViewFactory {
             photoLibraryAssets: options.photoLibraryAssets,
             onImageTap: options.onAssetTap,
             imageSelected: options.isAssetSelected,
-            selectedAssetIds: options.selectedAssetIds
+            selectedAssetIds: options.selectedAssetIds,
+            isDisplayed: options.isDisplayed
         )
     }
     
@@ -932,7 +940,8 @@ extension ViewFactory {
             message: options.message,
             poll: options.poll,
             isFirst: options.isFirst,
-            width: min(options.availableWidth, utils.messageListConfig.attachmentPreviewWidth)
+            width: min(options.availableWidth, utils.messageListConfig.attachmentPreviewWidth),
+            translationLanguage: options.translationLanguage
         )
     }
 
@@ -984,7 +993,7 @@ extension ViewFactory {
     }
 
     public func makeThreadListBackground(options: ThreadListBackgroundOptions) -> some View {
-        Color(options.colors.backgroundCoreElevation1)
+        Color(options.colors.backgroundCoreElevation0)
             .edgesIgnoringSafeArea(.bottom)
     }
 
@@ -992,7 +1001,7 @@ extension ViewFactory {
         options: ThreadListItemBackgroundOptions
     ) -> some View {
         let colors = InjectedValues[\.colors]
-        return Color(colors.backgroundCoreElevation1)
+        return Color(colors.backgroundCoreElevation0)
     }
 
     public func makeThreadListDividerItem(options: ThreadListDividerItemOptions) -> some View {
@@ -1004,7 +1013,13 @@ extension ViewFactory {
     ) -> some View {
         MemberAddView(loadedUserIds: options.options.loadedUserIds, onConfirm: options.onConfirm)
     }
-    
+
+    public func makeChannelInfoActionsView(
+        options: ChannelInfoActionsViewOptions
+    ) -> some View {
+        ChannelInfoActionsView(options: options)
+    }
+
     public func makeAttachmentTextView(
         options: AttachmentTextViewOptions
     ) -> some View {

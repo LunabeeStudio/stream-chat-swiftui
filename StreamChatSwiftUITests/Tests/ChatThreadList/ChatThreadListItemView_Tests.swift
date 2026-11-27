@@ -50,7 +50,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: mockThread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_withUnreads() throws {
@@ -60,7 +60,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
         
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_withTitle() throws {
@@ -70,7 +70,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_withParentMessageDeleted() throws {
@@ -80,7 +80,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_withLastReplyDeleted() throws {
@@ -94,7 +94,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_whenAttachments() throws {
@@ -109,7 +109,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_whenAttachmentIsPoll() throws {
@@ -124,7 +124,84 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    func test_threadListItem_whenParentMessageIsImageOnly() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try imageAttachment()]))
+
+        let view = ChatThreadListItem(thread: thread)
+            .frame(width: defaultScreenSize.width)
+
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    func test_threadListItem_whenParentMessageIsVideoOnly() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try videoAttachment()]))
+
+        let view = ChatThreadListItem(thread: thread)
+            .frame(width: defaultScreenSize.width)
+
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    func test_threadListItem_whenParentMessageIsFileWithoutTitle() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try fileAttachment(title: nil)]))
+
+        let view = ChatThreadListItem(thread: thread)
+            .frame(width: defaultScreenSize.width)
+
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    func test_threadListItem_whenThreadTitleIsBlankAndParentMessageIsImageOnly() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try imageAttachment()]))
+            .with(title: "")
+
+        let view = ChatThreadListItem(thread: thread)
+            .frame(width: defaultScreenSize.width)
+
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    func test_threadListItemViewModel_whenThreadTitleIsBlank_usesParentMessagePreview() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try imageAttachment()]))
+            .with(title: "   ")
+
+        let viewModel = ChatThreadListItemViewModel(thread: thread)
+
+        XCTAssertEqual(viewModel.parentMessageContentText, L10n.Channel.Item.photo)
+        XCTAssertNotNil(viewModel.parentMessageAttachmentIcon)
+    }
+
+    func test_threadListItemViewModel_whenThreadTitleIsSet_hasNoAttachmentIcon() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(text: "", author: mockYoda, attachments: [try imageAttachment()]))
+            .with(title: "Thread title")
+
+        let viewModel = ChatThreadListItemViewModel(thread: thread)
+
+        XCTAssertEqual(viewModel.parentMessageContentText, "Thread title")
+        XCTAssertNil(viewModel.parentMessageAttachmentIcon)
+    }
+
+    func test_threadListItemViewModel_whenParentMessageIsDeleted_hasNoAttachmentIcon() throws {
+        let thread = mockThread
+            .with(parentMessage: .mock(
+                text: "",
+                author: mockYoda,
+                deletedAt: .unique,
+                attachments: [try imageAttachment()]
+            ))
+
+        let viewModel = ChatThreadListItemViewModel(thread: thread)
+
+        XCTAssertNil(viewModel.parentMessageAttachmentIcon)
     }
 
     func test_threadListItem_whenDraftMessage() {
@@ -134,7 +211,7 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
     }
 
     func test_threadListItem_whenDraftMessageHasAttachment() throws {
@@ -154,7 +231,44 @@ final class ChatThreadListItemView_Tests: StreamChatTestCase {
         let view = ChatThreadListItem(thread: thread)
             .frame(width: defaultScreenSize.width)
 
-        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+        AssertSnapshot(view, variants: [.defaultLight, .defaultDark], size: defaultScreenSize)
+    }
+
+    // MARK: - Helpers
+
+    private func imageAttachment() throws -> AnyChatMessageAttachment {
+        .dummy(
+            type: .image,
+            payload: try JSONEncoder().encode(ImageAttachmentPayload(
+                title: "Test",
+                imageRemoteURL: .localYodaImage,
+                file: .init(type: .png, size: 123, mimeType: nil)
+            ))
+        )
+    }
+
+    private func videoAttachment() throws -> AnyChatMessageAttachment {
+        .dummy(
+            type: .video,
+            payload: try JSONEncoder().encode(VideoAttachmentPayload(
+                title: "Test",
+                videoRemoteURL: .localYodaImage,
+                file: .init(type: .mp4, size: 123, mimeType: nil),
+                extraData: nil
+            ))
+        )
+    }
+
+    private func fileAttachment(title: String?) throws -> AnyChatMessageAttachment {
+        .dummy(
+            type: .file,
+            payload: try JSONEncoder().encode(FileAttachmentPayload(
+                title: title,
+                assetRemoteURL: .localYodaImage,
+                file: .init(type: .pdf, size: 123, mimeType: nil),
+                extraData: nil
+            ))
+        )
     }
 }
 

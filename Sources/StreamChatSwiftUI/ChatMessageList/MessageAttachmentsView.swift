@@ -87,6 +87,18 @@ public struct MessageAttachmentsView<Factory: ViewFactory>: View {
                     )
                 }
 
+                // Audio files
+                if messageTypeResolver.hasAudioAttachment(message: message) {
+                    factory.makeAudioAttachmentView(
+                        options: AudioAttachmentViewOptions(
+                            message: message,
+                            isFirst: isFirst,
+                            availableWidth: width,
+                            scrolledId: $scrolledId
+                        )
+                    )
+                }
+
                 // Voice recordings
                 if messageTypeResolver.hasVoiceRecording(message: message) {
                     factory.makeVoiceRecordingView(

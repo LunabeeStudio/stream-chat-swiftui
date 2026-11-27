@@ -94,6 +94,45 @@ import XCTest
         XCTAssert(viewModel.scrolledId!.contains(messageId))
     }
 
+    func test_chatChannelVM_scrollToLastMessage_whenFirstPageNotLoaded_scrollsWhenFirstPageArrives() {
+        // Given
+        let midPageMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Mid page",
+            author: ChatUser.mock(id: chatClient.currentUserId!)
+        )
+        let newestMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Newest",
+            author: ChatUser.mock(id: chatClient.currentUserId!)
+        )
+        let channelController = makeChannelController(messages: [midPageMessage])
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.showScrollToLatestButton = true
+
+        // When
+        viewModel.scrollToLastMessage()
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 1)
+        XCTAssertNotEqual(viewModel.scrolledId, newestMessage.messageId)
+
+        // When the first page arrives
+        channelController.hasLoadedAllNextMessages_mock = true
+        viewModel.dataSource(
+            channelDataSource: ChatChannelDataSource(controller: channelController),
+            didUpdateMessages: [newestMessage],
+            changes: [.insert(newestMessage, index: .init(item: 0, section: 0))]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.scrolledId, newestMessage.messageId)
+        XCTAssertFalse(viewModel.showScrollToLatestButton)
+    }
+
     func test_chatChannelVM_messageSentTapped_whenEditingMessage_shouldNotScroll() {
         // Given
         let messageId: String = .unique
@@ -225,6 +264,222 @@ import XCTest
 
         // Then
         XCTAssertEqual(viewModel.scrolledId, messages[0].id)
+    }
+
+    func test_chatChannelVM_newMessageSent_whenUpdateIsReportedBeforeInsertion_scrollsToNewestMessage() {
+        // Given
+        var messages = [ChatMessage]()
+        for i in 0..<5 {
+            let message = ChatMessage.mock(
+                id: .unique,
+                cid: .unique,
+                text: "Test Message \(i)",
+                author: ChatUser.mock(id: chatClient.currentUserId!)
+            )
+            messages.append(message)
+        }
+        let channelController = makeChannelController(messages: messages)
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // When
+        viewModel.showScrollToLatestButton = true
+        viewModel.messageSentTapped()
+        viewModel.dataSource(
+            channelDataSource: ChatChannelDataSource(controller: channelController),
+            didUpdateMessages: messages,
+            changes: [
+                .update(messages[4], index: .init(item: 4, section: 0)),
+                .insert(messages[0], index: .init(item: 0, section: 0))
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.scrolledId, messages[0].id)
+    }
+
+    func test_chatChannelVM_newMessageSent_whenFirstPageNotLoaded_doesNotScrollToCurrentNewestMessage() {
+        // Given
+        var messages = [ChatMessage]()
+        for i in 0..<5 {
+            let message = ChatMessage.mock(
+                id: .unique,
+                cid: .unique,
+                text: "Test Message \(i)",
+                author: ChatUser.mock(id: chatClient.currentUserId!)
+            )
+            messages.append(message)
+        }
+        let channelController = makeChannelController(messages: messages)
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // When
+        viewModel.showScrollToLatestButton = true
+        viewModel.messageSentTapped()
+        viewModel.dataSource(
+            channelDataSource: ChatChannelDataSource(controller: channelController),
+            didUpdateMessages: messages,
+            changes: [
+                .insert(messages[0], index: .init(item: 0, section: 0))
+            ]
+        )
+
+        // Then
+        XCTAssertNotEqual(viewModel.scrolledId, messages[0].id)
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenFirstPageNotLoaded_whenMessageSentByCurrentUser_whenMessageNotPartOfThread_thenLoadsFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let message = ChatMessage.mock(
+            parentMessageId: nil,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        sendPendingMessageEvent(to: viewModel, channelController: channelController, message: message)
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 1)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenFirstPageLoaded_doesNotLoadFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let message = ChatMessage.mock(
+            parentMessageId: nil,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        sendPendingMessageEvent(to: viewModel, channelController: channelController, message: message)
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenMessageSentByOtherUser_doesNotLoadFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let message = ChatMessage.mock(
+            parentMessageId: nil,
+            isSentByCurrentUser: false
+        )
+
+        // When
+        sendPendingMessageEvent(to: viewModel, channelController: channelController, message: message)
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenMessageIsPartOfThread_doesNotLoadFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let message = ChatMessage.mock(
+            parentMessageId: .unique,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        sendPendingMessageEvent(to: viewModel, channelController: channelController, message: message)
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenThread_whenReplyHasDifferentParentId_doesNotLoadFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        let threadRootId: MessageId = .unique
+        let messageController = ChatMessageControllerSUI_Mock.mock(
+            chatClient: chatClient,
+            cid: channelController.cid,
+            messageId: threadRootId
+        )
+        messageController.hasLoadedAllNextReplies_mock = false
+        let viewModel = ChatChannelViewModel(
+            channelController: channelController,
+            messageController: messageController
+        )
+        let message = ChatMessage.mock(
+            parentMessageId: .unique,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        sendPendingMessageEvent(to: viewModel, channelController: channelController, message: message)
+
+        // Then
+        XCTAssertEqual(messageController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenDifferentChannel_doesNotLoadFirstPage() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let message = ChatMessage.mock(
+            parentMessageId: nil,
+            isSentByCurrentUser: true
+        )
+
+        // When
+        let pendingEvent = NewMessagePendingEvent(message: message, cid: .unique)
+        viewModel.eventsController(
+            channelController.client.eventsController(),
+            didReceiveEvent: pendingEvent
+        )
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 0)
+    }
+
+    func test_chatChannelVM_newMessagePendingEvent_whenFirstPageNotLoaded_scrollsToNewestMessage() {
+        // Given
+        let midPageMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Mid page",
+            author: ChatUser.mock(id: chatClient.currentUserId!)
+        )
+        let newestMessage = ChatMessage.mock(
+            id: .unique,
+            cid: .unique,
+            text: "Newest",
+            author: ChatUser.mock(id: chatClient.currentUserId!)
+        )
+        let channelController = makeChannelController(messages: [midPageMessage])
+        channelController.hasLoadedAllNextMessages_mock = false
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.showScrollToLatestButton = true
+
+        // When
+        sendPendingMessageEvent(
+            to: viewModel,
+            channelController: channelController,
+            message: ChatMessage.mock(parentMessageId: nil, isSentByCurrentUser: true)
+        )
+        channelController.hasLoadedAllNextMessages_mock = true
+        viewModel.dataSource(
+            channelDataSource: ChatChannelDataSource(controller: channelController),
+            didUpdateMessages: [newestMessage],
+            changes: [.insert(newestMessage, index: .init(item: 0, section: 0))]
+        )
+
+        // Then
+        XCTAssertEqual(channelController.loadFirstPageCallCount, 1)
+        XCTAssertEqual(viewModel.scrolledId, newestMessage.messageId)
+        XCTAssertFalse(viewModel.showScrollToLatestButton)
     }
 
     func test_chatChannelVM_messageThread() {
@@ -871,6 +1126,35 @@ import XCTest
         XCTAssertNotNil(viewModel.firstUnreadMessageId)
     }
     
+    // MARK: - Unread state
+
+    func test_chatChannelVM_canMarkReadInMessageList_whenCaughtUp_isTrue() {
+        // Given
+        let channelController = makeChannelController(messages: [ChatMessage.mock()])
+        channelController.channel_mock = .mockDMChannel()
+
+        // When
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // Then
+        XCTAssertTrue(viewModel.canMarkRead)
+        XCTAssertTrue(viewModel.canMarkReadInMessageList)
+    }
+
+    func test_chatChannelVM_canMarkReadInMessageList_whenUserMarkedMessageUnread_isFalse() {
+        // Given
+        let channelController = makeChannelController(messages: [ChatMessage.mock()])
+        channelController.channel_mock = .mockDMChannel()
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+
+        // When
+        viewModel.currentUserMarkedMessageUnread = true
+
+        // Then
+        XCTAssertTrue(viewModel.canMarkRead)
+        XCTAssertFalse(viewModel.canMarkReadInMessageList)
+    }
+
     // MARK: - currentUserMarkedMessageUnread Tests
     
     func test_chatChannelVM_currentUserMarkedMessageUnread_initialValue() {
@@ -1081,6 +1365,87 @@ import XCTest
         XCTAssertEqual(baseline + 1, channelController.markReadCallCount)
     }
 
+    func test_chatChannelVM_onViewDissappear_whenShouldMarkRead_marksReadImmediately() {
+        // Given
+        let message = ChatMessage.mock()
+        let channelController = makeChannelController(messages: [message])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let throttler = CancelRecordingThrottler()
+        viewModel.throttler = throttler
+        viewModel.showScrollToLatestButton = false
+        channelController.markReadCallCount = 0
+
+        // When
+        viewModel.onViewDissappear()
+
+        // Then
+        XCTAssertEqual(1, throttler.cancelCallCount)
+        XCTAssertEqual(1, channelController.markReadCallCount)
+    }
+
+    func test_chatChannelVM_onViewDissappear_whenCalledRepeatedly_marksReadOnlyOnce() {
+        // Given
+        let message = ChatMessage.mock()
+        let channelController = makeChannelController(messages: [message])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let throttler = CancelRecordingThrottler()
+        viewModel.throttler = throttler
+        viewModel.showScrollToLatestButton = false
+        channelController.markReadCallCount = 0
+
+        // When
+        viewModel.onViewDissappear()
+        viewModel.onViewDissappear()
+
+        // Then
+        XCTAssertEqual(1, throttler.cancelCallCount)
+        XCTAssertEqual(1, channelController.markReadCallCount)
+    }
+
+    func test_chatChannelVM_onViewDissappear_whenLatestMessageIsPendingSend_doesNotMarkRead() {
+        // Given - user is at the bottom but their newest message is still sending.
+        let existing = ChatMessage.mock(id: .unique, localState: nil)
+        let pendingMessage = ChatMessage.mock(localState: .pendingSend)
+        let channelController = makeChannelController(messages: [pendingMessage, existing])
+        channelController.channel_mock = .mockDMChannel(reads: [])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        viewModel.currentUserMarkedMessageUnread = false
+        let throttler = CancelRecordingThrottler()
+        viewModel.throttler = throttler
+        viewModel.showScrollToLatestButton = false
+        channelController.markReadCallCount = 0
+        viewModel.handleMessageAppear(index: 0, scrollDirection: .down)
+
+        // When
+        viewModel.onViewDissappear()
+
+        // Then - markRead stays deferred until the pending message is sent.
+        XCTAssertEqual(1, throttler.cancelCallCount)
+        XCTAssertEqual(0, channelController.markReadCallCount)
+    }
+
+    func test_chatChannelVM_onViewDissappear_whenScrolledUp_doesNotMarkRead() {
+        // Given
+        let message = ChatMessage.mock()
+        let channelController = makeChannelController(messages: [message])
+        channelController.hasLoadedAllNextMessages_mock = true
+        let viewModel = ChatChannelViewModel(channelController: channelController)
+        let throttler = CancelRecordingThrottler()
+        viewModel.throttler = throttler
+        viewModel.showScrollToLatestButton = true
+        channelController.markReadCallCount = 0
+
+        // When
+        viewModel.onViewDissappear()
+
+        // Then
+        XCTAssertEqual(1, throttler.cancelCallCount)
+        XCTAssertEqual(0, channelController.markReadCallCount)
+    }
+
     // MARK: - highlightMessage Tests
 
     func test_highlightMessage_highlightsWhenSkipHighlightMessageIdIsNotSet() {
@@ -1159,6 +1524,102 @@ import XCTest
         XCTAssertNil(viewModel.highlightedMessageId)
     }
 
+    func test_deinit_stopsAudioPlayerWhenVoiceRecordingIsDisabled() {
+        streamChat?.utils.composerConfig.isVoiceRecordingEnabled = false
+        let mockPlayer = MockAudioPlayer()
+        let handler = AudioSessionHandler()
+        handler.isPlaying = true
+        handler.rate = .double
+        streamChat?.utils._audioPlayer = mockPlayer
+        streamChat?.utils._audioSessionHandler = handler
+
+        autoreleasepool {
+            _ = ChatChannelViewModel(channelController: makeChannelController())
+        }
+
+        let expectation = XCTestExpectation(description: "Audio player cleaned up")
+        DispatchQueue.main.async {
+            XCTAssertEqual(mockPlayer.seekWasCalledWithTime, 0)
+            XCTAssertEqual(mockPlayer.updateRateWasCalledWithRate, .normal)
+            XCTAssertTrue(mockPlayer.stopWasCalled)
+            XCTAssertNil(self.streamChat?.utils._audioPlayer)
+            XCTAssertFalse(handler.isPlaying)
+            XCTAssertEqual(handler.rate, .normal)
+            expectation.fulfill()
+        }
+        wait(for: [expectation], timeout: defaultTimeout)
+    }
+
+    // MARK: - Message grouping
+
+    func test_groupMessages_whenSameAuthorWithinInterval_onlyNewestMessageShowsAllInfo() {
+        // Given
+        let viewModel = ChatChannelViewModel(channelController: makeChannelController())
+        let oldest = makeGroupingMessage(createdAt: 100)
+        let middle = makeGroupingMessage(createdAt: 110)
+        let newest = makeGroupingMessage(createdAt: 120)
+
+        // When
+        viewModel.messages = [newest, middle, oldest]
+
+        // Then
+        XCTAssertTrue(showsAllInfo(newest, in: viewModel))
+        XCTAssertFalse(showsAllInfo(middle, in: viewModel))
+        XCTAssertFalse(showsAllInfo(oldest, in: viewModel))
+    }
+
+    func test_groupMessages_whenFollowedByErrorMessage_previousMessageShowsAllInfo() {
+        assertGroupIsBroken(byNewerMessageOfType: .error)
+    }
+
+    func test_groupMessages_whenFollowedByEphemeralMessage_previousMessageShowsAllInfo() {
+        assertGroupIsBroken(byNewerMessageOfType: .ephemeral)
+    }
+
+    func test_groupMessages_whenFollowedBySystemMessage_previousMessageShowsAllInfo() {
+        assertGroupIsBroken(byNewerMessageOfType: .system)
+    }
+
+    func test_groupMessages_whenNewestMessageIsHardDeleted_previousMessageShowsAllInfoAgain() {
+        // Given
+        let viewModel = ChatChannelViewModel(channelController: makeChannelController())
+        let oldest = makeGroupingMessage(createdAt: 100)
+        let middle = makeGroupingMessage(createdAt: 110)
+        let newest = makeGroupingMessage(createdAt: 120)
+        viewModel.messages = [newest, middle, oldest]
+        XCTAssertFalse(showsAllInfo(middle, in: viewModel))
+
+        // When
+        viewModel.messages = [middle, oldest]
+
+        // Then
+        XCTAssertTrue(showsAllInfo(middle, in: viewModel))
+        XCTAssertFalse(showsAllInfo(oldest, in: viewModel))
+    }
+
+    func test_groupMessages_whenNewestMessageIsSoftDeleted_onlyDeletedMessageShowsAllInfo() {
+        // Given
+        let viewModel = ChatChannelViewModel(channelController: makeChannelController())
+        let oldest = makeGroupingMessage(createdAt: 100)
+        let middle = makeGroupingMessage(createdAt: 110)
+        let newest = makeGroupingMessage(createdAt: 120)
+        viewModel.messages = [newest, middle, oldest]
+
+        // When
+        let deletedNewest = makeGroupingMessage(
+            id: newest.id,
+            type: .deleted,
+            createdAt: 120,
+            deletedAt: Date(timeIntervalSince1970: 130)
+        )
+        viewModel.messages = [deletedNewest, middle, oldest]
+
+        // Then
+        XCTAssertTrue(showsAllInfo(deletedNewest, in: viewModel))
+        XCTAssertFalse(showsAllInfo(middle, in: viewModel))
+        XCTAssertFalse(showsAllInfo(oldest, in: viewModel))
+    }
+
     // MARK: - private
 
     private func makeChannelController(
@@ -1169,10 +1630,74 @@ import XCTest
             messages: messages
         )
     }
+
+    private func assertGroupIsBroken(
+        byNewerMessageOfType type: MessageType,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let viewModel = ChatChannelViewModel(channelController: makeChannelController())
+        let oldest = makeGroupingMessage(createdAt: 100)
+        let previous = makeGroupingMessage(createdAt: 110)
+        let breaking = makeGroupingMessage(type: type, createdAt: 120)
+
+        viewModel.messages = [breaking, previous, oldest]
+
+        XCTAssertTrue(showsAllInfo(previous, in: viewModel), file: file, line: line)
+        XCTAssertFalse(showsAllInfo(oldest, in: viewModel), file: file, line: line)
+    }
+
+    private func makeGroupingMessage(
+        id: MessageId = .unique,
+        type: MessageType = .regular,
+        createdAt: TimeInterval,
+        deletedAt: Date? = nil
+    ) -> ChatMessage {
+        ChatMessage.mock(
+            id: id,
+            cid: .unique,
+            text: "Message \(createdAt)",
+            type: type,
+            author: .mock(id: chatClient.currentUserId!),
+            createdAt: Date(timeIntervalSince1970: createdAt),
+            deletedAt: deletedAt,
+            isSentByCurrentUser: true
+        )
+    }
+
+    private func showsAllInfo(_ message: ChatMessage, in viewModel: ChatChannelViewModel) -> Bool {
+        viewModel.messagesGroupingInfo[message.id]?.contains(firstMessageKey) == true
+    }
+
+    private func sendPendingMessageEvent(
+        to viewModel: ChatChannelViewModel,
+        channelController: ChatChannelController_Mock,
+        message: ChatMessage
+    ) {
+        let cid = channelController.cid ?? message.cid ?? .unique
+        let pendingEvent = NewMessagePendingEvent(message: message, cid: cid)
+        viewModel.eventsController(
+            channelController.client.eventsController(),
+            didReceiveEvent: pendingEvent
+        )
+    }
 }
 
 private class Throttler_Mock: Throttler {
     override func execute(_ action: @escaping () -> Void) {
         action()
+    }
+}
+
+private class CancelRecordingThrottler: Throttler {
+    var cancelCallCount = 0
+
+    init() {
+        super.init(interval: 3, queue: .main)
+    }
+
+    override func cancel() {
+        cancelCallCount += 1
+        super.cancel()
     }
 }

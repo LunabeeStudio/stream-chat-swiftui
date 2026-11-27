@@ -9,6 +9,7 @@ import SwiftUI
 public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     @Injected(\.colors) private var colors
     @Injected(\.utils) private var utils
+    @Injected(\.tokens) private var tokens
     @Injected(\.chatClient) private var chatClient
 
     @StateObject private var viewModel: ChatChannelViewModel
@@ -21,6 +22,7 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     @State private var floatingComposerHeight: CGFloat
     
     private var factory: Factory
+    let isInSplitView: Bool
 
     public init(
         viewFactory: Factory = DefaultViewFactory.shared,
@@ -28,7 +30,8 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         channelController: ChatChannelController,
         messageController: ChatMessageController? = nil,
         scrollToMessage: ChatMessage? = nil,
-        composerPlacement: ComposerPlacement = .floating
+        composerPlacement: ComposerPlacement = .floating,
+        isInSplitView: Bool = false
     ) {
         _floatingComposerHeight = State(initialValue: Self.defaultFloatingComposerHeight())
         _viewModel = StateObject(
@@ -39,6 +42,7 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
             )
         )
         factory = viewFactory
+        self.isInSplitView = isInSplitView
     }
 
     public var body: some View {
@@ -62,6 +66,7 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                             scrollPosition: $viewModel.scrollPosition,
                             loadingNextMessages: viewModel.loadingNextMessages,
                             firstUnreadMessageId: $viewModel.firstUnreadMessageId,
+                            canMarkRead: viewModel.canMarkReadInMessageList,
                             onMessageAppear: viewModel.handleMessageAppear(index:scrollDirection:),
                             onScrollToBottom: viewModel.scrollToLastMessage,
                             onLongPress: { displayInfo in
@@ -93,8 +98,12 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                                 : nil
                         )
                     } else {
-                        ZStack {
+                        ZStack(alignment: emptyChannelTypingIndicatorAlignment) {
                             factory.makeEmptyMessagesView(options: EmptyMessagesViewOptions(channel: channel))
+                                // Keeps the empty view filling (and centered in) the
+                                // available space, independent of the alignment the
+                                // typing indicator needs.
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .dismissKeyboardOnTap(enabled: keyboardShown) {
                                     hideComposerCommandsAndAttachmentsPicker()
                                 }
@@ -105,6 +114,8 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
                                         currentUserId: chatClient.currentUserId
                                     )
                                 )
+                                .padding(.top, messagesStartAtTheTop ? tokens.spacingSm : 0)
+                                .padding(.bottom, messagesStartAtTheTop ? 0 : emptyChannelTypingIndicatorBottomPadding)
                             }
                         }
                     }
@@ -233,7 +244,11 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         // Fork: also ignore the bottom safe area for a floating composer (not just when a tab bar is
         // present), so the message list scrolls under the floating composer into the bottom safe area.
         // The composer is kept above the safe area via `floatingComposerBottomPadding`.
-        .ignoresSafeArea(.container, edges: (tabBarAvailable || composerPlacement == .floating) ? .bottom : [])
+        // Not in split view: `bottomPadding` is 0 there, so nothing would keep the composer above the home indicator.
+        .ignoresSafeArea(
+            .container,
+            edges: (ignoresBottomSafeArea || (composerPlacement == .floating && !isInSplitView)) ? .bottom : []
+        )
         .alertBanner(isPresented: $viewModel.showAlertBanner)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("ChatChannelView")
@@ -265,6 +280,26 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
         factory.styles.composerPlacement
     }
 
+    private var messagesStartAtTheTop: Bool {
+        utils.messageListConfig.shouldMessagesStartAtTheTop
+    }
+
+    /// Where the inline typing indicator sits while the channel has no messages.
+    /// It follows the message list's reading direction, so it appears where the
+    /// first incoming message would: at the top when messages start at the top,
+    /// right above the composer otherwise.
+    private var emptyChannelTypingIndicatorAlignment: Alignment {
+        messagesStartAtTheTop ? .top : .bottom
+    }
+
+    /// Space the inline typing indicator has to clear in an empty channel to stay
+    /// above the floating composer. Unlike the message list, the empty state does
+    /// not ignore the bottom safe area, so only the composer's own height counts.
+    private var emptyChannelTypingIndicatorBottomPadding: CGFloat {
+        guard composerPlacement == .floating else { return 0 }
+        return floatingComposerBottomPadding + max(0, floatingComposerHeight - bottomPadding)
+    }
+
     private var generatingSnapshot: Bool {
         if #available(iOS 26, *) {
             false
@@ -274,7 +309,12 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     }
 
     private var bottomPadding: CGFloat {
-        topVC()?.view.safeAreaInsets.bottom ?? 0
+        guard !isInSplitView else { return 0 }
+        return topVC()?.view.safeAreaInsets.bottom ?? 0
+    }
+
+    private var ignoresBottomSafeArea: Bool {
+        tabBarAvailable && !isInSplitView
     }
 
     /// Whether the main **content** needs manual bottom safe-area compensation.
@@ -285,7 +325,7 @@ public struct ChatChannelView<Factory: ViewFactory>: View, KeyboardReadable {
     /// Adding `.floating` here double-pads — the content shifts up **and** the composer pads — which
     /// breaks the floating layout.
     private var needsBottomSafeAreaPadding: Bool {
-        !keyboardShown && tabBarAvailable
+        !keyboardShown && ignoresBottomSafeArea
     }
 
     /// Whether the floating composer should own the bottom safe-area padding

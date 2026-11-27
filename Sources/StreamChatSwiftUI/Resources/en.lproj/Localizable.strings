@@ -18,6 +18,17 @@
 "channel.item.muted" = "Channel is muted";
 "channel.item.mute" = "Mute";
 "channel.item.unmute" = "Unmute";
+"channel.item.accessibility.direct-message" = "direct message";
+"channel.item.accessibility.group-chat" = "group chat";
+"channel.item.accessibility.muted" = "Muted";
+"channel.item.accessibility.you" = "you";
+"channel.item.accessibility.sent" = "sent";
+"channel.item.accessibility.sent-and-read" = "sent and read";
+"channel.item.accessibility.last-message" = "Last message from %1$@ at %2$@: %3$@";
+"channel.item.accessibility.last-message-with-status" = "Last message from %1$@ at %2$@, %3$@: %4$@";
+"channel.item.accessibility.last-message-time" = "Last message %@";
+"channel.item.accessibility.draft" = "Draft message: %@";
+"channel.item.accessibility.open-hint" = "Opens the conversation";
 "channel.name.direct-message" = "user";
 "channel.name.group" = "group";
 
@@ -79,6 +90,14 @@
 "message.reactions.more" = "More reactions";
 "message.reactions.tap-to-remove" = "Tap to remove";
 
+"message.polls.accessibility.poll-header" = "Poll: %1$@. %2$@. %3$d options";
+"message.polls.accessibility.option" = "%1$@, %2$@, %3$@";
+"message.polls.accessibility.option-position" = "Option %1$d of %2$d";
+"message.polls.accessibility.selected" = "selected";
+"message.polls.accessibility.not-selected" = "not selected";
+"message.polls.accessibility.votes-including-yours" = "%d votes including yours";
+"message.polls.accessibility.leading-option" = "Leading option";
+"message.polls.accessibility.voter" = "%1$@, voted %2$@";
 "message.polls.button.addComment" = "Add a Comment";
 "message.polls.button.updateComment" = "Update Your Comment";
 "message.polls.button.endVote" = "End Poll";
@@ -146,6 +165,34 @@
 
 "message.only-visible-to-you" = "Only visible to you";
 "message.deleted-message-placeholder" = "Message deleted";
+"message.accessibility.system-message" = "System message: %@";
+"message.accessibility.actions" = "Message actions";
+"message.accessibility.image" = "Image from %1$@, sent at %2$@. Activate to open.";
+"message.accessibility.image-own" = "Your image, sent at %1$@. Activate to open.";
+"message.accessibility.image-without-timestamp" = "Image from %1$@. Activate to open.";
+"message.accessibility.image-own-without-timestamp" = "Your image. Activate to open.";
+"message.accessibility.you" = "You";
+"message.accessibility.sent-time" = "at %@";
+"message.accessibility.status-sent" = "sent";
+"message.accessibility.status-delivered" = "delivered";
+"message.accessibility.status-read" = "read";
+"message.accessibility.voice-recording" = "Voice message from %1$@, %2$@, at %3$@. Activate to play.";
+"message.accessibility.voice-recording-without-duration" = "Voice message from %1$@, at %2$@. Activate to play.";
+"message.accessibility.voice-recording-own" = "Your voice message, %1$@, at %2$@. Activate to play.";
+"message.accessibility.voice-recording-own-without-duration" = "Your voice message, at %1$@. Activate to play.";
+"message.accessibility.audio" = "Audio file %1$@ from %2$@, %3$@, at %4$@. Activate to play.";
+"message.accessibility.audio-without-duration" = "Audio file %1$@ from %2$@, at %3$@. Activate to play.";
+"message.accessibility.audio-own" = "Your audio file %1$@, %2$@, at %3$@. Activate to play.";
+"message.accessibility.audio-own-without-duration" = "Your audio file %1$@, at %2$@. Activate to play.";
+"message.accessibility.playback-speed" = "Playback speed";
+"message.accessibility.video" = "Video from %1$@, sent at %2$@. Activate to play.";
+"message.accessibility.video-with-duration" = "Video, %1$@, from %2$@, sent at %3$@. Activate to play.";
+"message.accessibility.video-own" = "Your video, sent at %1$@. Activate to play.";
+"message.accessibility.video-own-with-duration" = "Your video, %1$@, sent at %2$@. Activate to play.";
+"message.accessibility.video-without-timestamp" = "Video from %1$@. Activate to play.";
+"message.accessibility.video-with-duration-without-timestamp" = "Video, %1$@, from %2$@. Activate to play.";
+"message.accessibility.video-own-without-timestamp" = "Your video. Activate to play.";
+"message.accessibility.video-own-with-duration-without-timestamp" = "Your video, %1$@. Activate to play.";
 
 "composer.title.edit" = "Edit Message";
 "composer.title.reply" = "Reply to Message";
@@ -231,7 +278,16 @@
 
 "composer.suggestions.commands.header" = "Instant Commands";
 "composer.suggestions.commands.accessibility-announcement" = "Instant Commands, %d options";
-"composer.suggestions.mentions.accessibility-announcement" = "User list, %d results";
+"composer.suggestions.mentions.accessibility-announcement" = "Mention suggestions, %d results";
+"composer.suggestions.mentions.channel.description" = "Notify everyone in this channel";
+"composer.suggestions.mentions.channel.title" = "@channel";
+"composer.suggestions.mentions.here.description" = "Notify online members";
+"composer.suggestions.mentions.here.title" = "@here";
+"composer.suggestions.mentions.here.text" = "here";
+"composer.suggestions.mentions.channel.text" = "channel";
+"composer.suggestions.mentions.role.description" = "Notify all %@ members";
+"composer.suggestions.mentions.group.members" = "%d members";
+"composer.suggestions.mentions.accessibility-label" = "%1$@, %2$d of %3$d";
 "composer.suggestions.user.accessibility-label" = "%1$@, user, %2$d of %3$d";
 "composer.command.sent.accessibility-announcement" = "%@ command sent";
 "message.sending.attachment-uploading-failed" = "UPLOADING FAILED";
@@ -310,12 +366,14 @@
 "chat-info.edit.picture.library" = "Choose Image";
 "chat-info.edit.picture.reset" = "Reset Picture";
 "chat-info.member.admin" = "Admin";
+"chat-info.member.muted" = "Muted";
 "chat-info.members.add" = "Add";
 "chat-info.members.add-members-title" = "Add Members";
 "chat-info.members.already-member" = "Already a member";
 "chat-info.members.title" = "Members";
 
 "channel.item.audio" = "Audio";
+"channel.item.file" = "File";
 "channel.item.giphy" = "Giphy";
 "channel.item.photo" = "Photo";
 "channel.item.video" = "Video";

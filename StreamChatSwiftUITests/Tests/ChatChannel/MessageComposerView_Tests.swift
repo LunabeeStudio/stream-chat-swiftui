@@ -291,7 +291,7 @@ import XCTest
             duration: 10,
             waveform: [0, 0.1, 0.4, 0.7, 1.0, 0.8, 0.5, 0.3, 0.6, 0.9]
         )
-        let handler = VoiceRecordingHandler()
+        let handler = AudioSessionHandler()
         handler.isPlaying = true
         handler.context = AudioPlaybackContext(
             assetLocation: url,
@@ -594,6 +594,38 @@ import XCTest
         AssertSnapshot(view, size: size)
     }
 
+    func test_messageComposerView_sendInChannel_extraExtraExtraLarge() {
+        // Given
+        let size = CGSize(width: composerWidth, height: 200)
+        let factory = DefaultViewFactory.shared
+        let channelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        let messageController = ChatMessageControllerSUI_Mock.mock(
+            chatClient: chatClient,
+            cid: .unique,
+            messageId: .unique
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: messageController
+        )
+        viewModel.showReplyInChannel = true
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: channelController,
+            messageController: messageController,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: size.width, height: size.height)
+
+        // Then
+        AssertSnapshot(view, variants: [.extraExtraExtraLargeLight], size: size)
+    }
+
     // MARK: - Attachment Picker Prompt Views
 
     func test_photoLibraryAccessPromptView_snapshot() {
@@ -631,6 +663,23 @@ import XCTest
         AssertSnapshot(view)
     }
 
+    func test_cameraAccessDeniedPromptView_accessibilityExtraExtraExtraLarge() {
+        // Given
+        let view = CameraAccessDeniedPromptView()
+            .frame(width: composerWidth, height: 300)
+
+        // Then
+        let traits = UITraitCollection(traitsFrom: [
+            UITraitCollection(displayScale: 1),
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            UITraitCollection(userInterfaceStyle: .light)
+        ])
+        assertSnapshot(
+            matching: view,
+            as: .image(perceptualPrecision: precision, layout: .sizeThatFits, traits: traits)
+        )
+    }
+
     // MARK: - Frozen Channel Tests
 
     func test_messageComposerView_frozenChannel() {
@@ -655,6 +704,60 @@ import XCTest
 
         // Then
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageComposerView_frozenChannel_extraExtraExtraLarge() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: mockChannelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 200)
+
+        // Then
+        AssertSnapshot(view, variants: [.extraExtraExtraLargeLight])
+    }
+
+    func test_messageComposerView_frozenChannel_accessibilityExtraExtraExtraLarge() {
+        // Given
+        let factory = DefaultViewFactory.shared
+        let mockChannelController = ChatChannelTestHelpers.makeChannelController(chatClient: chatClient)
+        mockChannelController.channel_mock = .mockDMChannel(ownCapabilities: [.uploadFile, .readEvents])
+        let viewModel = MessageComposerViewModel(channelController: mockChannelController, messageController: nil)
+
+        // When
+        let view = MessageComposerView(
+            viewFactory: factory,
+            viewModel: viewModel,
+            channelController: mockChannelController,
+            messageController: nil,
+            quotedMessage: .constant(nil),
+            editedMessage: .constant(nil),
+            willSendMessage: {}
+        )
+        .frame(width: composerWidth, height: 450)
+
+        // Then
+        let traits = UITraitCollection(traitsFrom: [
+            UITraitCollection(displayScale: 1),
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            UITraitCollection(userInterfaceStyle: .light)
+        ])
+        assertSnapshot(
+            matching: view,
+            as: .image(perceptualPrecision: precision, layout: .sizeThatFits, traits: traits)
+        )
     }
 
     func test_composerInputView_frozenChannel() {
@@ -1652,12 +1755,13 @@ private extension MessageComposerView_Tests {
         }
 
         let fetchResult = MockPHFetchResult(mockAssets: mockAssets)
-        let loader = PhotoAssetLoader()
+        // The mock assets are not in the photo library, so the loader must not reach it.
+        let loader = PhotoAssetLoader_Mock()
         let imageSize = CGSize(width: 200, height: 200)
         for (index, asset) in mockAssets.enumerated() {
-            loader.loadedImages[asset.localIdentifier] = UIImage.make(
-                color: itemColors[index],
-                size: imageSize
+            loader.cache(
+                UIImage.make(color: itemColors[index], size: imageSize),
+                for: asset
             )
         }
         return (fetchResult, loader)
@@ -1802,16 +1906,6 @@ private class MockPHAsset: PHAsset, @unchecked Sendable {
     override var localIdentifier: String { _mockId }
     override var mediaType: PHAssetMediaType { _mockMediaType }
     override var duration: TimeInterval { _mockDuration }
-
-    override func requestContentEditingInput(
-        with options: PHContentEditingInputRequestOptions?,
-        completionHandler: @escaping (PHContentEditingInput?, [AnyHashable: Any]) -> Void
-    ) -> PHContentEditingInputRequestID {
-        completionHandler(nil, [:])
-        return 0
-    }
-
-    override func cancelContentEditingInputRequest(_ requestID: PHContentEditingInputRequestID) {}
 }
 
 private class MockPHFetchResult: PHFetchResult<PHAsset>, @unchecked Sendable {

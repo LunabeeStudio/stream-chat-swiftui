@@ -7,7 +7,7 @@ let package = Package(
     name: "StreamChatSwiftUI",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v15), .macOS(.v11)
+        .iOS(.v16), .macOS(.v11)
     ],
     products: [
         .library(
@@ -16,7 +16,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "5.5.1")
+        .package(url: "https://github.com/GetStream/stream-chat-swift.git", from: "5.18.0")
     ],
     targets: [
         .target(

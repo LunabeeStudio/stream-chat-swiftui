@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		402C54482B6AAC0100672BFB /* StreamChatSwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8465FBB52746873A00AF091E /* StreamChatSwiftUI.framework */; };
 		402C54492B6AAC0100672BFB /* StreamChatSwiftUI.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8465FBB52746873A00AF091E /* StreamChatSwiftUI.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4F5C0DE12F7E02AA00C0FFEE /* StreamChatLogsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4F5C0DE22F7E02AA00C0FFEE /* StreamChatLogsUI */; };
 		8205B4142AD41CC700265B84 /* StreamSwiftTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 8205B4132AD41CC700265B84 /* StreamSwiftTestHelpers */; };
 		8205B4182AD4267200265B84 /* StreamSwiftTestHelpers in Frameworks */ = {isa = PBXBuildFile; productRef = 8205B4172AD4267200265B84 /* StreamSwiftTestHelpers */; };
 		829EF8772A9362C00045D166 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 829EF8762A9362C00045D166 /* PrivacyInfo.xcprivacy */; };
@@ -126,8 +127,12 @@
 				Infrastructure/Mocks/mock.html,
 				Infrastructure/Mocks/MockBackgroundTaskScheduler.swift,
 				Infrastructure/Mocks/MockNetworkURLProtocol.swift,
+				Infrastructure/Mocks/PHAsset_Mock.swift,
+				Infrastructure/Mocks/PHFetchResult_Mock.swift,
+				Infrastructure/Mocks/PhotoAssetLoader_Mock.swift,
 				Infrastructure/Mocks/Poll_Mock.swift,
 				Infrastructure/Mocks/RequestRecorderURLProtocol.swift,
+				Infrastructure/Mocks/Role_Mock.swift,
 				Infrastructure/Mocks/TestRequest.swift,
 				Infrastructure/Mocks/VirtualTimer.swift,
 				Infrastructure/Mocks/WebSocketEngineMock.swift,
@@ -157,6 +162,9 @@
 				Resources/Assets.xcassets,
 				Tests/ChatChannel/AttachmentCommandsPickerView_Tests.swift,
 				Tests/ChatChannel/AttachmentFilePickerView_Tests.swift,
+				Tests/ChatChannel/AttachmentMediaPickerItemView_Tests.swift,
+				Tests/ChatChannel/AttachmentMediaPickerView_Tests.swift,
+				Tests/ChatChannel/AudioAttachmentView_Tests.swift,
 				Tests/ChatChannel/ChannelControllerFactory_Tests.swift,
 				Tests/ChatChannel/ChannelInfo/ChannelInfoMockUtils.swift,
 				Tests/ChatChannel/ChannelInfo/ChatChannelInfoView_Tests.swift,
@@ -188,13 +196,16 @@
 				Tests/ChatChannel/CreatePollView_Tests.swift,
 				Tests/ChatChannel/CreatePollViewModel_Tests.swift,
 				Tests/ChatChannel/EditedMessageView_Tests.swift,
+				Tests/ChatChannel/FileAttachmentPreview_Tests.swift,
 				Tests/ChatChannel/FileAttachmentView_Tests.swift,
 				Tests/ChatChannel/GiphyAttachmentView_Tests.swift,
 				Tests/ChatChannel/InputTextView_Tests.swift,
 				Tests/ChatChannel/LazyLoadingImage_Tests.swift,
 				Tests/ChatChannel/MediaAttachmentGalleryOrdering_Tests.swift,
+				Tests/ChatChannel/MediaPickerAssetHandler_Tests.swift,
 				Tests/ChatChannel/MediaViewer_Tests.swift,
 				Tests/ChatChannel/MessageActions_Tests.swift,
+				Tests/ChatChannel/MessageActionsView_Tests.swift,
 				Tests/ChatChannel/MessageActionsViewModel_Tests.swift,
 				Tests/ChatChannel/MessageAttachmentPreviewResolver_Tests.swift,
 				Tests/ChatChannel/MessageAttachmentsConverter_Tests.swift,
@@ -208,12 +219,16 @@
 				Tests/ChatChannel/MessageListViewAvatars_Tests.swift,
 				Tests/ChatChannel/MessageListViewLastGroupHeader_Tests.swift,
 				Tests/ChatChannel/MessageListViewNewMessages_Tests.swift,
+				Tests/ChatChannel/MessageMediaAttachmentsContainerView_Tests.swift,
 				Tests/ChatChannel/MessageReadIndicatorView_Tests.swift,
 				Tests/ChatChannel/MessageTopView_Tests.swift,
 				Tests/ChatChannel/MessageTypeResolver_Tests.swift,
 				Tests/ChatChannel/MessageView_Tests.swift,
+				Tests/ChatChannel/MessageViewModel_Tests.swift,
 				Tests/ChatChannel/MessageViewMultiRowReactions_Tests.swift,
 				Tests/ChatChannel/MoreReactionsView_Tests.swift,
+				Tests/ChatChannel/PhotoAssetLoader_Tests.swift,
+				Tests/ChatChannel/PollAccessibility_Tests.swift,
 				Tests/ChatChannel/PollAllOptionsView_Tests.swift,
 				Tests/ChatChannel/PollAttachmentView_Tests.swift,
 				Tests/ChatChannel/PollAttachmentViewModel_Tests.swift,
@@ -225,17 +240,20 @@
 				Tests/ChatChannel/ReactionsDetailView_Tests.swift,
 				Tests/ChatChannel/ReactionsDetailViewModel_Tests.swift,
 				Tests/ChatChannel/ReactionsOverlayView_Tests.swift,
+				Tests/ChatChannel/ReactionsOverlayViewModel_Tests.swift,
 				Tests/ChatChannel/ReactionsView_Tests.swift,
 				Tests/ChatChannel/Suggestions/CommandsHandler_Tests.swift,
 				Tests/ChatChannel/Suggestions/CommandSuggestionsView_Tests.swift,
 				Tests/ChatChannel/Suggestions/InstantCommandsHandler_Tests.swift,
+				Tests/ChatChannel/Suggestions/MentionsCommandHandler_Tests.swift,
+				Tests/ChatChannel/Suggestions/MentionSuggestion_Tests.swift,
+				Tests/ChatChannel/Suggestions/MentionSuggestionsView_Tests.swift,
 				Tests/ChatChannel/Suggestions/MuteCommandHandler_Tests.swift,
 				Tests/ChatChannel/Suggestions/TestCommandsConfig.swift,
 				Tests/ChatChannel/Suggestions/TypingSuggester_Tests.swift,
 				Tests/ChatChannel/Suggestions/UserSuggestionsView_Tests.swift,
 				Tests/ChatChannel/SystemMessageView_Tests.swift,
 				Tests/ChatChannel/TypingIndicatorView_Tests.swift,
-				Tests/ChatChannel/VoiceRecordingHandler_Tests.swift,
 				Tests/ChatChannel/WebView_Tests.swift,
 				Tests/ChatChannelList/ChatChannelListItemView_Tests.swift,
 				Tests/ChatChannelList/ChatChannelListItemViewModel_Tests.swift,
@@ -248,6 +266,7 @@
 				Tests/ChatChannelList/MoreChannelActionsView_Tests.swift,
 				Tests/ChatChannelList/MoreChannelActionsViewModel_Tests.swift,
 				Tests/ChatChannelList/SearchResultsView_Tests.swift,
+				Tests/ChatChannelList/TabBarAccessor_Tests.swift,
 				Tests/ChatThreadList/ChatThreadListItemView_Tests.swift,
 				Tests/ChatThreadList/ChatThreadListView_Tests.swift,
 				Tests/ChatThreadList/ChatThreadListViewModel_Tests.swift,
@@ -260,14 +279,17 @@
 				Tests/CommonViews/RadioCheckView_Tests.swift,
 				Tests/CommonViews/SearchBar_Tests.swift,
 				Tests/CommonViews/SnackBarView_Tests.swift,
+				Tests/CommonViews/StreamAsyncImage_Tests.swift,
 				Tests/CommonViews/StreamButton_Tests.swift,
 				Tests/CommonViews/VideoPlayIndicatorView_Tests.swift,
 				Tests/StreamChatTestCase.swift,
+				Tests/Utils/AudioSessionHandler_Tests.swift,
 				Tests/Utils/ChannelPlaceholderAvatarUsersCache_Tests.swift,
 				Tests/Utils/ChatClientExtensions_Tests.swift,
 				Tests/Utils/ChatMessageExtensions_Tests.swift,
 				Tests/Utils/ChatUserNamer_Tests.swift,
 				Tests/Utils/MediaLoader_Tests.swift,
+				Tests/Utils/MessageAccessibilityFormatter_Tests.swift,
 				Tests/Utils/MessagePreviewFormatter_Tests.swift,
 				Tests/Utils/ReactionsIconProvider_Tests.swift,
 				Tests/Utils/SortReactions_Tests.swift,
@@ -281,6 +303,7 @@
 		82EFEAF82F2BA90900B41819 /* Exceptions for "StreamChatSwiftUITestsAppTests" folder in "StreamChatSwiftUITestsAppTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Backend.xctestplan,
 				StreamChatSwiftUITestsApp.xctestplan,
 			);
 			target = 8400A350282E6BE30067D3A0 /* StreamChatSwiftUITestsAppTests */;
@@ -424,6 +447,7 @@
 				E3A1C01C282BAC66002D1E26 /* Sentry in Frameworks */,
 				ADCE871A2F0C290B00F6A7C3 /* StreamChat in Frameworks */,
 				ADCE871C2F0C291600F6A7C3 /* StreamChatCommonUI in Frameworks */,
+				4F5C0DE12F7E02AA00C0FFEE /* StreamChatLogsUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -608,6 +632,7 @@
 				E3A1C01B282BAC66002D1E26 /* Sentry */,
 				ADCE87192F0C290B00F6A7C3 /* StreamChat */,
 				ADCE871B2F0C291600F6A7C3 /* StreamChatCommonUI */,
+				4F5C0DE22F7E02AA00C0FFEE /* StreamChatLogsUI */,
 			);
 			productName = DemoAppSwiftUI;
 			productReference = 8465FCBC27468B6900AF091E /* DemoAppSwiftUI.app */;
@@ -861,7 +886,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -888,7 +913,7 @@
 				INFOPLIST_FILE = Sources/StreamChatSwiftUI/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_GENERATE_MAP_FILE = YES;
 				LD_MAP_FILE_PATH = "linkmaps/$(PRODUCT_NAME)-$(CURRENT_ARCH)-LinkMap.txt";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -951,7 +976,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -987,7 +1012,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1008,7 +1033,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = EHV7XZLAHA;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.getstream.iOS.StreamChatSwiftUITestsAppTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1027,7 +1052,7 @@
 				DEVELOPMENT_TEAM = EHV7XZLAHA;
 				GCC_OPTIMIZATION_LEVEL = s;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.getstream.iOS.StreamChatSwiftUITestsAppTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1046,7 +1071,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = EHV7XZLAHA;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.getstream.iOS.StreamChatSwiftUITestsAppTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1079,7 +1104,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1115,7 +1140,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1181,7 +1206,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1239,7 +1264,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
@@ -1266,7 +1291,7 @@
 				INFOPLIST_FILE = Sources/StreamChatSwiftUI/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_GENERATE_MAP_FILE = YES;
 				LD_MAP_FILE_PATH = "linkmaps/$(PRODUCT_NAME)-$(CURRENT_ARCH)-LinkMap.txt";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1303,7 +1328,7 @@
 				INFOPLIST_FILE = Sources/StreamChatSwiftUI/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_GENERATE_MAP_FILE = YES;
 				LD_MAP_FILE_PATH = "linkmaps/$(PRODUCT_NAME)-$(CURRENT_ARCH)-LinkMap.txt";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1389,7 +1414,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1423,7 +1448,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1525,7 +1550,7 @@
 			repositoryURL = "https://github.com/GetStream/stream-chat-swift.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 5.5.1;
+				minimumVersion = 5.18.0;
 			};
 		};
 		E3A1C01A282BAC66002D1E26 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
@@ -1539,6 +1564,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4F5C0DE22F7E02AA00C0FFEE /* StreamChatLogsUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 84E7F9E02EFAF9BF00BA56A3 /* XCRemoteSwiftPackageReference "stream-chat-swift" */;
+			productName = StreamChatLogsUI;
+		};
 		8205B4132AD41CC700265B84 /* StreamSwiftTestHelpers */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 82543C7B2AD41B0400D5F6CD /* XCRemoteSwiftPackageReference "stream-chat-swift-test-helpers" */;

@@ -4,14 +4,23 @@
 
 import Combine
 import StreamChat
+import StreamChatLogsUI
 import StreamChatSwiftUI
 import SwiftUI
 
 @main
 struct DemoAppSwiftUIApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @Injected(\.chatClient) public var chatClient: ChatClient
 
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+        }
+    }
+}
+
+@MainActor
+struct RootView: View {
     @ObservedObject var appState = AppState.shared
     @ObservedObject var notificationsHandler = NotificationsHandler.shared
 
@@ -20,11 +29,11 @@ struct DemoAppSwiftUIApp: App {
     }
 
     var channelListSearchType: ChannelListSearchType {
-        .messages
+        AppConfiguration.default.channelListSearchType.resolved
     }
 
-    var body: some Scene {
-        WindowGroup {
+    var body: some View {
+        Group {
             switch appState.userState {
             case .launchAnimation:
                 StreamLogoLaunch()
@@ -104,11 +113,13 @@ struct DemoAppSwiftUIApp: App {
     }
     
     private func didLogout() {
+        LogViewer.showsFloatingButton = false
         channelListController = nil
         currentUserController = nil
     }
     
     private func didLogin() {
+        LogViewer.showsFloatingButton = true
         setChannelQueryIdentifier(.initial)
         
         currentUserController = chatClient.currentUserController()
@@ -123,13 +134,10 @@ struct DemoAppSwiftUIApp: App {
     }
 
     func currentUserController(_ controller: CurrentChatUserController, didChangeCurrentUserUnreadCount: UnreadCount) {
+        guard unreadCount != didChangeCurrentUserUnreadCount else { return }
         unreadCount = didChangeCurrentUserUnreadCount
         let totalUnreadBadge = unreadCount.channels + unreadCount.threads
-        if #available(iOS 16.0, *) {
-            UNUserNotificationCenter.current().setBadgeCount(totalUnreadBadge)
-        } else {
-            UIApplication.shared.applicationIconBadgeNumber = totalUnreadBadge
-        }
+        UNUserNotificationCenter.current().setBadgeCount(totalUnreadBadge)
     }
 }
 

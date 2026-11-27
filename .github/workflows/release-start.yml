@@ -8,33 +8,39 @@ on:
         type: string
         required: true
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   test-release:
     name: Start new release
-    runs-on: macos-15
+    runs-on: { group: github-public-amd64 }
     steps:
-      - name: Connect Bot
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
-
       - uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 0 # to fetch git tags
 
       - uses: ./.github/actions/ruby-cache
 
-      - uses: ./.github/actions/xcode-cache
+      - name: Generate release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.IOS_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.IOS_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }},apple-internal-testing-pipeline,stream-internal-metrics
+          permission-contents: read
+          permission-pull-requests: write
+          permission-actions: write
 
       - name: Integration Test
-        run: gh workflow run test.yml --repo GetStream/apple-internal-testing-pipeline -f branch=${{ github.ref_name }} # reports to @support on failure
+        run: gh workflow run test.yml --repo GetStream/apple-internal-testing-pipeline # reports to @support on failure
         env:
-          GITHUB_TOKEN: ${{ secrets.CI_BOT_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
-      - name: Release
+      - name: Create Release PR
         run: bundle exec fastlane release version:"${{ github.event.inputs.version }}" --verbose
         env:
-          GITHUB_TOKEN: ${{ secrets.CI_BOT_GITHUB_TOKEN }}
-          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          APPSTORE_API_KEY: ${{ secrets.APPSTORE_API_KEY }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

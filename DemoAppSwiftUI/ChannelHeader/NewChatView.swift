@@ -103,6 +103,7 @@ struct NewChatView: View, KeyboardReadable {
                     .foregroundColor(Color(colors.navigationBarTitle))
             }
         }
+        .modifier(SidebarBackButtonModifier())
         .onReceive(keyboardWillChangePublisher) { visible in
             keyboardShown = visible
         }
@@ -110,13 +111,39 @@ struct NewChatView: View, KeyboardReadable {
     }
 }
 
+// On iPhone the split view is only used by foldables like the iPhone Duo, and its sidebar
+// doesn't show a back button for pushed screens, so the new chat flow adds its own.
+struct SidebarBackButtonModifier: ViewModifier {
+    @Environment(\.dismiss) private var dismiss
+
+    func body(content: Content) -> some View {
+        content.toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if showsBackButton {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel(Text("Back"))
+                }
+            }
+        }
+    }
+
+    // The sidebar itself reports a compact size class, so check the window instead.
+    private var showsBackButton: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return false }
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            .first
+        return window?.traitCollection.horizontalSizeClass == .regular
+    }
+}
+
 struct TabBarVisibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 16.0, *) {
-            content.toolbar(.hidden, for: .tabBar)
-        } else {
-            content
-        }
+        content.toolbar(.hidden, for: .tabBar)
     }
 }
 
