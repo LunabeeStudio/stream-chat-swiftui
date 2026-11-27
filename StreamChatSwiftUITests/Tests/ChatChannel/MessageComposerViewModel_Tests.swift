@@ -2,6 +2,8 @@
 // Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
+import AVFoundation
+import Combine
 @testable import StreamChat
 @testable import StreamChatSwiftUI
 @testable import StreamChatTestTools
@@ -93,7 +95,7 @@ import XCTest
         // When
         viewModel.addFileURLs([mockURL])
         let buttonEnabled = viewModel.hasContent
-        
+
         // Then
         XCTAssert(buttonEnabled == true)
         XCTAssertEqual(viewModel.composerAssets.count, 1)
@@ -577,7 +579,7 @@ import XCTest
         viewModel.imageTapped(newAsset) // This one will not be added, default limit is 10.
         let newURL = generateURL()
         viewModel.addFileURLs([newURL])
-        
+
         // Then
         let total = viewModel.composerAssets.count
         XCTAssertEqual(total, 10)
@@ -683,6 +685,239 @@ import XCTest
         
         // Then
         XCTAssert(viewModel.mentionedUsers.isEmpty)
+    }
+
+    func test_messageComposerVM_clearingTextClearsMentionSuggestionsAndCommand() {
+        let viewModel = makeComposerViewModel()
+        viewModel.suggestions = ["mentions": [ChatUser.mock(id: "ios", name: "iOS")]]
+        viewModel.composerCommand = ComposerCommand(
+            id: "mentions",
+            typingSuggestion: TypingSuggestion(text: "i", locationRange: NSRange(location: 1, length: 1)),
+            displayInfo: nil
+        )
+
+        viewModel.text = ""
+
+        XCTAssertNil(viewModel.composerCommand)
+        XCTAssertTrue(viewModel.suggestions.isEmpty)
+    }
+
+    func test_messageComposerVM_endingMentionClearsSuggestions() {
+        let viewModel = makeComposerViewModel()
+        viewModel.selectedRangeLocation = 8
+        viewModel.text = "hello @i"
+        XCTAssertEqual(viewModel.composerCommand?.id, "mentions")
+
+        viewModel.selectedRangeLocation = 6
+        viewModel.text = "hello "
+
+        XCTAssertNil(viewModel.composerCommand)
+        XCTAssertTrue(viewModel.suggestions.isEmpty)
+    }
+
+    func test_messageComposerVM_deletingMentionQuery_doesNotShowStaleSuggestionsWhenEmpty() async {
+        let requestStarted = expectation(description: "delayed mention request started")
+        let requestFinished = expectation(description: "delayed mention request finished")
+        let provider = DelayedMentionSuggestionsProvider(
+            suggestions: [.user(.mock(id: "ios", name: "iOS"))],
+            delayNanoseconds: 100_000_000,
+            onStarted: { requestStarted.fulfill() },
+            onFinished: { requestFinished.fulfill() }
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: makeChannelController(),
+            messageController: nil
+        )
+        viewModel.utils = Utils(
+            commandsConfig: MentionsProviderCommandsConfig(provider: provider)
+        )
+
+        viewModel.selectedRangeLocation = 4
+        viewModel.text = "@iOS"
+        await fulfillment(of: [requestStarted], timeout: defaultTimeout)
+
+        viewModel.selectedRangeLocation = 0
+        viewModel.text = ""
+        await fulfillment(of: [requestFinished], timeout: defaultTimeout)
+
+        XCTAssertNil(viewModel.composerCommand)
+        XCTAssertTrue(viewModel.suggestions.isEmpty)
+    }
+
+    func test_checkForMentionedUsers_withUserSuggestion() {
+        // Given
+        let viewModel = makeComposerViewModel()
+        let user = ChatUser.mock(id: .unique, name: "Martin")
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.user(user)]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.mentionedUsers, [user])
+    }
+
+    func test_checkForMentionedUsers_withHereSuggestion() {
+        // Given
+        let viewModel = makeComposerViewModel()
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.here]
+        )
+
+        // Then
+        XCTAssertTrue(viewModel.mentionsHere)
+        XCTAssertFalse(viewModel.mentionsChannel)
+    }
+
+    func test_checkForMentionedUsers_withChannelSuggestion() {
+        // Given
+        let viewModel = makeComposerViewModel()
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.channel]
+        )
+
+        // Then
+        XCTAssertTrue(viewModel.mentionsChannel)
+        XCTAssertFalse(viewModel.mentionsHere)
+    }
+
+    func test_checkForMentionedUsers_withRoleSuggestion() {
+        // Given
+        let viewModel = makeComposerViewModel()
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.role(Role.mock(name: "admin"))]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.mentionedRoles, ["admin"])
+    }
+
+    func test_checkForMentionedUsers_withGroupSuggestion() {
+        // Given
+        let viewModel = makeComposerViewModel()
+        let group = makeUserGroup(name: "Dream Team")
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.group(group)]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.mentionedGroups.map(\.id), [group.id])
+    }
+
+    func test_checkForMentionedUsers_withGroupSuggestion_doesNotDuplicate() {
+        // Given
+        let viewModel = makeComposerViewModel()
+        let group = makeUserGroup(name: "Dream Team")
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.group(group)]
+        )
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.group(group)]
+        )
+
+        // Then
+        XCTAssertEqual(viewModel.mentionedGroups.count, 1)
+    }
+
+    func test_checkForMentionedUsers_whenNotMentionsCommand_ignored() {
+        // Given
+        let viewModel = makeComposerViewModel()
+
+        // When
+        viewModel.checkForMentionedUsers(
+            commandId: "giphy",
+            extraData: ["mentionSuggestion": MentionSuggestion.here]
+        )
+
+        // Then
+        XCTAssertFalse(viewModel.mentionsHere)
+        XCTAssertTrue(viewModel.mentionedUsers.isEmpty)
+    }
+
+    func test_clearRemovedMentions_removesMentionsNoLongerInText() {
+        // Given
+        let viewModel = makeComposerViewModel()
+        populateAllMentionTypes(in: viewModel)
+
+        // When
+        viewModel.text = "Hello there"
+        viewModel.clearRemovedMentions()
+
+        // Then
+        XCTAssertTrue(viewModel.mentionedUsers.isEmpty)
+        XCTAssertTrue(viewModel.mentionedRoles.isEmpty)
+        XCTAssertTrue(viewModel.mentionedGroups.isEmpty)
+        XCTAssertFalse(viewModel.mentionsHere)
+        XCTAssertFalse(viewModel.mentionsChannel)
+    }
+
+    func test_clearRemovedMentions_keepsMentionsStillInText() {
+        // Given
+        let viewModel = makeComposerViewModel()
+        populateAllMentionTypes(in: viewModel)
+
+        // When
+        viewModel.text = "Hi @Martin @admin @Dream Team @here @channel"
+        viewModel.clearRemovedMentions()
+
+        // Then
+        XCTAssertEqual(viewModel.mentionedUsers.first?.name, "Martin")
+        XCTAssertEqual(viewModel.mentionedRoles, ["admin"])
+        XCTAssertEqual(viewModel.mentionedGroups.map(\.name), ["Dream Team"])
+        XCTAssertTrue(viewModel.mentionsHere)
+        XCTAssertTrue(viewModel.mentionsChannel)
+    }
+
+    func test_showSuggestionsOverlay_whenMentionsWithMentionSuggestions_returnsTrue() {
+        // Given
+        let channelController = makeChannelController()
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+
+        // When
+        channelController.channel_mock = .mock(cid: .unique, config: ChannelConfig(commands: []))
+        viewModel.composerCommand = .init(id: "mentions", typingSuggestion: .empty, displayInfo: nil)
+        viewModel.suggestions = ["mentions": [MentionSuggestion.here]]
+
+        // Then
+        XCTAssertTrue(viewModel.showSuggestionsOverlay)
+    }
+
+    func test_showSuggestionsOverlay_whenMentionsWithEmptyMentionSuggestions_returnsFalse() {
+        // Given
+        let channelController = makeChannelController()
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+
+        // When
+        channelController.channel_mock = .mock(cid: .unique, config: ChannelConfig(commands: []))
+        viewModel.composerCommand = .init(id: "mentions", typingSuggestion: .empty, displayInfo: nil)
+        viewModel.suggestions = ["mentions": [MentionSuggestion]()]
+
+        // Then
+        XCTAssertFalse(viewModel.showSuggestionsOverlay)
     }
 
     func test_messageComposerVM_canSendPoll() {
@@ -1009,6 +1244,145 @@ import XCTest
         XCTAssertEqual(viewModel.cooldownDuration, 0)
     }
 
+    func test_messageComposerVM_sendMessage_whenOwnMessageIsStored_startsCooldown() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.channel_mock = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: nil
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+        viewModel.text = "Hello"
+
+        // When
+        viewModel.sendMessage()
+        let sentMessage = ChatMessage.mock(
+            cid: channelController.cid ?? .unique,
+            createdAt: Date(),
+            isSentByCurrentUser: true
+        )
+        let updatedChannel = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: sentMessage
+        )
+        channelController.simulate(channel: updatedChannel, change: .update(updatedChannel), typingUsers: nil)
+
+        // Then
+        XCTAssertEqual(channelController.createNewMessageCallCount, 1)
+        let expectation = XCTestExpectation(description: "Cooldown started")
+        let cancellable = viewModel.$cooldownDuration
+            .first { $0 > 0 }
+            .sink { _ in expectation.fulfill() }
+        wait(for: [expectation], timeout: defaultTimeout)
+        cancellable.cancel()
+        XCTAssertLessThanOrEqual(viewModel.cooldownDuration, 15)
+        guard case .slowMode = viewModel.composerInputState else {
+            return XCTFail("Expected the slow mode input state, got \(viewModel.composerInputState)")
+        }
+    }
+
+    func test_messageComposerVM_sendMessage_whenEditingMessage_doesNotStartCooldown() {
+        // Given
+        let channelController = makeChannelController()
+        let editedMessage = ChatMessage.mock(
+            cid: channelController.cid ?? .unique,
+            text: "Original",
+            createdAt: Date().addingTimeInterval(-60),
+            isSentByCurrentUser: true
+        )
+        channelController.channel_mock = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: editedMessage
+        )
+        var editedRef: ChatMessage? = editedMessage
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil,
+            editedMessage: Binding(get: { editedRef }, set: { editedRef = $0 })
+        )
+        viewModel.text = "Edited"
+
+        // When
+        viewModel.sendMessage()
+
+        // Then
+        XCTAssertEqual(channelController.createNewMessageCallCount, 0)
+        XCTAssertEqual(viewModel.cooldownDuration, 0)
+    }
+
+    func test_messageComposerVM_threadComposer_whenChannelHasActiveCooldown_resumesCooldown() {
+        // Given
+        let channelController = makeChannelController()
+        channelController.channel_mock = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: nil
+        )
+        let parentMessage = ChatMessage.mock(cid: channelController.cid ?? .unique)
+        let messageController = ChatMessageControllerSUI_Mock.mock(
+            chatClient: chatClient,
+            cid: channelController.cid,
+            messageId: parentMessage.id
+        )
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: messageController
+        )
+        XCTAssertEqual(viewModel.cooldownDuration, 0)
+
+        // When
+        let lastMessage = ChatMessage.mock(
+            cid: channelController.cid ?? .unique,
+            createdAt: Date().addingTimeInterval(-2),
+            isSentByCurrentUser: true
+        )
+        let updatedChannel = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: lastMessage
+        )
+        channelController.simulate(channel: updatedChannel, change: .update(updatedChannel), typingUsers: nil)
+
+        // Then
+        let expectation = XCTestExpectation(description: "Cooldown resumed")
+        let cancellable = viewModel.$cooldownDuration
+            .first { $0 > 0 }
+            .sink { _ in expectation.fulfill() }
+        wait(for: [expectation], timeout: defaultTimeout)
+        cancellable.cancel()
+        XCTAssertLessThanOrEqual(viewModel.cooldownDuration, 13)
+    }
+
+    func test_messageComposerVM_composerInputState_whenQuotingMessageDuringCooldown_staysInSlowMode() {
+        // Given
+        let channelController = makeChannelController()
+        let lastMessage = ChatMessage.mock(
+            cid: channelController.cid ?? .unique,
+            createdAt: Date().addingTimeInterval(-1),
+            isSentByCurrentUser: true
+        )
+        channelController.channel_mock = makeChannelForCooldown(
+            cooldownDuration: 15,
+            lastMessageFromCurrentUser: lastMessage
+        )
+        var quotedRef: ChatMessage?
+        let viewModel = MessageComposerViewModel(
+            channelController: channelController,
+            messageController: nil,
+            quotedMessage: Binding(get: { quotedRef }, set: { quotedRef = $0 })
+        )
+        viewModel.checkChannelCooldown()
+
+        // When
+        quotedRef = lastMessage
+
+        // Then
+        guard case .slowMode = viewModel.composerInputState else {
+            return XCTFail("Expected the slow mode input state, got \(viewModel.composerInputState)")
+        }
+    }
+
     func test_addedAsset_extraData() {
         // Given
         let image = UIImage(systemName: "person")!
@@ -1217,6 +1591,98 @@ import XCTest
         let imagePayload = try XCTUnwrap(payloads.first?.payload as? ImageAttachmentPayload)
         XCTAssertEqual(imagePayload.originalWidth, 300)
         XCTAssertEqual(imagePayload.originalHeight, 200)
+    }
+
+    func test_addFileURLs_imageURL_addsInlineMediaAssetSentAsImage() throws {
+        let viewModel = makeComposerViewModel()
+        let url = URL.newTemporaryFileURL().appendingPathExtension("png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try makeImageData().write(to: url)
+
+        viewModel.addFileURLs([url])
+
+        // Rendered inline in the composer as a media asset (not a file chip).
+        XCTAssertEqual(viewModel.composerAssets.count, 1)
+        guard case let .addedAsset(asset) = try XCTUnwrap(viewModel.composerAssets.first) else {
+            return XCTFail("Expected an inline media asset")
+        }
+        XCTAssertEqual(asset.type, .image)
+
+        // Sent as an image attachment.
+        let payloads = try viewModel.convertAddedAssetsToPayloads()
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?.type, .image)
+        XCTAssertNotNil(payloads.first?.payload as? ImageAttachmentPayload)
+    }
+
+    func test_addFileURLs_videoURL_addsInlineMediaAssetSentAsVideo() throws {
+        let viewModel = makeComposerViewModel()
+        let url = try makeVideoFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        viewModel.addFileURLs([url])
+
+        XCTAssertEqual(viewModel.composerAssets.count, 1)
+        guard case let .addedAsset(asset) = try XCTUnwrap(viewModel.composerAssets.first) else {
+            return XCTFail("Expected an inline media asset")
+        }
+        XCTAssertEqual(asset.type, .video)
+
+        let payloads = try viewModel.convertAddedAssetsToPayloads()
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?.type, .video)
+        XCTAssertNotNil(payloads.first?.payload as? VideoAttachmentPayload)
+    }
+
+    func test_addFileURLs_unreadableVideoURL_isStillSentAsVideoAttachment() throws {
+        let viewModel = makeComposerViewModel()
+        let url = URL.newTemporaryFileURL().appendingPathExtension("mp4")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("not a real video".utf8).write(to: url)
+
+        viewModel.addFileURLs([url])
+
+        // No thumbnail could be generated, so it falls back to a file chip in the composer...
+        XCTAssertEqual(viewModel.composerAssets.count, 1)
+        guard case .addedFile = try XCTUnwrap(viewModel.composerAssets.first) else {
+            return XCTFail("Expected a file attachment")
+        }
+
+        // ...but it's still sent as a video attachment, resolved from the file extension.
+        let payloads = try viewModel.convertAddedAssetsToPayloads()
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?.type, .video)
+        XCTAssertNotNil(payloads.first?.payload as? VideoAttachmentPayload)
+    }
+
+    func test_addFileURLs_audioURL_isSentAsAudioAttachment() throws {
+        let viewModel = makeComposerViewModel()
+        let url = URL.newTemporaryFileURL().appendingPathExtension("mp3")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("mock audio".utf8).write(to: url)
+
+        viewModel.addFileURLs([url])
+        XCTAssertEqual(viewModel.composerAssets.count, 1)
+
+        let payloads = try viewModel.convertAddedAssetsToPayloads()
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?.type, .audio)
+        XCTAssertNotNil(payloads.first?.payload as? AudioAttachmentPayload)
+    }
+
+    func test_addFileURLs_documentURL_isSentAsFileAttachment() throws {
+        let viewModel = makeComposerViewModel()
+        let url = URL.newTemporaryFileURL().appendingPathExtension("pdf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("mock pdf".utf8).write(to: url)
+
+        viewModel.addFileURLs([url])
+        XCTAssertEqual(viewModel.composerAssets.count, 1)
+
+        let payloads = try viewModel.convertAddedAssetsToPayloads()
+        XCTAssertEqual(payloads.count, 1)
+        XCTAssertEqual(payloads.first?.type, .file)
+        XCTAssertNotNil(payloads.first?.payload as? FileAttachmentPayload)
     }
 
     func test_imagePickerCoordinator_imageSelection_setsOriginalWidthAndHeightOnAsset() throws {
@@ -1614,6 +2080,39 @@ import XCTest
         XCTAssertEqual(viewModel.text, "text")
     }
 
+    func test_messageComposerVM_fillDraftMessage_doesNotSendKeystrokeEvent() {
+        // Given
+        let draftMessage = DraftMessage.mock(text: "Draft text")
+        let channelController = makeChannelController()
+        channelController.channel_mock = .mock(cid: channelController.cid!, draftMessage: draftMessage)
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+
+        // When
+        viewModel.fillDraftMessage()
+
+        // Then
+        XCTAssertEqual(viewModel.text, "Draft text")
+        XCTAssertEqual(channelController.sendKeystrokeEvent_callCount, 0)
+    }
+
+    func test_messageComposerVM_whenUserTypes_sendsKeystrokeEvent() {
+        // Given
+        let channelController = makeChannelController()
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+
+        // When
+        viewModel.text = "Hello"
+
+        // Then
+        XCTAssertEqual(channelController.sendKeystrokeEvent_callCount, 1)
+    }
+
     func test_messageComposerVM_updateDraftMessage() {
         // Given
         let channelController = makeChannelController()
@@ -1653,6 +2152,82 @@ import XCTest
         // Then
         XCTAssertEqual(messageController.updateDraftReply_text, "Draft reply")
         XCTAssertEqual(messageController.updateDraftReply_callCount, 1)
+    }
+
+    func test_messageComposerVM_updateDraftMessage_whenUnchanged_doesNotResave() {
+        // Given
+        let draftMessage = DraftMessage.mock(text: "Draft text")
+        let channelController = makeChannelController()
+        channelController.channel_mock = .mock(cid: channelController.cid!, draftMessage: draftMessage)
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+        viewModel.fillDraftMessage()
+
+        // When
+        viewModel.updateDraftMessage(quotedMessage: nil)
+
+        // Then
+        XCTAssertEqual(channelController.updateDraftMessage_callCount, 0)
+    }
+
+    func test_messageComposerVM_updateDraftMessage_whenTextChanged_resaves() {
+        // Given
+        let draftMessage = DraftMessage.mock(text: "Draft text")
+        let channelController = makeChannelController()
+        channelController.channel_mock = .mock(cid: channelController.cid!, draftMessage: draftMessage)
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+        viewModel.fillDraftMessage()
+        viewModel.text = "Edited draft text"
+
+        // When
+        viewModel.updateDraftMessage(quotedMessage: nil)
+
+        // Then
+        XCTAssertEqual(channelController.updateDraftMessage_callCount, 1)
+        XCTAssertEqual(channelController.updateDraftMessage_text, "Edited draft text")
+    }
+
+    func test_messageComposerVM_updateDraftMessage_whenOnlyAttachmentsChanged_resaves() {
+        // Given
+        let draftMessage = DraftMessage.mock(text: "Draft text")
+        let channelController = makeChannelController()
+        channelController.channel_mock = .mock(cid: channelController.cid!, draftMessage: draftMessage)
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+        viewModel.fillDraftMessage()
+        viewModel.composerAssets = [.addedFile(mockURL)]
+
+        // When
+        viewModel.updateDraftMessage(quotedMessage: nil)
+
+        // Then
+        XCTAssertEqual(channelController.updateDraftMessage_callCount, 1)
+    }
+
+    func test_messageComposerVM_updateDraftMessage_whenQuotedMessageChanged_resaves() {
+        // Given
+        let draftMessage = DraftMessage.mock(text: "Draft text")
+        let channelController = makeChannelController()
+        channelController.channel_mock = .mock(cid: channelController.cid!, draftMessage: draftMessage)
+        let viewModel = makeComposerDraftsViewModel(
+            channelController: channelController,
+            messageController: nil
+        )
+        viewModel.fillDraftMessage()
+        let quotedMessage = ChatMessage.mock(id: .unique, cid: .unique, text: "Quoted message", author: .mock(id: .unique))
+
+        // When
+        viewModel.updateDraftMessage(quotedMessage: quotedMessage)
+
+        // Then
+        XCTAssertEqual(channelController.updateDraftMessage_callCount, 1)
     }
     
     func test_messageComposerVM_whenTextErased_shouldDeleteDraftMessage() {
@@ -2184,6 +2759,67 @@ import XCTest
         XCTAssertTrue(viewModel.shouldSendOnRecordingFinish)
     }
 
+    // MARK: - haveSameContent
+
+    func test_haveSameContent_whenCountAndBoundaryAssetsAreEqual_returnsTrue() {
+        // Given
+        let current = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-1"),
+            PHAsset_Mock(id: "asset-2")
+        ])
+        let refetched = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-1"),
+            PHAsset_Mock(id: "asset-2")
+        ])
+
+        // Then
+        XCTAssertTrue(MessageComposerViewModel.haveSameContent(current, refetched))
+    }
+
+    func test_haveSameContent_whenCountsAreDifferent_returnsFalse() {
+        // Given
+        let current = PHFetchResult_Mock(assets: [PHAsset_Mock(id: "asset-0")])
+        let refetched = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-1")
+        ])
+
+        // Then
+        XCTAssertFalse(MessageComposerViewModel.haveSameContent(current, refetched))
+    }
+
+    func test_haveSameContent_whenFirstAssetIsDifferent_returnsFalse() {
+        // Given
+        let current = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-1")
+        ])
+        let refetched = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-new"),
+            PHAsset_Mock(id: "asset-1")
+        ])
+
+        // Then
+        XCTAssertFalse(MessageComposerViewModel.haveSameContent(current, refetched))
+    }
+
+    func test_haveSameContent_whenLastAssetIsDifferent_returnsFalse() {
+        // Given
+        let current = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-1")
+        ])
+        let refetched = PHFetchResult_Mock(assets: [
+            PHAsset_Mock(id: "asset-0"),
+            PHAsset_Mock(id: "asset-new")
+        ])
+
+        // Then
+        XCTAssertFalse(MessageComposerViewModel.haveSameContent(current, refetched))
+    }
+
     // MARK: - private
 
     private func makeComposerDraftsViewModel(
@@ -2200,6 +2836,33 @@ import XCTest
 
     private func makeComposerViewModel() -> MessageComposerViewModel {
         MessageComposerTestUtils.makeComposerViewModel(chatClient: chatClient)
+    }
+
+    private func makeUserGroup(name: String) -> UserGroup {
+        UserGroup(createdAt: .init(), id: .unique, name: name, updatedAt: .init())
+    }
+
+    private func populateAllMentionTypes(in viewModel: MessageComposerViewModel) {
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.user(.mock(id: .unique, name: "Martin"))]
+        )
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.role(Role.mock(name: "admin"))]
+        )
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.group(makeUserGroup(name: "Dream Team"))]
+        )
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.here]
+        )
+        viewModel.checkForMentionedUsers(
+            commandId: "mentions",
+            extraData: ["mentionSuggestion": MentionSuggestion.channel]
+        )
     }
 
     private func makeGiphyCommand() -> ComposerCommand {
@@ -2238,7 +2901,7 @@ import XCTest
             config: .mock(),
             ownCapabilities: ownCapabilities,
             lastActiveMembers: [],
-            currentlyTypingUsers: [],
+            typingUsers: [],
             lastActiveWatchers: [],
             unreadCount: .noUnread,
             cooldownDuration: cooldownDuration,
@@ -2264,6 +2927,45 @@ import XCTest
         let data = UIImage(systemName: "checkmark")?.pngData()
         try? data?.write(to: url)
     }
+
+    private func makeImageData() -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 10, height: 10)).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 10, height: 10))
+        }.pngData()!
+    }
+
+    /// Writes a real (decodable) one-frame video to a temporary `.mp4` so that a thumbnail
+    /// can be generated, exercising the picked-video path end to end.
+    private func makeVideoFileURL(width: Int = 16, height: Int = 16) throws -> URL {
+        let url = URL.newTemporaryFileURL().appendingPathExtension("mp4")
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        let input = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height
+            ]
+        )
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: nil
+        )
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        var pixelBuffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32ARGB, nil, &pixelBuffer)
+        adaptor.append(try XCTUnwrap(pixelBuffer), withPresentationTime: .zero)
+        input.markAsFinished()
+
+        let expectation = XCTestExpectation(description: "Finish writing video")
+        writer.finishWriting { expectation.fulfill() }
+        wait(for: [expectation], timeout: 5.0)
+        return url
+    }
 }
 
 enum MessageComposerTestUtils {
@@ -2284,5 +2986,54 @@ enum MessageComposerTestUtils {
             chatClient: chatClient,
             messages: messages
         )
+    }
+}
+
+private final class MentionsProviderCommandsConfig: CommandsConfig {
+    let mentionsSymbol = "@"
+    let instantCommandsSymbol = "/"
+    private let provider: MentionSuggestionsProvider
+
+    init(provider: MentionSuggestionsProvider) {
+        self.provider = provider
+    }
+
+    func makeCommandsHandler(with channelController: ChatChannelController) -> CommandsHandler {
+        let mentionsCommandHandler = MentionsCommandHandler(
+            channelController: channelController,
+            commandSymbol: mentionsSymbol,
+            provider: provider
+        )
+        return DefaultCommandsConfig.makeCommandsHandler(
+            mentionsCommandHandler: mentionsCommandHandler,
+            channelController: channelController
+        )
+    }
+}
+
+private final class DelayedMentionSuggestionsProvider: MentionSuggestionsProvider, @unchecked Sendable {
+    private let suggestions: [MentionSuggestion]
+    private let delayNanoseconds: UInt64
+    private let onStarted: @Sendable () -> Void
+    private let onFinished: @Sendable () -> Void
+
+    init(
+        suggestions: [MentionSuggestion],
+        delayNanoseconds: UInt64,
+        onStarted: @escaping @Sendable () -> Void,
+        onFinished: @escaping @Sendable () -> Void
+    ) {
+        self.suggestions = suggestions
+        self.delayNanoseconds = delayNanoseconds
+        self.onStarted = onStarted
+        self.onFinished = onFinished
+    }
+
+    func mentionSuggestions(for request: MentionSuggestionsRequest) async throws -> [MentionSuggestion] {
+        onStarted()
+        defer { onFinished() }
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+        try Task.checkCancellation()
+        return suggestions
     }
 }

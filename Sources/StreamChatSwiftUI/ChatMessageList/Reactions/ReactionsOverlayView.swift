@@ -31,8 +31,11 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
 
     @State private var screenHeight = UIScreen.main.bounds.size.height
     @State private var orientationChanged = false
+    @State private var snapshotOrigin = CGPoint.zero
+    @State private var presentationWindowSize: CGSize?
     @State private var moreReactionsShown = false
     @State private var measuredTotalContentHeight: CGFloat = 0
+    @State private var measuredActionsContentWidth: CGFloat = 0
 
     private let factory: Factory
     private let channel: ChatChannel
@@ -82,15 +85,14 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
             backgroundView
 
             GeometryReader { reader in
-                let height = reader.frame(in: .local).height
                 Color.clear
-                    .preference(key: HeightPreferenceKey.self, value: height)
+                    .preference(key: OverlayFramePreferenceKey.self, value: reader.frame(in: .global))
                     .contentShape(Rectangle())
                     .onTapGesture {
                         dismissReactionsOverlay { /* No additional handling. */ }
                     }
 
-                VStack(alignment: isRightAligned ? .trailing : .leading, spacing: tokens.spacingXs) {
+                let content = VStack(alignment: isRightAligned ? .trailing : .leading, spacing: tokens.spacingXs) {
                     reactionsPickerView(reader: reader)
                     factory.makeMessageItemView(
                         options: MessageItemViewOptions(
@@ -109,7 +111,11 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
                         )
                     )
                     .frame(width: messageDisplayInfo.frame.width)
-                    .frame(maxHeight: messageDisplayInfo.frame.height)
+                    // Let the preview take its natural height (including the timestamp/avatar)
+                    // rather than capping it to the captured frame. Capping would either clip
+                    // that content or, without clipping, let it bleed over the reactions picker
+                    // above; any genuine overflow is instead absorbed by the overlay's scroll.
+                    .fixedSize(horizontal: false, vertical: true)
                     .scaleEffect(popIn || willPopOut ? 1 : 0.95)
                     .animation(willPopOut ? .easeInOut : popInAnimation, value: popIn)
                     .onTapGesture {
@@ -117,8 +123,7 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
                     }
                     messageActionsView(reader: reader)
                 }
-                .frame(width: overlayContentWidth, alignment: isRightAligned ? .trailing : .leading)
-                .frame(height: measuredTotalContentHeight > 0 ? min(measuredTotalContentHeight, allowedTotalContentHeight) : nil)
+                .frame(width: overlayContentWidth(reader: reader), alignment: isRightAligned ? .trailing : .leading)
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(
@@ -127,24 +132,42 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
                         )
                     }
                 )
-                .offset(x: contentOffsetX(reader: reader), y: contentOffsetY)
+
+                // When the whole content (reactions + message + actions) is taller than the
+                // screen — which can happen at large Dynamic Type sizes — it becomes scrollable
+                // instead of being squeezed into an overlapping, unreadable stack. The scroll
+                // view spans the full height so the content can scroll under the status bar and
+                // home indicator, matching the UIKit message actions popup.
+                if contentExceedsScreen {
+                    ScrollView(showsIndicators: false) {
+                        content
+                            .padding(.top, topContentSpacing)
+                            .padding(.bottom, bottomContentSpacing)
+                    }
+                    .frame(width: overlayContentWidth(reader: reader), height: screenHeight)
+                    .offset(x: contentOffsetX(reader: reader))
+                } else {
+                    content
+                        .offset(x: contentOffsetX(reader: reader), y: contentOffsetY)
+                }
             }
         }
-        .onPreferenceChange(HeightPreferenceKey.self) { value in
-            if let value, value != screenHeight {
-                screenHeight = value
+        .onPreferenceChange(OverlayFramePreferenceKey.self) { frame in
+            guard let frame else { return }
+            if frame.height != screenHeight {
+                screenHeight = frame.height
             }
+            updateSnapshotLayout(overlayFrame: frame)
         }
         .onPreferenceChange(OverlayContentHeightKey.self) { value in
             if value > 0 {
                 measuredTotalContentHeight = value
             }
         }
-        .onChange(of: measuredTotalContentHeight) { _ in
-            messageViewModel.usesScrollView = usesScrollView
-        }
-        .onChange(of: screenHeight) { _ in
-            messageViewModel.usesScrollView = usesScrollView
+        .onPreferenceChange(ActionsContentWidthKey.self) { value in
+            if value > 0 {
+                measuredActionsContentWidth = value
+            }
         }
         .edgesIgnoringSafeArea(.all)
         .background(orientationChanged ? nil : Color(colors.backgroundCoreElevation1))
@@ -188,18 +211,20 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
         ZStack {
             if !orientationChanged {
                 Image(uiImage: currentSnapshot)
-                    .overlay(
-                        Color(colors.backgroundCoreScrim)
-                            .edgesIgnoringSafeArea(.all)
-                            .opacity(popIn ? 1 : 0)
-                    )
-                    .blur(radius: popIn ? 4 : 0)
-                    .edgesIgnoringSafeArea(.all)
-                    .offset(y: overlayOffsetY)
-            } else {
-                Color(colors.backgroundCoreScrim)
+                    // A non-opaque blur samples transparency outside the snapshot's bounds,
+                    // which fades its edges and lets the view's background bleed through as
+                    // a lighter ring. An opaque blur clamps at the edges instead.
+                    .blur(radius: popIn ? 4 : 0, opaque: true)
+                    .frame(width: currentSnapshot.size.width, height: currentSnapshot.size.height)
+                    .offset(x: -snapshotOrigin.x, y: -snapshotOrigin.y)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .edgesIgnoringSafeArea(.all)
             }
+            // The scrim is layered on top of the blur rather than blurred with the snapshot:
+            // blurring a translucent color only thins it out along the edges.
+            Color(colors.backgroundCoreScrim)
+                .opacity(orientationChanged || popIn ? 1 : 0)
+                .edgesIgnoringSafeArea(.all)
         }
         // The blurred snapshot and scrim are purely decorative; keep them out of
         // the accessibility tree so VoiceOver focuses the overlay's content.
@@ -251,30 +276,56 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
     @ViewBuilder
     private func messageActionsView(reader: GeometryProxy) -> some View {
         if messageDisplayInfo.showsMessageActions {
+            let available = availableActionsWidth(reader: reader)
+            // At large Dynamic Type sizes the actions menu's natural width can exceed the
+            // screen. Only then do we constrain it to the available width (letting the row
+            // titles truncate), so the common case keeps its natural, unchanged sizing.
+            let needsConstrain = measuredActionsContentWidth > 0 && measuredActionsContentWidth > available
             HStack(spacing: 0) {
                 if isRightAligned { Spacer() }
-                factory.makeMessageActionsView(
-                    options: MessageActionsViewOptions(
-                        message: messageDisplayInfo.message,
-                        channel: channel,
-                        onFinish: { actionInfo in
-                            onActionExecuted(actionInfo)
-                        },
-                        onError: { _ in
-                            viewModel.errorShown = true
-                        }
-                    )
-                )
-                .frame(minWidth: 250, alignment: isRightAligned ? .trailing : .leading)
-                .fixedSize(horizontal: true, vertical: false)
-                .opacity(willPopOut ? 0 : 1)
-                .scaleEffect(popIn ? 1 : (willPopOut ? 0.4 : 0))
-                .animation(willPopOut ? .easeInOut : popInAnimation, value: popIn)
+                factory.makeMessageActionsView(options: actionsViewOptions)
+                    .frame(minWidth: 250, alignment: isRightAligned ? .trailing : .leading)
+                    .frame(maxWidth: needsConstrain ? available : nil)
+                    .fixedSize(horizontal: !needsConstrain, vertical: false)
+                    // Natural width is measured off an always-fixed-size hidden copy so the
+                    // measurement stays stable even while the visible menu is being constrained.
+                    .background(actionsNaturalWidthReader)
+                    .opacity(willPopOut ? 0 : 1)
+                    .scaleEffect(popIn ? 1 : (willPopOut ? 0.4 : 0))
+                    .animation(willPopOut ? .easeInOut : popInAnimation, value: popIn)
                 if !isRightAligned { Spacer() }
             }
             .padding(.leading, !isRightAligned ? messageBubbleLeadingX : 0)
             .padding(.trailing, isRightAligned ? messageHorizontalPadding : 0)
         }
+    }
+
+    private var actionsViewOptions: MessageActionsViewOptions {
+        MessageActionsViewOptions(
+            message: messageDisplayInfo.message,
+            channel: channel,
+            onFinish: { actionInfo in
+                onActionExecuted(actionInfo)
+            },
+            onError: { _ in
+                viewModel.errorShown = true
+            }
+        )
+    }
+
+    /// A hidden, always-natural-width copy of the actions menu used solely to measure its
+    /// intrinsic width. Kept out of the accessibility tree and non-interactive.
+    private var actionsNaturalWidthReader: some View {
+        factory.makeMessageActionsView(options: actionsViewOptions)
+            .frame(minWidth: 250)
+            .fixedSize(horizontal: true, vertical: false)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: ActionsContentWidthKey.self, value: proxy.size.width)
+                }
+            )
+            .hidden()
+            .allowsHitTesting(false)
     }
 
     // MARK: - Dismiss
@@ -316,8 +367,26 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
         return messageHorizontalPadding
     }
 
-    private var overlayContentWidth: CGFloat {
-        messageDisplayInfo.frame.width
+    /// The width available for the actions menu after accounting for the horizontal insets
+    /// applied to it, so it never has to draw past the edges of the screen.
+    private func availableActionsWidth(reader: GeometryProxy) -> CGFloat {
+        let leadingInset = isRightAligned ? messageHorizontalPadding : messageBubbleLeadingX
+        return max(0, reader.size.width - leadingInset - messageHorizontalPadding)
+    }
+
+    /// Width of the content column (reactions, message, actions).
+    ///
+    /// Normally this matches the captured message width, which keeps the layout identical to
+    /// before. Only when the actions menu's natural width would overflow the screen does the
+    /// column widen so that the horizontal offset clamp keeps the (now constrained) menu on
+    /// screen instead of letting it spill past the edges.
+    private func overlayContentWidth(reader: GeometryProxy) -> CGFloat {
+        let available = availableActionsWidth(reader: reader)
+        guard measuredActionsContentWidth > available, available > 0 else {
+            return messageDisplayInfo.frame.width
+        }
+        let leadingInset = isRightAligned ? messageHorizontalPadding : messageBubbleLeadingX
+        return min(max(messageDisplayInfo.frame.width, leadingInset + available), reader.size.width)
     }
 
     // MARK: - Animation
@@ -328,9 +397,8 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
 
     // MARK: - Origin Y
 
-    private var usesScrollView: Bool {
-        guard measuredTotalContentHeight > 0 else { return false }
-        return measuredTotalContentHeight >= allowedTotalContentHeight
+    private var contentExceedsScreen: Bool {
+        measuredTotalContentHeight > 0 && measuredTotalContentHeight > allowedTotalContentHeight
     }
     
     private var allowedTotalContentHeight: CGFloat { screenHeight - topContentSpacing - bottomContentSpacing }
@@ -351,7 +419,7 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
     private func contentOffsetX(reader: GeometryProxy) -> CGFloat {
         let overlayFrame = reader.frame(in: .global)
         let originalMessageOriginX = messageDisplayInfo.frame.minX - overlayFrame.minX
-        let maxAllowedOffset = max(0, reader.size.width - overlayContentWidth)
+        let maxAllowedOffset = max(0, reader.size.width - overlayContentWidth(reader: reader))
         return min(max(0, originalMessageOriginX), maxAllowedOffset)
     }
 
@@ -360,23 +428,48 @@ public struct ReactionsOverlayView<Factory: ViewFactory>: View {
         return 48 + tokens.spacingXs
     }
 
-    private var overlayOffsetY: CGFloat {
-        if isIPad && UITabBar.appearance().isHidden == false {
-            return 20
-        }
-        return spacing > 0 ? screenHeight - currentSnapshot.size.height : 0
-    }
-
     private var spacing: CGFloat {
         let divider: CGFloat = isIPad ? 2 : 1
-        let spacing = (UIScreen.main.bounds.height - screenHeight) / divider
+        // `UIScreen.main` can be another display than the app's on multi-display devices.
+        let windowHeight = presentationWindowSize?.height ?? UIScreen.main.bounds.height
+        let spacing = (windowHeight - screenHeight) / divider
         return spacing > 0 ? spacing : 0
+    }
+
+    // The snapshot is taken from the root view, so it is pinned to the root's origin while the
+    // overlay's own frame moves (e.g. while the navigation bar hides). A rotation or posture change
+    // resizes the window and invalidates the captured message frame, so the overlay is dismissed.
+    private func updateSnapshotLayout(overlayFrame: CGRect) {
+        guard let rootView = topVC()?.view else { return }
+        snapshotOrigin = rootView.convert(overlayFrame.origin, from: nil)
+        guard let windowSize = rootView.window?.bounds.size else { return }
+        if presentationWindowSize == nil {
+            presentationWindowSize = windowSize
+        } else if windowSize != presentationWindowSize, !orientationChanged {
+            orientationChanged = true
+            dismissReactionsOverlay { /* No additional handling. */ }
+        }
     }
 }
 
 // MARK: - Preference Keys
 
+private struct OverlayFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect? = nil
+
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
+        value = value ?? nextValue()
+    }
+}
+
 private struct OverlayContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct ActionsContentWidthKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())

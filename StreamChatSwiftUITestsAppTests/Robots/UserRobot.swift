@@ -10,7 +10,6 @@ import XCTest
 final class UserRobot: Robot {
     let composer = MessageListPage.Composer.self
     let contextMenu = MessageListPage.ContextMenu.self
-    let debugAlert = MessageListPage.Alert.Debug.self
 
     @discardableResult
     func login() -> Self {
@@ -66,9 +65,25 @@ extension UserRobot {
     @discardableResult
     func openContextMenu(messageCellIndex: Int = 0) -> Self {
         let messageCell = messageCell(withIndex: messageCellIndex)
-        let messageBubble = attributes.messageBubble(in: messageCell)
-        messageBubble.press(forDuration: 1)
+        longPressMessageBubble(in: messageCell)
         return self
+    }
+
+    // Before iOS 18 the message's long press isn't high priority, so the top reactions take presses
+    // within ~15pt of them and open the reactions sheet instead of the message actions.
+    func longPressMessageBubble(in messageCell: XCUIElement) {
+        let bubble = attributes.messageBubble(in: messageCell)
+        let reactions = attributes.reactionButton(in: messageCell)
+        guard reactions.exists else {
+            bubble.press(forDuration: 1)
+            return
+        }
+
+        let frame = bubble.frame
+        let y = min(max(frame.midY, reactions.frame.maxY + 30), frame.maxY - 4)
+        bubble.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.width / 2, dy: y - frame.minY))
+            .press(forDuration: 1)
     }
 
     @discardableResult
@@ -132,7 +147,7 @@ extension UserRobot {
     func clearComposer() -> Self {
         if !composer.textView.text.isEmpty {
             let selectAllButton = composer.selectAllButton
-            for i in 0..<5 {
+            for _ in 0..<5 {
                 composer.inputField.tap()
                 if selectAllButton.exists {
                     selectAllButton.safeTap()
@@ -205,6 +220,51 @@ extension UserRobot {
         line: UInt = #line
     ) -> Self {
         selectOptionFromContextMenu(option: .reply, forMessageAtIndex: messageCellIndex)
+        sendMessage(
+            text,
+            waitForAppearance: waitForAppearance,
+            file: file,
+            line: line
+        )
+        return self
+    }
+
+    @discardableResult
+    func quoteMessage(
+        _ text: String,
+        quotingMessageText quotedText: String,
+        waitForAppearance: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Self {
+        var didQuoteMessage = false
+        for _ in 0..<20 {
+            let cellCount = cells.count
+            for index in 0..<cellCount {
+                let cell = cells.element(boundBy: index)
+                guard attributes.text(in: cell).text == quotedText else { continue }
+
+                let messageBubble = attributes.messageBubble(in: cell)
+                guard messageBubble.isHittable else { break }
+
+                messageBubble.waitForHitPoint().press(forDuration: 1)
+                contextMenu.reply.element.wait().safeTap()
+                didQuoteMessage = true
+                break
+            }
+            if didQuoteMessage {
+                break
+            }
+            scrollMessageListUp()
+        }
+
+        XCTAssertTrue(
+            didQuoteMessage,
+            "Message with text '\(quotedText)' was not found",
+            file: file,
+            line: line
+        )
+
         sendMessage(
             text,
             waitForAppearance: waitForAppearance,
@@ -355,14 +415,14 @@ extension UserRobot {
     @discardableResult
     func swipeMessage(at index: Int = 0) -> Self {
         let cell = messageCell(withIndex: index).waitForHitPoint()
-        MessageListPage.messageView(for: cell).staticTexts.firstMatch.swipeRight()
+        MessageListPage.messageView(for: cell).swipeRight()
         return self
     }
 
     @discardableResult
     func openComposerCommands() -> Self {
-        // swiftformat:disable:next isEmpty
-        if MessageListPage.ComposerCommands.cells.count == 0 {
+        if !MessageListPage.ComposerCommands.giphyCommand.exists {
+            MessageListPage.Composer.attachmentButton.wait().safeTap()
             MessageListPage.Composer.commandButton.wait().safeTap()
         }
         return self
@@ -372,8 +432,9 @@ extension UserRobot {
     func uploadGiphy(text: String = "Test", useComposerCommand: Bool = false, send: Bool = true) -> Self {
         if useComposerCommand {
             openComposerCommands()
-            MessageListPage.ComposerCommands.giphyImage.wait().safeTap()
-            sendMessage("\(text)", waitForAppearance: false)
+            MessageListPage.ComposerCommands.giphyCommand.wait().safeTap()
+            typeText(text)
+            composer.confirmButton.safeTap()
         } else {
             typeText("/giphy")
             typeText(text)
@@ -416,27 +477,8 @@ extension UserRobot {
 
     @discardableResult
     func uploadImage(count: Int = 1, send: Bool = true) -> Self {
-        let firstImageIndex = 1
-        for i in firstImageIndex...count {
-            MessageListPage.Composer.attachmentButton.wait().safeTap()
-            if i == firstImageIndex && SpringBoard.photoAccessPopUp.exists {
-                SpringBoard.photoAccessPopUp.safeTap()
-            }
-            MessageListPage.AttachmentMenu.photoOrVideoButton.wait().safeTap()
-            
-            // Wait for privacy message to appear before proceed on iOS 17, otherwise XCTest crashes
-            if #available(iOS 17.0, *) {
-                app.otherElements["PXGSingleViewContainerView_AX"].wait()
-            }
-            
-            let images = MessageListPage.AttachmentMenu.images.waitCount(1)
-            if images.count < 1 {
-                XCTFail("There are no images.")
-            } else {
-                images.allElementsBoundByIndex[i].safeTap()
-            }
-        }
-        if send { sendMessage("", waitForAppearance: false) }
+        attachImages(count: count)
+        if send { tapOnSendButton() }
         return self
     }
 
@@ -448,46 +490,6 @@ extension UserRobot {
         } else {
             typeText("\(text.prefix(3))")
             MessageListPage.ComposerMentions.cells.firstMatch.wait().tap()
-        }
-        return self
-    }
-}
-
-// MARK: Debug menu
-
-extension UserRobot {
-    @discardableResult
-    private func tapOnDebugMenu() -> Self {
-        MessageListPage.NavigationBar.debugMenu.safeTap()
-        return self
-    }
-
-    @discardableResult
-    func addParticipant(withUserId userId: String = "leia_organa") -> Self {
-        tapOnDebugMenu()
-        debugAlert.addMember.firstMatch.safeTap()
-        debugAlert.addMemberTextField.firstMatch
-            .obtainKeyboardFocus()
-            .typeText(userId)
-        debugAlert.addMemberOKButton.firstMatch.safeTap()
-        return self
-    }
-
-    @discardableResult
-    func removeParticipant(withUserId userId: String = "leia_organa") -> Self {
-        tapOnDebugMenu()
-        debugAlert.removeMember.firstMatch.safeTap()
-        debugAlert.selectMember(withUserId: userId).firstMatch.safeTap()
-        return self
-    }
-
-    @discardableResult
-    func truncateChannel(withMessage: Bool) -> Self {
-        tapOnDebugMenu()
-        if withMessage {
-            debugAlert.truncateWithMessage.safeTap()
-        } else {
-            debugAlert.truncateWithoutMessage.safeTap()
         }
         return self
     }

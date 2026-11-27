@@ -206,7 +206,8 @@ public struct MessageView<Factory: ViewFactory>: View {
                         message: message,
                         poll: poll,
                         isFirst: isFirst,
-                        availableWidth: availableWidth
+                        availableWidth: availableWidth,
+                        translationLanguage: translationLanguage
                     )
                 )
             }

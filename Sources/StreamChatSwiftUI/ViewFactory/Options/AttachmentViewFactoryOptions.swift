@@ -176,6 +176,32 @@ public final class VoiceRecordingViewOptions: Sendable {
     }
 }
 
+// MARK: - Audio Attachment Options
+
+/// Options for creating the audio attachment view.
+public final class AudioAttachmentViewOptions: Sendable {
+    /// The message containing the audio attachment.
+    public let message: ChatMessage
+    /// Whether this is the first message in a group.
+    public let isFirst: Bool
+    /// The available width for the attachment.
+    public let availableWidth: CGFloat
+    /// Binding to the currently scrolled message ID.
+    public let scrolledId: Binding<String?>
+
+    public init(
+        message: ChatMessage,
+        isFirst: Bool,
+        availableWidth: CGFloat,
+        scrolledId: Binding<String?>
+    ) {
+        self.message = message
+        self.isFirst = isFirst
+        self.availableWidth = availableWidth
+        self.scrolledId = scrolledId
+    }
+}
+
 // MARK: - Message Attachments Options
 
 /// Options for creating the message attachments view.
@@ -481,17 +507,21 @@ public final class AttachmentMediaPickerViewOptions: Sendable {
     public let isAssetSelected: @MainActor (String) -> Bool
     /// Snapshot of the currently selected asset identifiers.
     public let selectedAssetIds: [String]?
-    
+    /// Whether the picker is currently being displayed.
+    public let isDisplayed: Bool
+
     public init(
         photoLibraryAssets: PHFetchResult<PHAsset>?,
         onAssetTap: @escaping @MainActor (AddedAsset) -> Void,
         isAssetSelected: @escaping @MainActor (String) -> Bool,
-        selectedAssetIds: [String]? = nil
+        selectedAssetIds: [String]? = nil,
+        isDisplayed: Bool = false
     ) {
         self.photoLibraryAssets = photoLibraryAssets
         self.onAssetTap = onAssetTap
         self.isAssetSelected = isAssetSelected
         self.selectedAssetIds = selectedAssetIds
+        self.isDisplayed = isDisplayed
     }
 }
 

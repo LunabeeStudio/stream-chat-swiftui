@@ -1,0 +1,76 @@
+name: "Publish new release"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Publish new release
+    runs-on: { group: github-public-amd64 }
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/ruby-cache
+
+      - name: Generate release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.IOS_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.IOS_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }},apple-internal-testing-pipeline
+          permission-contents: write
+          permission-actions: write
+
+      - name: "Fastlane - Publish Release"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPSTORE_API_KEY: ${{ secrets.APPSTORE_API_KEY }}
+        run: bundle exec fastlane publish_release --verbose
+
+      - name: Integration Test
+        run: | # reports to @support on failure
+          test -n "$RELEASE_VERSION"
+          gh workflow run test.yml --repo GetStream/apple-internal-testing-pipeline --field sdk=stream-chat-swiftui --field version="$RELEASE_VERSION"
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+  merge-main-to-develop:
+    name: Merge main to develop
+    runs-on: { group: github-public-amd64 }
+    needs: release
+    steps:
+      - name: Generate release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.IOS_RELEASE_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.IOS_RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      - uses: actions/checkout@v4.1.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - uses: ./.github/actions/ruby-cache
+
+      - run: bundle exec fastlane merge_main
+
+      - uses: 8398a7/action-slack@v3
+        if: failure()
+        with:
+          status: ${{ job.status }}
+          text: "⚠️ <!subteam^S030AAHLDLN>, the merge of `main` to `develop` failed on CI. Consider using this command locally: `bundle exec fastlane merge_main`"
+          fields: repo,commit,author,workflow
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_IOS_BOTS }}

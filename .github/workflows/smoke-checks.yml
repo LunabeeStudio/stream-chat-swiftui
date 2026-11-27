@@ -2,10 +2,6 @@ name: Smoke Checks
 
 on:
   pull_request:
-    paths-ignore:
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - '**/*.png'
 
   workflow_dispatch:
     inputs:
@@ -14,10 +10,20 @@ on:
         type: boolean
         required: false
         default: false
+      verbose:
+        description: 'Run tests in verbose mode?'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read # to download the e2e coverage map
 
 env:
   HOMEBREW_NO_INSTALL_CLEANUP: 1 # Disable cleanup for homebrew, we don't need it on CI
@@ -27,14 +33,23 @@ env:
   GITHUB_EVENT_ACTION: ${{ github.event.action }}
   GITHUB_EVENT_BEFORE: ${{ github.event.before }}
   GITHUB_EVENT_AFTER: ${{ github.event.after }}
+  VERBOSE: ${{ github.event.inputs.verbose == 'true' && '--verbose' || '' }}
 
 jobs:
   guard:
     name: Guard
-    runs-on: ubuntu-latest
+    runs-on: { group: github-public-amd64 }
+    permissions:
+      actions: write # to cancel skip-ci runs
+      checks: read # to skip checks that passed before
+      contents: read
+      pull-requests: read
+    outputs:
+      checks: ${{ steps.guard.outputs.checks }}
     steps:
       - uses: actions/checkout@v4.1.1
-      - uses: ./.github/actions/ci-guard
+      - id: guard
+        uses: ./.github/actions/ci-guard
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -42,14 +57,22 @@ jobs:
     name: Build Test App and Frameworks
     runs-on: macos-15
     needs: guard
-    if: ${{ github.event.inputs.record_snapshots != 'true' }}
+    if: ${{ github.event.inputs.record_snapshots != 'true' && (fromJSON(needs.guard.outputs.checks).e2e || fromJSON(needs.guard.outputs.checks).sample_apps) }}
+    outputs:
+      e2e_batches: ${{ steps.select_e2e_tests.outputs.e2e_batches }}
     steps:
     - uses: actions/checkout@v4.1.1
+      with:
+        fetch-depth: 2 # the PR merge commit and its base, to diff them
     - uses: ./.github/actions/ruby-cache
     - uses: ./.github/actions/xcode-cache
     - name: Build
-      run: bundle exec fastlane build_test_app_and_frameworks
+      run: bundle exec fastlane build_test_app_and_frameworks ${{ env.VERBOSE }}
       timeout-minutes: 60
+    - name: Select E2E Tests
+      if: ${{ fromJSON(needs.guard.outputs.checks).e2e }}
+      id: select_e2e_tests
+      run: bundle exec fastlane select_e2e_tests ${{ env.VERBOSE }}
     - uses: actions/upload-artifact@v4
       if: success()
       with:
@@ -58,64 +81,60 @@ jobs:
           derived_data/Build/**/*.app
           derived_data/Build/**/*.xctestrun
           derived_data/Build/**/*.framework
+          derived_data/Build/e2e_selection.json
 
   automated-code-review:
     name: Automated Code Review
-    runs-on: macos-14
+    runs-on: { group: github-public-amd64 }
+    permissions:
+      contents: read
+      pull-requests: write
     needs: guard
     if: ${{ github.event.inputs.record_snapshots != 'true' }}
-    env:
-      XCODE_VERSION: "16.1"
     steps:
     - uses: actions/checkout@v4.1.1
-    - uses: ./.github/actions/bootstrap
+    - uses: ./.github/actions/ruby-cache
+    - run: ./Scripts/bootstrap.sh
       env:
         INSTALL_INTERFACE_ANALYZER: true
     - run: bundle exec fastlane lint_pr
     - run: bundle exec fastlane rubocop
+      if: ${{ fromJSON(needs.guard.outputs.checks).ruby }}
     - run: bundle exec fastlane run_swift_format strict:true
     - run: bundle exec fastlane validate_public_interface
+      if: ${{ fromJSON(needs.guard.outputs.checks).public_interface }}
 
   build-old-xcode:
     name: Build SDKs (Old Xcode)
-    runs-on: macos-14
+    runs-on: macos-15
     needs: guard
-    if: ${{ github.event.inputs.record_snapshots != 'true' }}
+    if: ${{ github.event.inputs.record_snapshots != 'true' && fromJSON(needs.guard.outputs.checks).ui }}
     env:
-      XCODE_VERSION: "16.1"
+      XCODE_VERSION: "16.4"
     steps:
-    - name: Connect Bot
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.BOT_SSH_PRIVATE_KEY }}
     - uses: actions/checkout@v3.1.0
     - uses: ./.github/actions/xcode-cache
     - uses: ./.github/actions/ruby-cache
     - name: Build SwiftUI
-      run: bundle exec fastlane test_ui device:"iPhone 16 (18.1)" build_for_testing:true
+      run: bundle exec fastlane test_ui destination:"generic/platform=iOS Simulator" build_for_testing:true ${{ env.VERBOSE }}
       timeout-minutes: 25
 
   test-ui-debug:
     name: Test SwiftUI (Debug)
     runs-on: macos-15
     needs: guard
-    env:
-      GITHUB_TOKEN: ${{ secrets.CI_BOT_GITHUB_TOKEN }} # to open a PR
+    if: ${{ fromJSON(needs.guard.outputs.checks).ui }}
+    permissions:
+      contents: write # to push the snapshots branch
+      pull-requests: write
     steps:
     - uses: actions/checkout@v4.1.1
     - uses: ./.github/actions/bootstrap
       env:
         INSTALL_YEETD: true
-        INSTALL_SONAR: true
     - name: Run UI Tests (Debug)
-      run: bundle exec fastlane test_ui device:"${{ env.IOS_SIMULATOR_DEVICE }}" record:"${{ github.event.inputs.record_snapshots }}"
+      run: bundle exec fastlane test_ui device:"${{ env.IOS_SIMULATOR_DEVICE }}" record:"${{ github.event.inputs.record_snapshots }}" ${{ env.VERBOSE }}
       timeout-minutes: 120
-    - name: Run Sonar analysis
-      if: ${{ github.event.inputs.record_snapshots != 'true' }}
-      run: bundle exec fastlane sonar_upload
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     - name: Parse xcresult
       if: failure()
       run: |
@@ -136,10 +155,36 @@ jobs:
         name: test-coverage-${{ github.event.pull_request.number }}
         path: reports/sonarqube-generic-coverage.xml
 
+  # Optional: a Sonar failure (for example a license issue) must not fail
+  # the SwiftUI tests.
+  sonar:
+    name: Sonar Analysis
+    runs-on: { group: github-public-amd64 }
+    needs: [guard, test-ui-debug]
+    continue-on-error: true
+    # Secrets are not available to forks.
+    if: ${{ !cancelled() && needs.test-ui-debug.result == 'success' && github.event.inputs.record_snapshots != 'true' && fromJSON(needs.guard.outputs.checks).sonar && github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+    - uses: actions/checkout@v4.1.1
+    - uses: ./.github/actions/ruby-cache
+    - run: ./Scripts/bootstrap.sh
+      env:
+        INSTALL_SONAR: true
+        SKIP_SWIFT_BOOTSTRAP: true
+    - uses: actions/download-artifact@v4
+      with:
+        name: test-coverage-${{ github.event.pull_request.number }}
+        path: reports
+    - name: Run Sonar analysis
+      run: bundle exec fastlane sonar_upload
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_IOS_BOTS }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   allure_testops_launch:
     name: Launch Allure TestOps
-    runs-on: macos-15
-    if: ${{ github.event.inputs.record_snapshots != 'true' }}
+    runs-on: { group: github-public-amd64 }
+    if: ${{ github.event.inputs.record_snapshots != 'true' && fromJSON(needs.guard.outputs.checks).e2e && needs.build-test-app-and-frameworks.outputs.e2e_batches != '[]' }}
     needs:
       - guard
       - build-test-app-and-frameworks
@@ -160,7 +205,7 @@ jobs:
   test-e2e-debug:
     name: Test E2E UI (Debug)
     runs-on: macos-15
-    if: ${{ github.event.inputs.record_snapshots != 'true' }}
+    if: ${{ github.event.inputs.record_snapshots != 'true' && fromJSON(needs.guard.outputs.checks).e2e && needs.build-test-app-and-frameworks.outputs.e2e_batches != '[]' }}
     needs:
       - guard
       - allure_testops_launch
@@ -169,7 +214,7 @@ jobs:
       LAUNCH_ID: ${{ needs.allure_testops_launch.outputs.launch_id }}
     strategy:
       matrix:
-        batch: [0, 1]
+        batch: ${{ fromJson(needs.build-test-app-and-frameworks.outputs.e2e_batches) }}
       fail-fast: false
     steps:
     - uses: actions/checkout@v4.1.1
@@ -183,7 +228,7 @@ jobs:
         INSTALL_YEETD: true
         SKIP_SWIFT_BOOTSTRAP: true
     - name: Run UI Tests (Debug)
-      run: bundle exec fastlane test_e2e_mock device:"${{ env.IOS_SIMULATOR_DEVICE }}" batch:'${{ matrix.batch }}' test_without_building:true
+      run: bundle exec fastlane test_e2e_mock device:"${{ env.IOS_SIMULATOR_DEVICE }}" batch:'${{ matrix.batch }}' test_without_building:true ${{ env.VERBOSE }}
       timeout-minutes: 100
       env:
         MATRIX_SIZE: ${{ strategy.job-total }}
@@ -212,10 +257,29 @@ jobs:
           fastlane/test_output/logs/*/Diagnostics/**/*.txt
           fastlane/test_output/logs/*/Diagnostics/simctl_diagnostics/DiagnosticReports/*
 
+  # The number of E2E batches depends on the PR, so branch protection requires this job instead of each batch.
+  test-e2e-debug-result:
+    name: Test E2E UI (Debug) Result
+    runs-on: { group: github-public-amd64 }
+    if: always()
+    needs:
+      - guard
+      - build-test-app-and-frameworks
+      - allure_testops_launch
+      - test-e2e-debug
+    steps:
+    - name: Check E2E Results
+      if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      run: |
+        echo "$NEEDS"
+        exit 1
+      env:
+        NEEDS: ${{ toJson(needs) }}
+
   build-apps:
     name: Build Demo App
     runs-on: macos-15
-    if: ${{ github.event.inputs.record_snapshots != 'true' }}
+    if: ${{ github.event.inputs.record_snapshots != 'true' && fromJSON(needs.guard.outputs.checks).sample_apps }}
     needs:
       - guard
       - build-test-app-and-frameworks
@@ -228,4 +292,4 @@ jobs:
     - uses: ./.github/actions/ruby-cache
     - uses: ./.github/actions/xcode-cache
     - name: Build Demo App
-      run: bundle exec fastlane build_demo
+      run: bundle exec fastlane build_demo ${{ env.VERBOSE }}

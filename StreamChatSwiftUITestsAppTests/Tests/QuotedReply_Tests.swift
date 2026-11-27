@@ -122,6 +122,73 @@ final class QuotedReply_Tests: StreamTestCase {
         }
     }
 
+    func test_messageListScrollsToLatest_whenUserSendsMessageAfterJumpingToQuotedMessage() throws {
+        linkToScenario(withId: 12209)
+
+        let messageCount = 60
+        let quotedText = "30"
+        let newMessage = "New message after jump"
+
+        GIVEN("user opens a channel with \(messageCount) messages") {
+            backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
+            userRobot.login().openChannel()
+        }
+        AND("user quotes a mid-page message") {
+            userRobot.quoteMessage(replyText, quotingMessageText: quotedText)
+        }
+        AND("user closes and reopens the channel") {
+            userRobot
+                .tapOnBackButton()
+                .openChannel()
+        }
+        WHEN("user taps on the quoted message") {
+            userRobot
+                .tapOnQuotedMessage(quotedText, at: 0)
+                .assertScrollToBottomButton(isVisible: true)
+        }
+        AND("user sends a new message") {
+            userRobot.sendMessage(newMessage)
+        }
+        THEN("message list shows the latest message") {
+            userRobot
+                .assertMessage(newMessage)
+                .assertScrollToBottomButton(isVisible: false)
+        }
+    }
+
+    func test_messageListScrollsToLatest_whenUserTapsScrollToBottomAfterJumpingToQuotedMessage() throws {
+        linkToScenario(withId: 12210)
+
+        let messageCount = 60
+        let quotedText = "30"
+
+        GIVEN("user opens a channel with \(messageCount) messages") {
+            backendRobot.generateChannels(channelsCount: 1, messagesCount: messageCount)
+            userRobot.login().openChannel()
+        }
+        AND("user quotes a mid-page message") {
+            userRobot.quoteMessage(replyText, quotingMessageText: quotedText)
+        }
+        AND("user closes and reopens the channel") {
+            userRobot
+                .tapOnBackButton()
+                .openChannel()
+        }
+        WHEN("user taps on the quoted message") {
+            userRobot
+                .tapOnQuotedMessage(quotedText, at: 0)
+                .assertScrollToBottomButton(isVisible: true)
+        }
+        AND("user taps on the scroll to bottom button") {
+            userRobot.tapOnScrollToBottomButton()
+        }
+        THEN("message list shows the latest message") {
+            userRobot
+                .assertMessage(replyText)
+                .assertScrollToBottomButton(isVisible: false)
+        }
+    }
+
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_Message() {
         linkToScenario(withId: 1702)
         
@@ -361,7 +428,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyInList_whenParticipantAddsQuotedReply_Message_InThread() throws {
         linkToScenario(withId: 9858)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         let messageCount = 25
         let quotedText = "1"
@@ -399,7 +466,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyNotInList_whenUserAddsQuotedReply_InThread() throws {
         linkToScenario(withId: 9859)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         GIVEN("user opens the channel") {
             backendRobot.generateChannels(
@@ -440,7 +507,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_Message_InThread() throws {
         linkToScenario(withId: 9860)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
         
         let quotedText = "1"
 
@@ -477,7 +544,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_File_InThread() throws {
         linkToScenario(withId: 9861)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
         
         let quotedText = "1"
 
@@ -514,7 +581,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quotedReplyNotInList_whenParticipantAddsQuotedReply_Giphy_InThread() throws {
         linkToScenario(withId: 9862)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
         
         let quotedText = "1"
 
@@ -551,7 +618,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_unreadCount_whenUserSendsInvalidCommand_and_jumpingOnQuotedMessage_InThread() throws {
         linkToScenario(withId: 9863)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         let invalidCommand = "invalid command"
 
@@ -741,7 +808,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_rootMessageShouldOnlyBeVisibleInTheLastPageInThread() throws {
         linkToScenario(withId: 9870)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         let replyCount = 30
 
@@ -771,7 +838,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_rootMessageShouldNotBeVisibleInThreadIfMessageCountEqualToPageSize() throws {
         linkToScenario(withId: 9871)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         let pageSize = 25
         
@@ -823,7 +890,7 @@ final class QuotedReply_Tests: StreamTestCase {
     func test_quoteReplyRootMessageWhenNotInTheList() throws {
         linkToScenario(withId: 9873)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-479")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-479")
 
         GIVEN("user opens the thread with \(messageCount) replies") {
             backendRobot.generateChannels(

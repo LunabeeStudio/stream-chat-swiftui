@@ -146,6 +146,7 @@ public struct ReactionsAnimatableView: View {
                 onMoreReactionsTap()
             } label: {
                 Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.primary)
                     .padding(.all, 6)
             }

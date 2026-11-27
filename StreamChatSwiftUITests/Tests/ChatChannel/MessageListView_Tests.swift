@@ -20,6 +20,24 @@ import XCTest
         super.tearDown()
         DelayedRenderingViewModifier.isEnabled = true
     }
+
+    func test_messageListView_rowContentCanBeCreatedOffMainActor() async throws {
+        let view = makeMessageListView(channelConfig: ChannelConfig())
+        let message = try XCTUnwrap(view.messages.first)
+        var scrollViewProxy: ScrollViewProxy?
+        showView(ScrollViewReader { proxy in
+            scrollViewProxy = proxy
+            return Color.clear
+        })
+        let reader = try XCTUnwrap(reflectedValue(of: MessageListTestReader.self, in: view.body))
+        let content = reader.makeContent(using: try XCTUnwrap(scrollViewProxy))
+        let rows = try messageListRows(in: content)
+
+        await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            rows.makeRow(for: message)
+        }.value
+    }
     
     func test_messageListView_withReactions() {
         // Given
@@ -72,6 +90,21 @@ import XCTest
         let messageListView = makeMessageListView(
             channelConfig: channelConfig,
             currentlyTypingUsers: [typingUser]
+        )
+        .applyDefaultSize()
+
+        // Then
+        assertSnapshot(matching: messageListView, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageListView_typingIndicatorWithBottomInset() {
+        // Given
+        let channelConfig = ChannelConfig(reactionsEnabled: true)
+        let typingUser = ChatUser.mock(id: "martin", name: "Martin")
+        let messageListView = makeMessageListView(
+            channelConfig: channelConfig,
+            currentlyTypingUsers: [typingUser],
+            bottomInset: 100
         )
         .applyDefaultSize()
 
@@ -164,6 +197,115 @@ import XCTest
         .applyDefaultSize()
 
         // Then
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageListView_shouldMessagesStartAtTheTop_fewMessages() {
+        // Given
+        let messageListConfig = MessageListConfig(shouldMessagesStartAtTheTop: true)
+        let utils = Utils(dateFormatter: EmptyDateFormatter(), messageListConfig: messageListConfig)
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+
+        let channel = ChatChannel.mockDMChannel()
+        let systemMessageId = MessageId.unique
+        let systemMessage = ChatMessage.mock(
+            id: systemMessageId,
+            cid: channel.cid,
+            text: "Martin created the channel",
+            type: .system,
+            author: .mock(id: "system")
+        )
+        let view = MessageListView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            messages: [systemMessage],
+            messagesGroupingInfo: [:],
+            scrolledId: .constant(nil),
+            showScrollToLatestButton: .constant(false),
+            quotedMessage: .constant(nil),
+            currentDateString: nil,
+            listId: "listId",
+            isMessageThread: false,
+            shouldShowTypingIndicator: false,
+            onMessageAppear: { _, _ in },
+            onScrollToBottom: {},
+            onLongPress: { _ in }
+        )
+        .applyDefaultSize()
+
+        // Then
+        // The message should be rendered at the top of the list, instead of the bottom.
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageListView_shouldMessagesStartAtTheTop_fewMessagesWithBottomInset() {
+        // Given
+        let messageListConfig = MessageListConfig(shouldMessagesStartAtTheTop: true)
+        let utils = Utils(dateFormatter: EmptyDateFormatter(), messageListConfig: messageListConfig)
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+
+        let channel = ChatChannel.mockDMChannel()
+        let author = ChatUser.mock(id: "martin", name: "Martin")
+        let messages: [ChatMessage] = (0..<3).map { index in
+            .mock(id: "msg\(index)", cid: channel.cid, text: "Message number \(index)", author: author)
+        }
+        let view = MessageListView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            messages: messages,
+            messagesGroupingInfo: [:],
+            scrolledId: .constant(nil),
+            showScrollToLatestButton: .constant(false),
+            quotedMessage: .constant(nil),
+            currentDateString: nil,
+            listId: "listId",
+            isMessageThread: false,
+            shouldShowTypingIndicator: false,
+            bottomInset: 120,
+            onMessageAppear: { _, _ in },
+            onScrollToBottom: {},
+            onLongPress: { _ in }
+        )
+        .applyDefaultSize()
+
+        // Then
+        // The floating composer inset should never appear as a gap between the
+        // messages; they should stay adjacent at the top of the list.
+        assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
+    }
+
+    func test_messageListView_shouldMessagesStartAtTheTop_manyMessages() {
+        // Given
+        let messageListConfig = MessageListConfig(shouldMessagesStartAtTheTop: true)
+        let utils = Utils(dateFormatter: EmptyDateFormatter(), messageListConfig: messageListConfig)
+        streamChat = StreamChat(chatClient: chatClient, utils: utils)
+
+        let channelConfig = ChannelConfig(reactionsEnabled: false)
+        let channel = ChatChannel.mockDMChannel(config: channelConfig)
+        let author = ChatUser.mock(id: "martin", name: "Martin")
+        let messages: [ChatMessage] = (0..<20).map { index in
+            .mock(id: "msg\(index)", cid: channel.cid, text: "Message number \(index)", author: author)
+        }
+        let view = MessageListView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            messages: messages,
+            messagesGroupingInfo: [:],
+            scrolledId: .constant(nil),
+            showScrollToLatestButton: .constant(false),
+            quotedMessage: .constant(nil),
+            currentDateString: nil,
+            listId: "listId",
+            isMessageThread: false,
+            shouldShowTypingIndicator: false,
+            onMessageAppear: { _, _ in },
+            onScrollToBottom: {},
+            onLongPress: { _ in }
+        )
+        .applyDefaultSize()
+
+        // Then
+        // Messages fill the whole list, so no extra space should be added at the bottom.
         assertSnapshot(matching: view, as: .image(perceptualPrecision: precision))
     }
 
@@ -491,6 +633,113 @@ import XCTest
         AssertSnapshot(view)
     }
 
+    func test_messageListView_threadRepliesSeparator_accessibilityExtraExtraExtraLarge() {
+        // Given
+        let channel = ChatChannel.mockDMChannel()
+        let parentId: MessageId = "parent-id"
+        let parentMessage = ChatMessage.mock(
+            id: parentId,
+            cid: channel.cid,
+            text: "Which item has priority?",
+            author: .mock(id: "user1", name: "Wesley"),
+            replyCount: 2
+        )
+        let reply1 = ChatMessage.mock(
+            id: "reply1",
+            cid: channel.cid,
+            text: "I think the first one is the most important.",
+            author: .mock(id: "user2", name: "Emma"),
+            parentMessageId: parentId
+        )
+        let reply2 = ChatMessage.mock(
+            id: "reply2",
+            cid: channel.cid,
+            text: "Agreed, let's prioritize that.",
+            author: .mock(id: "user1", name: "Wesley"),
+            parentMessageId: parentId,
+            isSentByCurrentUser: true
+        )
+        let messages: [ChatMessage] = [reply2, reply1, parentMessage]
+        let view = MessageListView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            messages: messages,
+            messagesGroupingInfo: [:],
+            scrolledId: .constant(nil),
+            showScrollToLatestButton: .constant(false),
+            quotedMessage: .constant(nil),
+            currentDateString: nil,
+            listId: "listId",
+            isMessageThread: true,
+            shouldShowTypingIndicator: false,
+            onMessageAppear: { _, _ in },
+            onScrollToBottom: {},
+            onLongPress: { _ in }
+        )
+        .frame(width: defaultScreenSize.width, height: 1000)
+
+        // Then
+        let traits = UITraitCollection(traitsFrom: [
+            UITraitCollection(displayScale: 1),
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            UITraitCollection(userInterfaceStyle: .light)
+        ])
+        assertSnapshot(
+            matching: view,
+            as: .image(perceptualPrecision: precision, traits: traits)
+        )
+    }
+
+    func test_messageListView_dateSeparator_accessibilityExtraExtraExtraLarge() {
+        // Given
+        let channel = ChatChannel.mockDMChannel()
+        let day1 = Date(timeIntervalSince1970: 1_688_256_000) // 2023-07-02
+        let day2 = day1.addingTimeInterval(60 * 60 * 24) // 2023-07-03
+        let older = ChatMessage.mock(
+            id: "older",
+            cid: channel.cid,
+            text: "Are we still on for the venue visit?",
+            author: .mock(id: "user2", name: "Emma"),
+            createdAt: day1
+        )
+        let newer = ChatMessage.mock(
+            id: "newer",
+            cid: channel.cid,
+            text: "Yes, see you there!",
+            author: .mock(id: "user1", name: "Wesley"),
+            createdAt: day2,
+            isSentByCurrentUser: true
+        )
+        let messages: [ChatMessage] = [newer, older]
+        let view = MessageListView(
+            factory: DefaultViewFactory.shared,
+            channel: channel,
+            messages: messages,
+            messagesGroupingInfo: [:],
+            scrolledId: .constant(nil),
+            showScrollToLatestButton: .constant(false),
+            quotedMessage: .constant(nil),
+            currentDateString: nil,
+            listId: "listId",
+            shouldShowTypingIndicator: false,
+            onMessageAppear: { _, _ in },
+            onScrollToBottom: {},
+            onLongPress: { _ in }
+        )
+        .frame(width: defaultScreenSize.width, height: 1000)
+
+        // Then
+        let traits = UITraitCollection(traitsFrom: [
+            UITraitCollection(displayScale: 1),
+            UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge),
+            UITraitCollection(userInterfaceStyle: .light)
+        ])
+        assertSnapshot(
+            matching: view,
+            as: .image(perceptualPrecision: precision, traits: traits)
+        )
+    }
+
     func test_messageListView_threadRepliesSeparator_hiddenWhenNotAllLoaded() {
         // Given
         let channel = ChatChannel.mockDMChannel()
@@ -668,7 +917,8 @@ import XCTest
     func makeMessageListView(
         channelConfig: ChannelConfig,
         unreadCount: ChannelUnreadCount = .noUnread,
-        currentlyTypingUsers: Set<ChatUser> = []
+        currentlyTypingUsers: Set<ChatUser> = [],
+        bottomInset: CGFloat = 0
     ) -> MessageListView<DefaultViewFactory> {
         let reactions = [MessageReactionType(rawValue: "like"): 2]
         let channel = ChatChannel.mockDMChannel(
@@ -696,6 +946,7 @@ import XCTest
             listId: "listId",
             isMessageThread: false,
             shouldShowTypingIndicator: !currentlyTypingUsers.isEmpty,
+            bottomInset: bottomInset,
             onMessageAppear: { _, _ in },
             onScrollToBottom: {},
             onLongPress: { _ in }
@@ -725,4 +976,42 @@ import XCTest
             viewModel: viewModel
         )
     }
+}
+
+private protocol MessageListTestReader {
+    @MainActor func makeContent(using proxy: ScrollViewProxy) -> sending Any
+}
+
+extension ScrollViewReader: MessageListTestReader {
+    @MainActor fileprivate func makeContent(using proxy: ScrollViewProxy) -> sending Any {
+        content(proxy)
+    }
+}
+
+private protocol MessageListTestRows {
+    nonisolated func makeRow(for message: ChatMessage)
+}
+
+extension ForEach: MessageListTestRows where Data == [ChatMessage], ID == String, Content: SwiftUI.View {
+    fileprivate nonisolated func makeRow(for message: ChatMessage) {
+        _ = content(message)
+    }
+}
+
+private func messageListRows(in value: sending Any) throws -> sending any MessageListTestRows {
+    try XCTUnwrap(reflectedValue(of: MessageListTestRows.self, in: value))
+}
+
+private func reflectedValue<Value>(of type: Value.Type, in value: Any, depth: Int = 0) -> Value? {
+    if let value = value as? Value {
+        return value
+    }
+    let mirror = Mirror(reflecting: value)
+    guard depth < 50, mirror.displayStyle != .class else { return nil }
+    for child in mirror.children {
+        if let value = reflectedValue(of: type, in: child.value, depth: depth + 1) {
+            return value
+        }
+    }
+    return nil
 }

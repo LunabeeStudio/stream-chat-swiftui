@@ -101,10 +101,12 @@ public struct StreamAsyncImage<Content: View>: View {
     }
 
     public var body: some View {
-        content(resolvedPhase)
-            .compatibility.task(id: taskIdentity) { @MainActor in
-                await loadImage()
-            }
+        ZStack {
+            content(resolvedPhase)
+        }
+        .compatibility.task(id: taskIdentity) { @MainActor in
+            await loadImage()
+        }
     }
 
     // MARK: - Phase Resolution
@@ -176,7 +178,7 @@ public struct StreamAsyncImage<Content: View>: View {
 
     /// Rounds the resize dimensions to integer points so sub-point layout
     /// jitter (for example `251.999…` vs `252.0`) maps to the same CDN
-    /// URL, the same Nuke processor, and therefore the same cache entry.
+    /// URL, the same downsample size, and therefore the same cache entry.
     private static func normalizedResize(_ resize: ImageResize?) -> ImageResize? {
         guard var resize else { return nil }
         resize.width = resize.width.rounded()

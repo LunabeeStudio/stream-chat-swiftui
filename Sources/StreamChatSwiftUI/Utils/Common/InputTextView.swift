@@ -28,6 +28,15 @@ class InputTextView: UITextView, AccessibilityView {
     @Injected(\.colors) private var colors
     @Injected(\.utils) private var utils
 
+    private static let horizontalTextInset: CGFloat = 8
+
+    private var didRequestInitialVoiceOverFocus = false
+    private var lastReportedFittingHeight: CGFloat = 0
+
+    /// Called when the view's fitting height changes (e.g. placeholder wrapping,
+    /// Dynamic Type, or width changes) so the SwiftUI height binding can update.
+    var onFittingSizeChanged: (() -> Void)?
+
     /// Label used as placeholder for textView when it's empty.
     open private(set) lazy var placeholderLabel: UILabel = UILabel()
         .withoutAutoresizingMaskConstraints
@@ -72,6 +81,7 @@ class InputTextView: UITextView, AccessibilityView {
 
     override open var semanticContentAttribute: UISemanticContentAttribute {
         didSet {
+            guard semanticContentAttribute != oldValue else { return }
             placeholderLabel.semanticContentAttribute = semanticContentAttribute
             applyTextAlignmentForCurrentDirection()
         }
@@ -85,6 +95,15 @@ class InputTextView: UITextView, AccessibilityView {
         setUp()
         setUpLayout()
         setUpAppearance()
+    }
+
+    override open func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil,
+              !didRequestInitialVoiceOverFocus,
+              UIAccessibility.isVoiceOverRunning else { return }
+        didRequestInitialVoiceOverFocus = true
+        UIAccessibility.post(notification: .screenChanged, argument: self)
     }
 
     open func setUp() {
@@ -104,13 +123,20 @@ class InputTextView: UITextView, AccessibilityView {
 
     open func setUpAppearance() {
         backgroundColor = .clear
-        textContainer.lineFragmentPadding = 8
+        textContainer.lineFragmentPadding = Self.horizontalTextInset
         font = InjectedValues[\.utils].composerConfig.inputFont
         textColor = InjectedValues[\.colors].textPrimary
 
         placeholderLabel.font = font
         placeholderLabel.textColor = InjectedValues[\.colors].inputTextPlaceholder
         applyTextAlignmentForCurrentDirection()
+
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            topEdgeEffect.isHidden = true
+            bottomEdgeEffect.isHidden = true
+        }
+        #endif
     }
 
     private func applyTextAlignmentForCurrentDirection() {
@@ -135,11 +161,15 @@ class InputTextView: UITextView, AccessibilityView {
 
     open func setUpLayout() {
         addSubview(placeholderLabel)
+        placeholderLabel.isAccessibilityElement = false
+        placeholderLabel.numberOfLines = 0
+        placeholderLabel.adjustsFontForContentSizeCategory = true
         placeholderLabel.setContentCompressionResistancePriority(.streamLow, for: .horizontal)
         NSLayoutConstraint.activate([
-            placeholderLabel.leadingAnchor.pin(equalTo: leadingAnchor, constant: directionalLayoutMargins.leading),
-            placeholderLabel.trailingAnchor.pin(equalTo: trailingAnchor, constant: -directionalLayoutMargins.trailing),
-            placeholderLabel.widthAnchor.pin(equalTo: layoutMarginsGuide.widthAnchor),
+            // Match the caret inset: the layout margins vary with the environment (e.g. regular width).
+            placeholderLabel.leadingAnchor.pin(equalTo: leadingAnchor, constant: Self.horizontalTextInset),
+            placeholderLabel.trailingAnchor.pin(equalTo: trailingAnchor, constant: -Self.horizontalTextInset),
+            placeholderLabel.widthAnchor.pin(equalTo: widthAnchor, constant: -2 * Self.horizontalTextInset),
             placeholderLabel.topAnchor.pin(equalTo: topAnchor),
             placeholderLabel.bottomAnchor.pin(lessThanOrEqualTo: bottomAnchor),
             placeholderLabel.centerYAnchor.pin(equalTo: centerYAnchor)
@@ -167,6 +197,47 @@ class InputTextView: UITextView, AccessibilityView {
 
     @objc open func handleTextChange() {
         placeholderLabel.isHidden = !text.isEmpty
+        notifyFittingSizeChangedIfNeeded()
+    }
+
+    /// UITextView has no built-in placeholder, so the default fitting size ignores
+    /// our placeholder label. Include the label's height when the field is empty so
+    /// the placeholder is never truncated at large Dynamic Type sizes.
+    override open func sizeThatFits(_ size: CGSize) -> CGSize {
+        var fittingSize = super.sizeThatFits(size)
+
+        guard text.isEmpty,
+              !placeholderLabel.isHidden,
+              let placeholderText = placeholderLabel.text,
+              !placeholderText.isEmpty else {
+            return fittingSize
+        }
+
+        let targetWidth = size.width > 0 ? size.width : bounds.width
+        guard targetWidth > 0 else { return fittingSize }
+
+        let availableWidth = targetWidth - textContainer.lineFragmentPadding * 2
+        guard availableWidth > 0 else { return fittingSize }
+
+        let placeholderHeight = placeholderLabel.sizeThatFits(
+            CGSize(width: availableWidth, height: .greatestFiniteMagnitude)
+        ).height
+        fittingSize.height = max(fittingSize.height, placeholderHeight)
+        return fittingSize
+    }
+
+    override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.preferredContentSizeCategory
+            != traitCollection.preferredContentSizeCategory else { return }
+        notifyFittingSizeChangedIfNeeded()
+    }
+
+    private func notifyFittingSizeChangedIfNeeded() {
+        let neededHeight = sizeThatFits(bounds.size).height
+        guard neededHeight != lastReportedFittingHeight else { return }
+        lastReportedFittingHeight = neededHeight
+        onFittingSizeChanged?()
     }
 
     open func shouldAnimate(_ newText: String) -> Bool {
@@ -182,6 +253,8 @@ class InputTextView: UITextView, AccessibilityView {
             let topInset = (frame.size.height - rect.height) / 2.0
             textContainerInset.top = max(0, topInset)
         }
+
+        notifyFittingSizeChangedIfNeeded()
     }
 
     override open func paste(_ sender: Any?) {

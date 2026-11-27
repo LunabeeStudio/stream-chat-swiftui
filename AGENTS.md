@@ -4,7 +4,7 @@ Guidance for AI coding agents (Copilot, Cursor, Aider, Claude, etc.) working in 
 
 This repo hosts Stream's SwiftUI Chat SDK for iOS. It builds on the core client and provides SwiftUI-first chat components (views, view models, modifiers) for messaging apps.
 
-Agents should optimize for clean code, follow Apple's SwiftUI guidelines and Swift best practices, accessibility, and high test coverage when changing code. Avoid doing any source-breaking changes without adding deprecations.
+Agents should prioritize accessibility and high test coverage when changing code. Avoid doing any source-breaking changes without adding deprecations.
 
 ### Tech & toolchain
 
@@ -22,11 +22,10 @@ Agents should optimize for clean code, follow Apple's SwiftUI guidelines and Swi
 
 ### Dependencies
 
-- **StreamChat** and **StreamChatCommonUI** from [`stream-chat-swift`](https://github.com/GetStream/stream-chat-swift) (≥ 5.0.0-beta)
+- **StreamChat** and **StreamChatCommonUI** from [`stream-chat-swift`](https://github.com/GetStream/stream-chat-swift) (version requirement in `Package.swift`)
 - **Vendored libraries** (do not edit directly):
-  - `Sources/StreamChatSwiftUI/StreamNuke/` — vendored Nuke image loading
   - `Sources/StreamChatSwiftUI/StreamSwiftyGif/` — vendored SwiftyGif
-  - Update these via `make update_nuke version=X.Y.Z` / `make update_swiftygif version=X.Y.Z`
+  - Update these via `make update_swiftygif version=X.Y.Z`
 
 ### Project layout (high level)
 
@@ -41,7 +40,6 @@ Sources/
     CommonViews/             # Shared/reusable SwiftUI views
     Generated/               # Auto-generated (L10n.swift, version) — do not edit manually
     Resources/               # Localization files (en.lproj, etc.)
-    StreamNuke/              # Vendored — do not edit
     StreamSwiftyGif/         # Vendored — do not edit
     Utils/                   # Utilities, common helpers
     ViewFactory/             # ViewFactory protocol & default implementation
@@ -165,6 +163,13 @@ The project uses Swift 6.0 strict concurrency. Many public types and view models
 
 ### Development guidelines
 
+Code documentation
+
+- Write doc comments (`///`) only for `public` declarations — types, methods, and properties that are part of the SDK's public API.
+- Do not add doc comments to `internal`, `private`, or test code.
+- Keep doc comments concise: a one-line summary; add parameter/return docs only when they are not obvious from the signature.
+- Do not add inline comments narrating what the code or a change does; comment only non-obvious constraints or reasoning.
+
 Accessibility & UI quality
 
 - Ensure components have accessibility labels, traits, and dynamic type support.
@@ -176,13 +181,49 @@ Testing policy
 
 - Add/extend tests in `StreamChatSwiftUITests/Tests/` (mirrors the source directory structure)
 - Test infrastructure (mocks, shared helpers) lives in `StreamChatSwiftUITests/Infrastructure/`
-- Prefer using `AssertSnapshot` from StreamChatTestHelpers instead of using the SnapshotTesting framework directly.
-- Avoid using `AssertAsync` from StreamChatTestHelpers, instead use `XCTestExpectation` directly whenever possible.
+- Prefer using `AssertSnapshot` from `StreamSwiftTestHelpers` instead of using the SnapshotTesting framework directly.
+- Run and record snapshot tests on the **iPhone 17 Pro (iOS 26.2)** simulator to match CI (`IOS_SIMULATOR_DEVICE` in `.github/workflows/smoke-checks.yml`). Other devices or OS versions render differently (e.g. the system search bar) and fail against the reference images.
+- Avoid using `AssertAsync`; use `XCTestExpectation` directly whenever possible.
+
+### E2E tests & runtime UI debugging (mock server)
+
+**Use sparingly.** E2E tests take a long time to run (~30–90s per test including the build; the full suite far longer). Only reach for them for complex investigations that need a real running app — e.g. scroll behavior, keyboard interactions, layout races, animation glitches — or when explicitly asked to use them. For everything else, prefer unit/snapshot tests or the demo app.
+
+Setup
+
+- E2E tests live in `StreamChatSwiftUITestsAppTests` and run against the `StreamChatSwiftUITestsApp` harness with a local mock server (no real backend).
+- Tests subclass `StreamTestCase`, which expects the mock server driver on port 4568. Start it with `bundle exec fastlane start_mock_server` (clones `GetStream/stream-chat-test-mock-server` and runs its `driver.rb`); stop it with `bundle exec fastlane stop_mock_server`.
+- If every test fails immediately in setup with an HTTP status assertion (e.g. `("200") is not equal to ("0")` / "Failed connecting to mock server"), the driver is not running — restart it before digging further.
+
+Running a single test:
+
+```
+xcodebuild -project StreamChatSwiftUI.xcodeproj \
+  -scheme StreamChatSwiftUITestsApp \
+  -destination 'platform=iOS Simulator,id=<booted-udid>' \
+  -only-testing:StreamChatSwiftUITestsAppTests/<TestClass>/<testMethod> test
+```
+
+Writing a temporary repro test
+
+- Add a file under `StreamChatSwiftUITestsAppTests/Tests/`, subclass `StreamTestCase`, and drive the app with the existing robots and page objects: `backendRobot.generateChannels(channelsCount:messagesCount:)`, `userRobot.login().waitForChannelListToLoad().openChannel()`, `MessageListPage.Composer.inputField`, etc.
+- To exercise a non-default `MessageListConfig` or `Utils` option, append a launch argument in the test's `setUpWithError` (before calling `super`) and read `ProcessInfo.processInfo.arguments` in `StreamChatSwiftUITestsApp/StartPage.swift`.
+- Delete the repro test and revert any `StartPage.swift` changes before committing.
+
+Observing what happens at runtime
+
+- Screenshots: `XCUIScreen.main.screenshot().pngRepresentation` written from the test to a `/tmp` path is the most reliable visual check (the runner executes on the host, so `/tmp` is directly readable). `xcrun simctl io booted recordVideo` frequently fails with "Resource busy" — prefer screenshot bursts at key moments.
+- App-side telemetry: `print`/`NSLog` from the app process does not appear in `xcodebuild` output (only the test runner's logs do), and unified-log queries are unreliable. Instead, have the instrumentation append lines to a file in `NSTemporaryDirectory()` and pull it after the run via `xcrun simctl get_app_container <udid> io.getstream.iOS.StreamChatSwiftUITestsApp data` (file is under `<container>/tmp/`). Note `xcodebuild` may boot a different simulator between runs; when in doubt locate the file with `find ~/Library/Developer/CoreSimulator/Devices/*/data/Containers/Data/Application -maxdepth 3 -name <file> -mmin -5`.
+- Scroll-view telemetry: for scroll/offset bugs, a temporary `UIViewRepresentable` that walks up `superview` to find the enclosing `UIScrollView` and logs `contentOffset`/`contentSize`/insets on a `CADisplayLink` (added to the run loop in `.common` mode) gives frame-accurate traces. It must be placed **inside** the `ScrollView` content (e.g. as a `.background` of the stack), not on the `ScrollView` itself, or it will never find the scroll view. Combine with event markers logged from the code paths under suspicion to correlate causes with offset changes.
+- Remove every piece of temporary instrumentation from SDK sources before committing.
 
 ### Branching & changelog
 
 - The default integration branch is `develop`. Feature branches are merged into `develop`.
-- Update `CHANGELOG.md` under the `# Upcoming` section when making client-facing changes (follow the Keep a Changelog format with `### Added`, `### Fixed`, `### Changed` subsections).
+- Name branches with a type prefix and a short kebab-case description, e.g. `add/dynamic-search-debounce`, `fix/empty-search-results`, `docs/channel-search`.
+- Prefer prefixes that match the change type: `add/`, `fix/`, `docs/`, etc. Do **not** use personal name prefixes (e.g. `nuno/...`) or ticket IDs (e.g. `ios-1932`, `IOS-1932`) in branch names.
+- Update `CHANGELOG.md` under the `# Upcoming` section when making client-facing changes (follow the Keep a Changelog format with the file's existing `### ✅ Added`, `### 🐞 Fixed`, `### 🔄 Changed` subsections).
+- After a release, `# Upcoming` holds only an empty `### 🔄 Changed` placeholder. When adding the first entry, remove that empty placeholder, unless the new entry belongs under `### 🔄 Changed`.
 - Only update `CHANGELOG.md` **after the PR has been opened**, so the entry can include the PR link (e.g. `[#1234](https://github.com/GetStream/stream-chat-swiftui/pull/1234)`). Push the changelog update as a follow-up commit on the same branch.
 - Keep changelog entries as short and high-level as possible. Describe the user-visible outcome in one line and do not explain implementation details, file names, or internal APIs.
 
@@ -191,6 +232,7 @@ Testing policy
 - Start commit subject lines with a capital letter.
 - Do not end commit subject lines with a period.
 - Keep the subject line concise (ideally under 72 characters); put additional context in the body separated by a blank line.
+- Do **not** include ticket IDs or Linear issue keys in commit subjects (e.g. avoid `[IOS-1932]` prefixes). Link tickets from the PR instead.
 
 ### Pull Requests
 

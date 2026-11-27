@@ -1,0 +1,31 @@
+name: "Merge release"
+
+on:
+  issue_comment:
+    types: [created]
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write # to dispatch release-publish.yml
+
+jobs:
+  merge-release-to-main:
+    name: Merge release to main
+    runs-on: { group: github-public-amd64 }
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.pull_request && github.event.issue.state == 'open' && github.event.comment.body == '/merge release')
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/ruby-cache
+
+      - name: Merge
+        run: bundle exec fastlane merge_release author:"$USER_LOGIN" --verbose
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_PR_NUM: ${{ github.event.issue.number }}
+          USER_LOGIN: ${{ github.event.comment.user.login != null && github.event.comment.user.login || github.event.sender.login }}

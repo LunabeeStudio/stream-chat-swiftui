@@ -59,7 +59,7 @@ struct PollResultsView<Factory: ViewFactory>: View {
             Text(L10n.Message.Polls.question)
                 .font(fonts.subheadline)
                 .foregroundColor(Color(colors.textTertiary))
-            Text(viewModel.poll.name)
+            Text(viewModel.poll.name(in: viewModel.translationLanguage))
                 .font(fonts.title3.weight(.semibold))
                 .foregroundColor(Color(colors.textPrimary))
         }
@@ -67,6 +67,9 @@ struct PollResultsView<Factory: ViewFactory>: View {
         .padding(tokens.spacingMd)
         .background(Color(colors.backgroundCoreSurfaceCard))
         .cornerRadius(tokens.radiusLg)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(PollAccessibility.questionLabel(question: L10n.Message.Polls.question, name: viewModel.poll.name(in: viewModel.translationLanguage)))
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var optionsSection: some View {
@@ -76,6 +79,7 @@ struct PollResultsView<Factory: ViewFactory>: View {
                     factory: factory,
                     poll: viewModel.poll,
                     option: option,
+                    translationLanguage: viewModel.translationLanguage,
                     optionIndex: index + 1,
                     votes: Array(
                         option.latestVotes
@@ -105,6 +109,7 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
     let factory: Factory
     var poll: Poll
     var option: PollOption
+    var translationLanguage: TranslationLanguage?
     var optionIndex: Int?
     var votes: [PollVote]
     var hasMostVotes: Bool = false
@@ -135,7 +140,7 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
                     .foregroundColor(Color(colors.textTertiary))
             }
             HStack(spacing: tokens.spacingMd) {
-                Text(option.text)
+                Text(option.text(in: translationLanguage))
                     .font(fonts.title3.weight(.semibold))
                     .foregroundColor(Color(colors.textPrimary))
                 Spacer()
@@ -145,6 +150,18 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
         .padding(.horizontal, tokens.spacingMd)
         .padding(.top, tokens.spacingMd)
         .padding(.bottom, votes.isEmpty && !allButtonShown ? tokens.spacingMd : 0)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(optionHeadingAccessibilityLabel)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var optionHeadingAccessibilityLabel: String {
+        PollAccessibility.resultsOptionHeadingLabel(
+            optionIndex: optionIndex,
+            optionText: option.text(in: translationLanguage),
+            hasMostVotes: hasMostVotes,
+            voteCount: poll.voteCountsByOption?[option.id] ?? 0
+        )
     }
 
     private var votesLabel: some View {
@@ -154,6 +171,7 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: tokens.iconSizeMd, height: tokens.iconSizeMd)
+                    .accessibilityHidden(true)
             }
             Text(voteCountText)
                 .font(fonts.body)
@@ -192,6 +210,7 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
                         showsIndicator: false
                     )
                 )
+                .accessibilityHidden(true)
             }
             Text(vote.user?.name ?? (vote.user?.id ?? L10n.Message.Polls.unknownVoteAuthor))
                 .font(fonts.body)
@@ -206,6 +225,14 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
         .padding(.horizontal, tokens.spacingMd)
         .padding(.vertical, tokens.spacingXs)
         .frame(minHeight: 40)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(voterRowAccessibilityLabel(for: vote))
+    }
+
+    private func voterRowAccessibilityLabel(for vote: PollVote) -> String {
+        let name = vote.user?.name ?? (vote.user?.id ?? L10n.Message.Polls.unknownVoteAuthor)
+        let date = utils.pollsDateFormatter.formatDay(vote.createdAt)
+        return PollAccessibility.voterLabel(name: name, date: date)
     }
 
     // MARK: - View All Button
@@ -215,7 +242,12 @@ struct PollOptionResultsView<Factory: ViewFactory>: View {
             Divider()
                 .background(Color(colors.borderCoreDefault))
             NavigationLink {
-                PollOptionAllVotesView(factory: factory, poll: poll, option: option)
+                PollOptionAllVotesView(
+                    factory: factory,
+                    poll: poll,
+                    option: option,
+                    translationLanguage: translationLanguage
+                )
             } label: {
                 Text(L10n.Message.Polls.Button.showAll)
                     .font(fonts.body)

@@ -42,8 +42,8 @@ struct DefaultMessageAttachmentsViewModifier<Style: Styles>: ViewModifier {
 
     private var bubbleInsets: EdgeInsets {
         guard isBubbleShown else { return EdgeInsets() }
-        // Single voice and file don't have extra padding.
-        if options.message.hasSingleAttachment(of: [.file, .voiceRecording], captioned: false) {
+        // Single voice, file, and audio don't have extra padding.
+        if options.message.hasSingleAttachment(of: [.file, .audio, .voiceRecording], captioned: false) {
             return EdgeInsets()
         }
         return EdgeInsets(
@@ -79,6 +79,14 @@ struct DefaultMessageAttachmentItemViewModifier: ViewModifier {
                 cornerRadius: tokens.messageBubbleRadiusAttachment,
                 contentInsets: EdgeInsets()
             ))
+        case .some(.audio):
+            content.modifier(BubbleModifier(
+                corners: attachmentCorners(isSingleWithoutCaption: options.message.hasSingleAttachment(of: [.audio], captioned: false)),
+                backgroundColors: [defaultAttachmentBackgroundColor],
+                borderWidth: 0,
+                cornerRadius: tokens.messageBubbleRadiusAttachment,
+                contentInsets: playbackAttachmentContentInsets
+            ))
         case .some(.voiceRecording):
             // A voice recording quoted without a caption renders flat inside the message bubble.
             if isVoiceRecordingContainerShown {
@@ -87,12 +95,7 @@ struct DefaultMessageAttachmentItemViewModifier: ViewModifier {
                     backgroundColors: [defaultAttachmentBackgroundColor],
                     borderWidth: 0,
                     cornerRadius: tokens.messageBubbleRadiusAttachment,
-                    contentInsets: EdgeInsets(
-                        top: tokens.spacingXs,
-                        leading: tokens.spacingXs,
-                        bottom: tokens.spacingXs,
-                        trailing: tokens.spacingXs
-                    )
+                    contentInsets: playbackAttachmentContentInsets
                 ))
             } else {
                 content
@@ -125,14 +128,14 @@ struct DefaultMessageAttachmentItemViewModifier: ViewModifier {
                 contentInsets: EdgeInsets()
             ))
         default:
-            // Other attachment types (e.g. giphy, audio, custom) are not wrapped in a container bubble.
+            // Other attachment types (e.g. giphy, custom) are not wrapped in a container bubble.
             content
         }
     }
 
     private var defaultAttachmentBackgroundColor: Color {
-        // Single file and voice attachments are rendered in a bubble, but the attachment itself does not have an additional darker background.
-        if options.message.hasSingleAttachment(of: [.file, .voiceRecording], captioned: false) {
+        // Single file, audio, and voice attachments are rendered in a bubble, but the attachment itself does not have an additional darker background.
+        if options.message.hasSingleAttachment(of: [.file, .audio, .voiceRecording], captioned: false) {
             return .clear
         }
         return Color(options.message.isSentByCurrentUser ? colors.chatBackgroundAttachmentOutgoing : colors.chatBackgroundAttachmentIncoming)
@@ -146,6 +149,15 @@ struct DefaultMessageAttachmentItemViewModifier: ViewModifier {
 
     private var isVoiceRecordingContainerShown: Bool {
         !(options.message.quotedMessage != nil && options.message.text.isEmpty)
+    }
+
+    private var playbackAttachmentContentInsets: EdgeInsets {
+        EdgeInsets(
+            top: tokens.spacingXs,
+            leading: tokens.spacingXs,
+            bottom: tokens.spacingXs,
+            trailing: tokens.spacingXs
+        )
     }
 
     private func attachmentCorners(isSingleWithoutCaption: Bool) -> UIRectCorner {

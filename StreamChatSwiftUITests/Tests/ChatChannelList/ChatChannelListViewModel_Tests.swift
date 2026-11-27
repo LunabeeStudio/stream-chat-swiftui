@@ -339,13 +339,13 @@ import XCTest
     // MARK: - Search
 
     func test_loadAdditionalSearchResults_whenSearchTypeIsChannels_shouldLoadNextChannels() {
-        let searchChannelListController = makeChannelListController()
+        let channelSearchController = ChatChannelSearchController_Mock.mock(client: chatClient)
         let viewModel = makeDefaultChannelListVM(searchType: .channels)
-        viewModel.channelListSearchController = searchChannelListController
-        
+        viewModel.channelSearchController = channelSearchController
+
         viewModel.loadAdditionalSearchResults(index: 1)
 
-        XCTAssertEqual(searchChannelListController.loadNextChannelsCallCount, 1)
+        XCTAssertEqual(channelSearchController.loadNextChannelsCallCount, 1)
     }
 
     func test_loadAdditionalSearchResults_whenSearchTypeIsMessages_shouldLoadNextMessages() {
@@ -360,15 +360,17 @@ import XCTest
 
     func test_searchText_whenChanged_whenSearchTypeIsChannels_shouldPerformChannelSearch() {
         let viewModel = makeDefaultChannelListVM(searchType: .channels)
+
         viewModel.searchText = "Hey"
-        XCTAssertNotNil(viewModel.channelListSearchController)
+
+        XCTAssertNotNil(viewModel.channelSearchController)
         XCTAssertNil(viewModel.messageSearchController)
     }
 
     func test_searchText_whenChanged_whenSearchTypeIsMessages_shouldPerformMessageSearch() {
         let viewModel = makeDefaultChannelListVM(searchType: .messages)
         viewModel.searchText = "Hey"
-        XCTAssertNil(viewModel.channelListSearchController)
+        XCTAssertNil(viewModel.channelSearchController)
         XCTAssertNotNil(viewModel.messageSearchController)
     }
 
@@ -511,7 +513,7 @@ import XCTest
         XCTAssertFalse(viewModel.isSearching, "isSearching should be false after opening a channel")
         XCTAssertEqual(viewModel.searchText, "", "searchText should be cleared after opening a channel")
         XCTAssertNil(viewModel.messageSearchController, "Message search controller should be cleared when search ends")
-        XCTAssertNil(viewModel.channelListSearchController, "Channel search controller should be cleared when search ends")
+        XCTAssertNil(viewModel.channelSearchController, "Channel search controller should be cleared when search ends")
     }
     
     func test_openChannel_whenSelectedChannelIsSet_shouldClearSelectedChannel() {
@@ -534,7 +536,130 @@ import XCTest
     }
     
     // MARK: - Optimized Channel List Updates
-    
+
+    func test_preselectChannel_whenAdaptiveSplitViewActive() {
+        let channel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [channel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+
+        viewModel.setSplitViewActive(false)
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertNil(viewModel.selectedChannel)
+
+        viewModel.setSplitViewActive(true)
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertEqual(viewModel.selectedChannel?.channel.cid, channel.cid)
+
+        viewModel.selectedChannel = nil
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertNil(viewModel.selectedChannel)
+    }
+
+    func test_channelListUpdates_whenAdaptiveSplitViewActive_thenUpdatesAreNotSkipped() {
+        let config = MessageListConfig(updateChannelsFromMessageList: false)
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(messageListConfig: config))
+        let existingChannel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [existingChannel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.setSplitViewActive(true)
+        viewModel.selectedChannel = existingChannel.channelSelectionInfo
+
+        let insertedChannel = ChatChannel.mockDMChannel()
+        channelListController.simulate(
+            channels: [insertedChannel, existingChannel],
+            changes: [.insert(insertedChannel, index: IndexPath(item: 0, section: 0))]
+        )
+
+        XCTAssertEqual(viewModel.channels.count, 2)
+    }
+
+    func test_channelListUpdates_whenSplitViewBecomesActive_thenSkippedUpdatesAreApplied() {
+        let config = MessageListConfig(updateChannelsFromMessageList: false)
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(messageListConfig: config))
+        let existingChannel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [existingChannel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.setSplitViewActive(false)
+        viewModel.selectedChannel = existingChannel.channelSelectionInfo
+
+        let insertedChannel = ChatChannel.mockDMChannel()
+        channelListController.simulate(
+            channels: [insertedChannel, existingChannel],
+            changes: [.insert(insertedChannel, index: IndexPath(item: 0, section: 0))]
+        )
+        XCTAssertEqual(viewModel.channels.count, 1)
+
+        viewModel.setSplitViewActive(true)
+
+        XCTAssertEqual(viewModel.channels.count, 2)
+    }
+
+    func test_channelDismissed_whenSplitViewActive_thenSelectsAnotherChannel() {
+        let deletedChannel = ChatChannel.mockDMChannel()
+        let otherChannel = ChatChannel.mockDMChannel()
+        let controller = makeChannelListController(channels: [deletedChannel, otherChannel])
+        let viewModel = ChatChannelListViewModel(channelListController: controller)
+        viewModel.setSplitViewActive(true)
+        viewModel.selectedChannel = deletedChannel.channelSelectionInfo
+
+        notifyChannelDismiss()
+
+        XCTAssertEqual(viewModel.selectedChannel?.channel.cid, otherChannel.cid)
+    }
+
+    func test_channelDismissed_whenStackedNavigation_thenClearsSelection() {
+        let channel = ChatChannel.mockDMChannel()
+        let controller = makeChannelListController(channels: [channel, .mockDMChannel()])
+        let viewModel = ChatChannelListViewModel(channelListController: controller)
+        viewModel.setSplitViewActive(false)
+        viewModel.selectedChannel = channel.channelSelectionInfo
+
+        notifyChannelDismiss()
+
+        XCTAssertNil(viewModel.selectedChannel)
+    }
+
+    func test_preselectChannel_whenReexpandingFromChannelList() {
+        let firstChannel = ChatChannel.mockDMChannel()
+        let secondChannel = ChatChannel.mockDMChannel()
+        let controller = makeChannelListController(channels: [firstChannel, secondChannel])
+        let viewModel = ChatChannelListViewModel(channelListController: controller)
+
+        viewModel.setSplitViewActive(true)
+        viewModel.selectedChannel = secondChannel.channelSelectionInfo
+        viewModel.setSplitViewActive(false)
+        viewModel.selectedChannel = nil
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertNil(viewModel.selectedChannel)
+
+        viewModel.setSplitViewActive(true)
+        viewModel.preselectChannelIfNeeded()
+        XCTAssertEqual(viewModel.selectedChannel?.channel.cid, firstChannel.cid)
+    }
+
+    func test_preselectChannel_whenExpandingWithExistingSelection() {
+        let firstChannel = ChatChannel.mockDMChannel()
+        let secondChannel = ChatChannel.mockDMChannel()
+        let controller = makeChannelListController(channels: [firstChannel, secondChannel])
+        let viewModel = ChatChannelListViewModel(channelListController: controller)
+
+        viewModel.setSplitViewActive(false)
+        viewModel.selectedChannel = secondChannel.channelSelectionInfo
+        viewModel.setSplitViewActive(true)
+        viewModel.preselectChannelIfNeeded()
+
+        XCTAssertEqual(viewModel.selectedChannel?.channel.cid, secondChannel.cid)
+    }
+
     func test_channelListOptimizedUpdates_whenStackedViewAndSelection_thenUpdatesSkipped() {
         // Given
         let config = MessageListConfig(updateChannelsFromMessageList: false, iPadSplitViewEnabled: false)
@@ -557,13 +682,130 @@ import XCTest
         // Then
         XCTAssertEqual(viewModel.channels.count, 1)
         
-        // When selection is popped, changes are applied
+        // When selection is popped, changes are applied after the pop started
         viewModel.selectedChannel = nil
+        XCTAssertEqual(viewModel.channels.count, 1)
+        waitForMainQueueTurn()
         
         XCTAssertEqual(viewModel.channels.count, 2)
     }
 
+    func test_channelListOptimizedUpdates_whenChannelRemovedAndDismissed_thenRemovalIsAppliedAfterDismissalStarted() {
+        // Given
+        let config = MessageListConfig(updateChannelsFromMessageList: false, iPadSplitViewEnabled: false)
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(messageListConfig: config))
+        let leftChannel = ChatChannel.mockDMChannel()
+        let otherChannel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [leftChannel, otherChannel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.selectedChannel = leftChannel.channelSelectionInfo
+        channelListController.simulate(
+            channels: [otherChannel],
+            changes: [.remove(leftChannel, index: IndexPath(item: 0, section: 0))]
+        )
+        XCTAssertEqual(viewModel.channels.count, 2, "Precondition failed: the removal should be skipped while the channel is open")
+
+        // When
+        notifyChannelDismiss()
+
+        // Then
+        XCTAssertNil(viewModel.selectedChannel)
+        XCTAssertEqual(viewModel.channels.count, 2, "The row must stay while SwiftUI dismisses its link")
+        waitForMainQueueTurn()
+        XCTAssertEqual(viewModel.channels.map(\.cid), [otherChannel.cid])
+    }
+
+    func test_channelListOptimizedUpdates_whenSelectionCleared_resetsSkippedFlagAndDoesNotReapplyOnFurtherAppearances() {
+        // Given
+        let config = MessageListConfig(updateChannelsFromMessageList: false, iPadSplitViewEnabled: false)
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(messageListConfig: config))
+        let existingChannel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [existingChannel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.selectedChannel = .init(channel: existingChannel, message: nil)
+        let insertedChannel = ChatChannel.mockDMChannel()
+        channelListController.simulate(
+            channels: [insertedChannel, existingChannel],
+            changes: [.insert(insertedChannel, index: IndexPath(item: 0, section: 0))]
+        )
+        XCTAssertEqual(viewModel.channels.count, 1, "Precondition failed: the update should be skipped while a channel is selected")
+        waitForMainQueueTurn()
+
+        var emissionCount = 0
+        let cancellable = viewModel.$channels.dropFirst().sink { _ in emissionCount += 1 }
+
+        // When: selection is popped, the queued update is applied on the next main-queue turn.
+        viewModel.selectedChannel = nil
+        waitForMainQueueTurn()
+
+        // Then
+        XCTAssertEqual(viewModel.channels.count, 2)
+        XCTAssertEqual(emissionCount, 1, "The queued update should only be applied once")
+
+        // When: more rows appear afterwards, simulating the user scrolling the list.
+        viewModel.checkForChannels(index: 0)
+        viewModel.checkForChannels(index: 1)
+        viewModel.checkForChannels(index: 1)
+
+        // Then: the skipped-updates flag should have been reset, so scrolling shouldn't
+        // keep reassigning (and republishing) `channels` on every row appearance.
+        XCTAssertEqual(emissionCount, 1, "channels should not be reassigned again once the queued update was applied")
+
+        cancellable.cancel()
+    }
+
+    func test_channelListOptimizedUpdates_whenChannelAppears_resetsSkippedFlagAndDoesNotReapplyOnFurtherAppearances() {
+        // Given
+        let config = MessageListConfig(updateChannelsFromMessageList: false, iPadSplitViewEnabled: false)
+        streamChat = StreamChat(chatClient: chatClient, utils: Utils(messageListConfig: config))
+        let existingChannel = ChatChannel.mockDMChannel()
+        let channelListController = makeChannelListController(channels: [existingChannel])
+        let viewModel = ChatChannelListViewModel(
+            channelListController: channelListController,
+            selectedChannelId: nil
+        )
+        viewModel.selectedChannel = .init(channel: existingChannel, message: nil)
+        let insertedChannel = ChatChannel.mockDMChannel()
+        channelListController.simulate(
+            channels: [insertedChannel, existingChannel],
+            changes: [.insert(insertedChannel, index: IndexPath(item: 0, section: 0))]
+        )
+        XCTAssertEqual(viewModel.channels.count, 1, "Precondition failed: the update should be skipped while a channel is selected")
+
+        var emissionCount = 0
+        let cancellable = viewModel.$channels.dropFirst().sink { _ in emissionCount += 1 }
+
+        // When: a row appears (e.g. `onAppear`, without the selection ever being cleared).
+        viewModel.checkForChannels(index: 0)
+
+        // Then: the queued update is applied exactly once.
+        XCTAssertEqual(viewModel.channels.count, 2)
+        XCTAssertEqual(emissionCount, 1)
+
+        // When: more rows appear afterwards, simulating the user scrolling the list.
+        viewModel.checkForChannels(index: 1)
+        viewModel.checkForChannels(index: 1)
+
+        // Then: the skipped-updates flag should have been reset, so further appearances
+        // shouldn't keep reassigning (and republishing) `channels`.
+        XCTAssertEqual(emissionCount, 1, "channels should not be reassigned again once the queued update was applied")
+
+        cancellable.cancel()
+    }
+
     // MARK: - private
+
+    private func waitForMainQueueTurn() {
+        let turn = expectation(description: "Main queue turn")
+        DispatchQueue.main.async { turn.fulfill() }
+        wait(for: [turn], timeout: defaultTimeout)
+    }
 
     private func makeChannelListController(
         channels: [ChatChannel] = []
@@ -591,5 +833,22 @@ import XCTest
             searchType: searchType
         )
         return viewModel
+    }
+}
+
+private final class ChatChannelSearchController_Mock: ChatChannelSearchController, @unchecked Sendable {
+    static func mock(client: ChatClient) -> ChatChannelSearchController_Mock {
+        .init(client: client)
+    }
+
+    var loadNextChannelsCallCount = 0
+    override func loadNextChannels(
+        limit: Int? = nil,
+        completion: (@MainActor (Error?) -> Void)? = nil
+    ) {
+        loadNextChannelsCallCount += 1
+        callback {
+            completion?(nil)
+        }
     }
 }

@@ -399,20 +399,6 @@ extension UserRobot {
     }
 
     @discardableResult
-    func assertMessageAuthor(
-        _ author: String,
-        at messageCellIndex: Int? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) -> Self {
-        let messageCell = messageCell(withIndex: messageCellIndex, file: file, line: line)
-        let textView = attributes.author(messageCell: messageCell).wait()
-        let actualAuthor = textView.waitForText(author).text
-        XCTAssertEqual(author, actualAuthor, file: file, line: line)
-        return self
-    }
-
-    @discardableResult
     func assertScrollToBottomButton(
         isVisible: Bool,
         timeout: Double = XCUIElement.waitTimeout,
@@ -536,6 +522,18 @@ extension UserRobot {
         return self
     }
 
+    @discardableResult
+    func assertChannelMemberCount(
+        _ memberCount: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> Self {
+        let expectedText = "\(memberCount) members"
+        let actualText = MessageListPage.NavigationBar.participants.waitForText(expectedText, mustBeEqual: false).text
+        XCTAssertTrue(actualText.hasPrefix(expectedText), "'\(actualText)' does not start with '\(expectedText)'", file: file, line: line)
+        return self
+    }
+
     func assertComposerLimits(
         toNumberOfLines limit: Int,
         file: StaticString = #filePath,
@@ -599,16 +597,18 @@ extension UserRobot {
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> Self {
-        let endTime = Date().timeIntervalSince1970 * 1000 + XCUIElement.waitTimeout * 3000
         let actualCount = MessageListPage.cells.count
         XCTAssertNotEqual(expectedCount, actualCount, file: file, line: line)
 
-        while endTime > Date().timeIntervalSince1970 * 1000 {
+        // Swipe until the first message shows up rather than for a fixed time, which slower simulators don't finish in.
+        // Cells aren't listed in screen order on newer iOS versions, so the first message is looked up by its text.
+        let firstMessage = messageCell(withText: "1")
+        let deadline = Date().addingTimeInterval(XCUIElement.longWaitTimeout * 4)
+        while !(firstMessage.exists && firstMessage.isHittable) && Date() < deadline {
             MessageListPage.list.swipeDown()
         }
 
-        let oldestMessage = MessageListPage.cells.lastMatch!
-        XCTAssertEqual(attributes.text(in: oldestMessage).text, "1", file: file, line: line)
+        XCTAssertTrue(firstMessage.exists && firstMessage.isHittable, "The first message was not loaded", file: file, line: line)
         return self
     }
 
@@ -837,25 +837,23 @@ extension UserRobot {
     @discardableResult
     func assertCooldown(shouldBeVisible: Bool, file: StaticString = #filePath, line: UInt = #line) -> Self {
         if shouldBeVisible {
-            MessageListPage.Composer.cooldown.wait()
+            let cooldown = MessageListPage.Composer.cooldown.wait()
+            XCTAssertTrue(cooldown.exists, "Cooldown should be visible", file: file, line: line)
+            XCTAssertTrue(
+                cooldown.label.contains("Slow mode, wait"),
+                "Slow mode cooldown should announce the wait message",
+                file: file,
+                line: line
+            )
         } else {
             MessageListPage.Composer.cooldown.waitForDisappearance()
+            XCTAssertFalse(
+                MessageListPage.Composer.cooldown.exists,
+                "Cooldown should not be visible",
+                file: file,
+                line: line
+            )
         }
-        
-        XCTAssertEqual(
-            MessageListPage.Composer.cooldown.exists,
-            shouldBeVisible,
-            "Cooldown should be visible",
-            file: file,
-            line: line
-        )
-        
-        XCTAssertEqual(
-            MessageListPage.Composer.placeholder.text.contains("Slow mode, wait"),
-            shouldBeVisible,
-            file: file,
-            line: line
-        )
         return self
     }
 
@@ -990,7 +988,9 @@ extension UserRobot {
         line: UInt = #line
     ) -> Self {
         let cell = messageCell(withIndex: messageCellIndex, file: file, line: line).wait()
-        let expectedText = "Sorry, command \(invalidCommand) doesn't exist. Try posting your message without the starting /"
+        // System messages expose a VoiceOver label that prefixes the raw text
+        // with "System message: ", so the label queried by XCUITest includes it.
+        let expectedText = "System message: Sorry, command \(invalidCommand) doesn't exist. Try posting your message without the starting /"
         let actualText = attributes.systemMessage(in: cell).waitForText(expectedText).text
         XCTAssertEqual(actualText, expectedText, file: file, line: line)
         return self

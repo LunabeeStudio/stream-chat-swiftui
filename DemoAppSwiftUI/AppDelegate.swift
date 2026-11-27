@@ -15,6 +15,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         var config = ChatClientConfig(apiKey: .init(apiKeyString))
         config.isLocalStorageEnabled = true
         config.applicationGroupIdentifier = applicationGroupIdentifier
+        if let downloadsFolderURL = AppConfiguration.AttachmentDownloadsDirectory.stored.folderURL {
+            try? FileManager.default.createDirectory(at: downloadsFolderURL, withIntermediateDirectories: true)
+            config.localAttachmentDownloadsFolderURL = downloadsFolderURL
+        }
 
         let client = ChatClient(config: config)
         return client
@@ -61,15 +65,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         #endif
 
-        LogConfig.level = StreamRuntimeCheck.logLevel ?? .warning
-        LogConfig.formatters = [
-            PrefixLogFormatter(prefixes: [.info: "ℹ️", .debug: "🛠", .warning: "⚠️", .error: "🚨"])
-        ]
-        if let subsystems = StreamRuntimeCheck.subsystems {
-            LogConfig.subsystems = subsystems
-        }
+        DemoAppLogging.setUp()
         
         let utils = Utils(
+            commandsConfig: AppConfiguration.makeCommandsConfig(),
+            channelListConfig: ChannelListConfig(
+                supportedMoreChannelActions: DemoAppFactory.shared.supportedMoreChannelActions(options:)
+            ),
             messageListConfig: AppConfiguration.makeMessageListConfig(),
             composerConfig: AppConfiguration.makeComposerConfig()
         )
@@ -120,7 +122,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             return
         }
 
-        chatClient.currentUserController().addDevice(.apn(token: deviceToken)) { error in
+        chatClient.currentUserController().addDevice(.apn(token: deviceToken, providerName: "APN")) { error in
             if let error {
                 log.error("adding a device failed with an error \(error)")
                 return

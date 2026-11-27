@@ -72,7 +72,7 @@ final class Ephemeral_Messages_Tests: StreamTestCase {
     func test_deliveryStatusHidden_whenEphemeralMessageShown() throws {
         linkToScenario(withId: 439)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-1324")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-1324")
 
         GIVEN("user opens a channel") {
             userRobot
@@ -90,7 +90,7 @@ final class Ephemeral_Messages_Tests: StreamTestCase {
     func test_deliveryStatusHidden_whenEphemeralMessageShownInThread() throws {
         linkToScenario(withId: 440)
         
-        throw XCTSkip("https://linear.app/stream/issue/IOS-1324")
+        try XCTSkipIf(true, "https://linear.app/stream/issue/IOS-1324")
 
         GIVEN("user opens a channel") {
             backendRobot.generateChannels(channelsCount: 1, messagesCount: 1)
@@ -103,6 +103,100 @@ final class Ephemeral_Messages_Tests: StreamTestCase {
         }
         THEN("delivery status is hidden for ephemeral messages") {
             userRobot.assertMessageDeliveryStatus(nil)
+        }
+    }
+
+    func test_userObservesAnimatedGiphy_afterAddingGiphyThroughComposerMenu() {
+        linkToScenario(withId: 441)
+
+        GIVEN("user opens a channel") {
+            userRobot.login().openChannel()
+        }
+        WHEN("user sends a giphy using the composer commands menu") {
+            userRobot.uploadGiphy(useComposerCommand: true)
+        }
+        THEN("user observes the animated gif") {
+            userRobot
+                .assertGiphyImage()
+                .assertGiphyButtons(areDisplayed: false)
+        }
+    }
+
+    func test_userObservesAnimatedGiphy_whenUserAddsGiphyMessageInThread() {
+        linkToScenario(withId: 11995)
+
+        GIVEN("user opens a channel") {
+            backendRobot.generateChannels(channelsCount: 1, messagesCount: 1)
+            userRobot.login().openChannel()
+        }
+        WHEN("user runs a giphy command in thread") {
+            userRobot
+                .openThread()
+                .uploadGiphy()
+        }
+        THEN("user observes the animated gif in thread") {
+            userRobot.assertGiphyImageInThread()
+        }
+    }
+
+    func test_userObservesAnimatedGiphy_whenParticipantAddsGiphyMessageInThread() {
+        linkToScenario(withId: 11996)
+
+        GIVEN("user opens a channel") {
+            backendRobot.generateChannels(channelsCount: 1, messagesCount: 1)
+            userRobot.login().openChannel()
+        }
+        WHEN("participant sends a giphy in thread") {
+            participantRobot.uploadGiphyInThread()
+        }
+        THEN("user observes the animated gif in thread") {
+            userRobot
+                .openThread(waitForThreadIcon: true)
+                .assertGiphyImageInThread()
+        }
+    }
+
+    func test_messageIsNotSent_whenUserCancelsEphemeralMessage() {
+        linkToScenario(withId: 11997)
+
+        GIVEN("user opens a channel") {
+            userRobot.login().openChannel()
+        }
+        WHEN("user cancels a giphy") {
+            userRobot
+                .uploadGiphy(send: false)
+                .tapOnCancelGiphyButton()
+        }
+        THEN("user does not observe the animated gif") {
+            userRobot
+                .assertGiphyImageNotVisible()
+                .assertGiphyButtons(areDisplayed: false)
+        }
+    }
+
+    func test_userObservesAnimatedGiphy_whenUserAddsGiphyMessage_AfterShuffling() {
+        linkToScenario(withId: 11998)
+
+        GIVEN("user opens a channel") {
+            userRobot.login().openChannel()
+        }
+        WHEN("user shuffles a giphy") {
+            userRobot
+                .uploadGiphy(send: false)
+                .tapOnShuffleGiphyButton()
+        }
+        THEN("the giphy is shuffled but not sent") {
+            userRobot
+                .assertEphemeralGiphyImage()
+                .assertGiphyButtons(areDisplayed: true)
+        }
+        WHEN("user sends a giphy") {
+            userRobot.tapOnSendGiphyButton()
+        }
+        THEN("user observes the animated gif") {
+            userRobot
+                .assertGiphyImage()
+                .assertGiphyButtons(areDisplayed: false)
         }
     }
 }

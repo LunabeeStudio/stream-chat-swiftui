@@ -4,7 +4,6 @@
 
 import StreamChat
 import SwiftUI
-import UIKit
 
 /// View for the chat channel list.
 public struct ChatChannelListView<Factory: ViewFactory>: View {
@@ -13,7 +12,7 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
     @Injected(\.utils) private var utils
 
     @StateObject private var viewModel: ChatChannelListViewModel
-    @State private var tabBar: UITabBar?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private let viewFactory: Factory
     private let title: String
@@ -80,31 +79,21 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
             .sheet(isPresented: $viewModel.channelPopupShown, content: {
                 channelPopup()
             })
-            .if(isIphone || !utils.messageListConfig.iPadSplitViewEnabled, transform: { view in
+            .if(!usesAdaptiveSplitView, transform: { view in
                 view.navigationViewStyle(.stack)
             })
-            .background(
-                isIphone && handleTabBarVisibility ?
-                    Color.clear.background(
-                        TabBarAccessor { tabBar in
-                            self.tabBar = tabBar
-                        }
-                    )
-                    .allowsHitTesting(false)
-                    : nil
-            )
-            .onReceive(viewModel.$hideTabBar) { newValue in
-                if isIphone && handleTabBarVisibility {
-                    setupTabBarAppeareance()
-                    tabBar?.isHidden = newValue
-                }
+            .onAppear {
+                viewModel.setSplitViewActive(usesAdaptiveSplitView)
+            }
+            .onChange(of: usesAdaptiveSplitView) { isActive in
+                viewModel.setSplitViewActive(isActive)
             }
             .accessibilityIdentifier("ChatChannelListView")
     }
 
     @ViewBuilder
     private var containerView: some View {
-        if usesIPadSplitView {
+        if usesAdaptiveSplitView {
             if #available(iOS 16, *) {
                 NavigationSplitView {
                     content
@@ -112,6 +101,7 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
                     splitViewDetail()
                 }
                 .accentColor(Color(colors.navigationBarTintColor))
+                .environment(\.splitViewSelectedChannelId, viewModel.selectedChannel?.id)
             }
         } else {
             NavigationContainerView(embedInNavigationView: embedInNavigationView) {
@@ -130,7 +120,7 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
                 ChatChannelListContentView(
                     viewFactory: viewFactory,
                     viewModel: viewModel,
-                    channelDestination: usesIPadSplitView ? nil : channelDestination,
+                    channelDestination: usesAdaptiveSplitView ? nil : channelDestination,
                     onItemTap: onItemTap
                 )
             }
@@ -145,6 +135,14 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
         })
         .background(
             viewFactory.makeChannelListBackground(options: .init())
+        )
+        .background(
+            !usesAdaptiveSplitView && handleTabBarVisibility ?
+                Color.clear.background(
+                    TabBarAccessor(isTabBarHidden: viewModel.hideTabBar)
+                )
+                .allowsHitTesting(false)
+                : nil
         )
         .alert(isPresented: $viewModel.alertShown) {
             switch viewModel.channelAlertType {
@@ -173,8 +171,10 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
         .navigationBarTitleDisplayMode(utils.channelListConfig.navigationBarDisplayMode)
     }
 
-    private var usesIPadSplitView: Bool {
-        guard embedInNavigationView, isIPad, utils.messageListConfig.iPadSplitViewEnabled else {
+    private var usesAdaptiveSplitView: Bool {
+        guard embedInNavigationView,
+              horizontalSizeClass == .regular,
+              utils.messageListConfig.iPadSplitViewEnabled else {
             return false
         }
 
@@ -189,11 +189,8 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
         viewFactory.makeChannelDestination(options: ChannelDestinationOptions())
     }
 
-    private func setupTabBarAppeareance() {
-        let tabBarAppearance: UITabBarAppearance = UITabBarAppearance()
-        tabBarAppearance.configureWithDefaultBackground()
-        UITabBar.appearance().standardAppearance = tabBarAppearance
-        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+    private var splitViewChannelDestination: @MainActor (ChannelSelectionInfo) -> Factory.ChannelDestination {
+        viewFactory.makeChannelDestination(options: ChannelDestinationOptions(isInSplitView: true))
     }
 
     @ViewBuilder
@@ -225,7 +222,7 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
     private func splitViewDetail() -> some View {
         NavigationStack {
             if let selectedChannel = viewModel.selectedChannel {
-                channelDestination(selectedChannel)
+                splitViewChannelDestination(selectedChannel)
             } else {
                 viewFactory.makeMessageListBackground(
                     options: MessageListBackgroundOptions(isInThread: false)
@@ -234,6 +231,17 @@ public struct ChatChannelListView<Factory: ViewFactory>: View {
             }
         }
         .id(viewModel.selectedChannel?.id)
+    }
+}
+
+private struct SplitViewSelectedChannelIdKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var splitViewSelectedChannelId: String? {
+        get { self[SplitViewSelectedChannelIdKey.self] }
+        set { self[SplitViewSelectedChannelIdKey.self] = newValue }
     }
 }
 
@@ -308,9 +316,6 @@ public struct ChatChannelListContentView<Factory: ViewFactory>: View {
                     trailingSwipeLeftButtonTapped: viewModel.onMoreTapped(channel:),
                     leadingSwipeButtonTapped: { _ in }
                 )
-                .onAppear {
-                    viewModel.preselectChannelIfNeeded()
-                }
             }
 
             viewFactory.makeChannelListStickyFooterView(options: ChannelListStickyFooterViewOptions())

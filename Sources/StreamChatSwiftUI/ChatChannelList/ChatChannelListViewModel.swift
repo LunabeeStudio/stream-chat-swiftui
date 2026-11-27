@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 /// View model for the `ChatChannelListView`.
-@MainActor open class ChatChannelListViewModel: ObservableObject, ChatChannelListControllerDelegate, ChatMessageSearchControllerDelegate {
+@MainActor open class ChatChannelListViewModel: ObservableObject, ChatChannelListControllerDelegate, ChatChannelSearchControllerDelegate, ChatMessageSearchControllerDelegate {
     /// Context provided dependencies.
     @Injected(\.chatClient) private var chatClient
     @Injected(\.images) private var images
@@ -33,12 +33,18 @@ import UIKit
 
     /// True, if channel updates were skipped and are applied when selectedChannel is set to nil
     private var skippedChannelUpdates = false
+
+    /// Tracks whether the channel list and selected channel are simultaneously visible.
+    private var isSplitViewActive = isIPad
+
+    /// True until the initial split-view selection has been applied.
+    private var shouldPreselectChannel = isIPad
     
     /// True, if channel updates can be skipped for optimizing view refreshes while showing message list.
     ///
     /// - Important: Only meant for stacked navigation view style.
     private var canSkipChannelUpdates: Bool {
-        guard isIphone || !utils.messageListConfig.iPadSplitViewEnabled else { return false }
+        guard !isSplitViewActive || !utils.messageListConfig.iPadSplitViewEnabled else { return false }
         guard selectedChannel != nil || !searchText.isEmpty else { return false }
         return true
     }
@@ -55,10 +61,18 @@ import UIKit
     @Published public var selectedChannel: ChannelSelectionInfo? {
         willSet {
             hideTabBar = newValue != nil
+            if newValue != nil {
+                shouldPreselectChannel = false
+            }
             if selectedChannel != nil && newValue == nil {
                 // pop happened, apply the queued changes.
                 if skippedChannelUpdates {
-                    updateChannels()
+                    skippedChannelUpdates = false
+                    // Applying them synchronously can remove the row (e.g. after leaving the channel)
+                    // while SwiftUI is still dismissing its `NavigationLink`, which crashes.
+                    DispatchQueue.main.async { [weak self] in
+                        self?.updateChannels()
+                    }
                 }
             }
             if newValue == nil {
@@ -111,7 +125,15 @@ import UIKit
     }
     
     /// The channel search controller which should be created only by ``performChannelSearch()``.
-    public var channelListSearchController: ChatChannelListController?
+    public var channelSearchController: ChatChannelSearchController?
+
+    /// The channel list controller previously used for channel search.
+    @available(*, deprecated, renamed: "channelSearchController", message: "Channel search now uses ChatChannelSearchController instead of replacing a ChatChannelListController.")
+    public var channelListSearchController: ChatChannelListController? {
+        get { nil }
+        set { _ = newValue }
+    }
+
     /// The message search controller which should be created only by ``performMessageSearch()``.
     public var messageSearchController: ChatMessageSearchController?
 
@@ -187,7 +209,7 @@ import UIKit
 
         if !loadingNextChannels {
             loadingNextChannels = true
-            controller?.loadNextChannels(limit: 30) { [weak self] _ in
+            controller?.loadNextChannels { [weak self] _ in
                 guard let self = self else { return }
                 self.loadingNextChannels = false
             }
@@ -305,7 +327,9 @@ import UIKit
         _ controller: ChatChannelListController,
         didChangeChannels changes: [ListChange<ChatChannel>]
     ) {
-        handleChannelListChanges(controller)
+        if controller === self.controller {
+            handleChannelListChanges(controller)
+        }
     }
 
     open func controller(
@@ -329,11 +353,34 @@ import UIKit
     }
     
     public func preselectChannelIfNeeded() {
-        if isIPad && selectedChannel == nil && utils.messageListConfig.iPadSplitViewEnabled {
-            selectedChannel = channels.first?.channelSelectionInfo
+        guard shouldPreselectChannel,
+              isSplitViewActive,
+              utils.messageListConfig.iPadSplitViewEnabled,
+              let channel = channels.first else { return }
+        selectedChannel = channel.channelSelectionInfo
+    }
+
+    func setSplitViewActive(_ isActive: Bool) {
+        if !isActive {
+            shouldPreselectChannel = false
+        } else if !isSplitViewActive {
+            shouldPreselectChannel = selectedChannel == nil
+        }
+        isSplitViewActive = isActive
+        if isActive && skippedChannelUpdates {
+            skippedChannelUpdates = false
+            updateChannels()
+        } else {
+            preselectChannelIfNeeded()
         }
     }
     
+    // MARK: - ChatChannelSearchControllerDelegate
+
+    public func controller(_ controller: ChatChannelSearchController, didChangeChannels changes: [ListChange<ChatChannel>]) {
+        updateChannelSearchResults()
+    }
+
     // MARK: - ChatMessageSearchControllerDelegate
     
     public func controller(_ controller: ChatMessageSearchController, didChangeMessages changes: [ListChange<ChatMessage>]) {
@@ -348,6 +395,7 @@ import UIKit
             updateChannelsIfNeeded()
         } else {
             channels = controller.channels
+            preselectChannelIfNeeded()
         }
     }
 
@@ -450,27 +498,28 @@ import UIKit
     }
 
     private func loadAdditionalChannelSearchResults(index: Int) {
-        guard let channelListSearchController = self.channelListSearchController else {
+        guard let channelSearchController else {
             return
         }
 
-        if index < channelListSearchController.channels.count - 10 {
+        if index < channelSearchController.channels.count - 10 {
             return
         }
 
         if !loadingNextChannels {
             loadingNextChannels = true
-            channelListSearchController.loadNextChannels { [weak self] _ in
+            channelSearchController.loadNextChannels { [weak self] _ in
                 guard let self = self else { return }
                 self.loadingNextChannels = false
-                self.updateChannelSearchResults()
             }
         }
     }
 
     /// Creates a new message search controller, sets its delegate, and triggers the search operation.
     open func performMessageSearch() {
-        messageSearchController = chatClient.messageSearchController()
+        if messageSearchController == nil {
+            messageSearchController = chatClient.messageSearchController()
+        }
         loadingSearchResults = true
         messageSearchController?.search(text: searchText, sort: messageSearchSort) { [weak self] _ in
             self?.loadingSearchResults = false
@@ -481,18 +530,12 @@ import UIKit
 
     /// Creates a new channel search controller, sets its delegate, and triggers the search operation.
     open func performChannelSearch() {
-        guard let userId = chatClient.currentUserId else { return }
-        var query = ChannelListQuery(
-            filter: .and([
-                .autocomplete(.name, text: searchText),
-                .containMembers(userIds: [userId])
-            ])
-        )
-        // Do not start watching any of the searched channels.
-        query.options = []
-        channelListSearchController = chatClient.channelListController(query: query)
-        loadingSearchResults = true
-        channelListSearchController?.synchronize { [weak self] _ in
+        if channelSearchController == nil {
+            channelSearchController = chatClient.channelSearchController()
+        }
+        loadingSearchResults = searchResults.isEmpty
+        channelSearchController?.delegate = self
+        channelSearchController?.search(text: searchText) { [weak self] _ in
             self?.loadingSearchResults = false
             self?.updateChannelSearchResults()
         }
@@ -522,11 +565,11 @@ import UIKit
     }
 
     private func updateChannelSearchResults() {
-        guard let channelListSearchController, searchType == .channels else {
+        guard let channelSearchController, searchType == .channels else {
             return
         }
 
-        searchResults = channelListSearchController.channels
+        searchResults = channelSearchController.channels
             .compactMap { channel in
                 ChannelSelectionInfo(
                     channel: channel,
@@ -537,11 +580,17 @@ import UIKit
     }
 
     private func clearSearchResults() {
+        // Cancel the debounced searches before dropping the controllers, otherwise a search
+        // that was already scheduled still reaches the backend after the field was cleared
+        // and repopulates the results.
+        messageSearchController?.clearResults()
         messageSearchController?.delegate = nil
         messageSearchController = nil
-        channelListSearchController?.delegate = nil
-        channelListSearchController = nil
+        channelSearchController?.clearResults()
+        channelSearchController?.delegate = nil
+        channelSearchController = nil
         searchResults = []
+        loadingSearchResults = false
         updateChannels()
     }
 
@@ -566,10 +615,12 @@ import UIKit
 
     private func updateChannels() {
         channels = controller?.channels ?? [ChatChannel]()
+        preselectChannelIfNeeded()
     }
 
     private func handleChannelAppearance() {
         if skippedChannelUpdates {
+            skippedChannelUpdates = false
             updateChannels()
         }
     }
@@ -611,7 +662,15 @@ import UIKit
     }
 
     @objc private func dismissPresentedChannel() {
+        let dismissedChannelId = selectedChannel?.channel.cid
         selectedChannel = nil
+        guard isSplitViewActive, utils.messageListConfig.iPadSplitViewEnabled else { return }
+        // Keep the split view's detail showing a channel, e.g. after leaving the selected one.
+        if let nextChannel = channels.first(where: { $0.cid != dismissedChannelId }) {
+            selectedChannel = nextChannel.channelSelectionInfo
+        } else {
+            shouldPreselectChannel = true
+        }
     }
 
     @objc private func handleHideTabBar() {

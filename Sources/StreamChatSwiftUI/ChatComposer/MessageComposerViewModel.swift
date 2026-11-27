@@ -2,6 +2,7 @@
 // Copyright © 2026 Stream.io Inc. All rights reserved.
 //
 
+import AVFoundation
 import Combine
 import Photos
 import StreamChat
@@ -31,18 +32,25 @@ import SwiftUI
         didSet {
             if text != "" {
                 checkTypingSuggestions()
-                channelController.sendKeystrokeEvent()
+                if !isPopulatingDraft {
+                    channelController.sendKeystrokeEvent()
+                }
             } else {
-                if composerCommand?.displayInfo?.isInstant == false {
+                // Mentions use `displayInfo == nil`, so clear any non-instant command
+                // (not only commands with `isInstant == false`).
+                // When a command is cleared here, `composerCommand` didSet clears suggestions;
+                // otherwise clear them explicitly (instant command kept, or no command).
+                let clearingCommand = composerCommand != nil
+                    && composerCommand?.displayInfo?.isInstant != true
+                if clearingCommand {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         composerCommand = nil
                     }
+                } else {
+                    clearComposerSuggestions()
                 }
                 selectedRangeLocation = 0
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    suggestions = [String: Any]()
-                }
-                mentionedUsers = Set<ChatUser>()
+                clearMentions()
 
                 if shouldDeleteDraftMessage(oldValue: oldValue) {
                     deleteDraftMessage()
@@ -53,8 +61,8 @@ import SwiftUI
 
     @Published public var selectedRangeLocation: Int = 0
 
-    /// An helper property to store additional information of file attachments.
-    private var addedRemoteFileURLs: [URL: FileAttachmentPayload] = [:]
+    /// An helper property to store additional information of file/audio attachments.
+    private var addedRemoteFileURLs: [URL: AnyAttachmentPayload] = [:]
 
     @Published public var addedVoiceRecordings = [AddedVoiceRecording]() {
         didSet {
@@ -116,6 +124,7 @@ import SwiftUI
             }
             if oldValue != nil && composerCommand == nil {
                 pickerTypeState = .expanded(.none)
+                clearComposerSuggestions()
             }
         }
     }
@@ -200,11 +209,16 @@ import SwiftUI
     )
     
     private var timer: Timer?
+
+    private var isPopulatingDraft = false
+
     private var isSlowModeDisabled: Bool {
         channelController.channel?.ownCapabilities.contains("skip-slow-mode") == true
     }
     
     private var cancellables = Set<AnyCancellable>()
+    /// Tracks the in-flight suggestions request so stale results can be discarded.
+    private var suggestionsCancellable: AnyCancellable?
     public lazy var commandsHandler = utils
         .commandsConfig
         .makeCommandsHandler(
@@ -219,6 +233,18 @@ import SwiftUI
     }
     
     public var mentionedUsers = Set<ChatUser>()
+
+    /// The roles mentioned in the message (e.g. `@admin`).
+    public var mentionedRoles = Set<String>()
+
+    /// The user groups mentioned in the message (e.g. `@Dream Team`).
+    public var mentionedGroups = [UserGroup]()
+
+    /// Whether the message mentions the online members of the channel (`@here`).
+    public var mentionsHere = false
+
+    /// Whether the message mentions everyone in the channel (`@channel`).
+    public var mentionsChannel = false
     
     private var messageText: String {
         if let composerCommand,
@@ -279,11 +305,59 @@ import SwiftUI
     }
 
     /// Appends the file to the attachments in the composer input view.
+    ///
+    /// Images and videos are added as media assets (with an inline thumbnail), the same
+    /// way the camera and Photos pickers add them, so they render inline in the composer.
+    /// Other files (and media that can't be read) are added as regular file attachments.
     public func addFileURLs(_ urls: [URL]) {
         for url in urls {
             guard canAddAttachment(with: url) else { continue }
-            composerAssets.append(.addedFile(url))
+            composerAssets.append(Self.composerAsset(fromPickedFileURL: url))
         }
+    }
+
+    /// Builds a media asset for an image or video picked from the Files/iCloud picker,
+    /// mirroring `ImagePickerCoordinator`'s handling of camera-captured photos/videos.
+    private static func composerAsset(fromPickedFileURL url: URL) -> ComposerAsset {
+        _ = url.startAccessingSecurityScopedResource()
+
+        switch AttachmentType(fileExtension: url.pathExtension) {
+        case .image:
+            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                let scale = image.scale
+                return .addedAsset(AddedAsset(
+                    image: image,
+                    id: UUID().uuidString,
+                    url: url,
+                    type: .image,
+                    originalWidth: Double(image.size.width * scale),
+                    originalHeight: Double(image.size.height * scale)
+                ))
+            }
+        case .video:
+            let asset = AVURLAsset(url: url, options: nil)
+            let imageGenerator = AVAssetImageGenerator(asset: asset)
+            imageGenerator.appliesPreferredTrackTransform = true
+            if let cgImage = try? imageGenerator.copyCGImage(
+                at: CMTimeMake(value: 0, timescale: 1),
+                actualTime: nil
+            ) {
+                let duration = CMTimeGetSeconds(asset.duration)
+                let naturalSize = asset.tracks(withMediaType: .video).first?.naturalSize ?? .zero
+                return .addedAsset(AddedAsset(
+                    image: UIImage(cgImage: cgImage),
+                    id: UUID().uuidString,
+                    url: url,
+                    type: .video,
+                    originalWidth: Double(naturalSize.width),
+                    originalHeight: Double(naturalSize.height),
+                    duration: duration.isFinite ? duration : nil
+                ))
+            }
+        default:
+            break
+        }
+        return .addedFile(url)
     }
 
     /// Populates the composer with the edited message.
@@ -308,6 +382,7 @@ import SwiftUI
             return
         }
 
+        isPopulatingDraft = true
         let message = ChatMessage(draft)
         text = message.text
         mentionedUsers = message.mentionedUsers
@@ -316,6 +391,7 @@ import SwiftUI
         selectedRangeLocation = message.text.count
         attachmentsConverter.attachmentsToAssets(message.allAttachments) { [weak self] assets in
             self?.updateComposerAssets(assets)
+            self?.isPopulatingDraft = false
         }
     }
 
@@ -328,10 +404,20 @@ import SwiftUI
         guard utils.messageListConfig.draftMessagesEnabled && hasContent else {
             return
         }
-        let attachments = try? convertAddedAssetsToPayloads()
         let mentionedUserIds = mentionedUsers.map(\.id)
         let availableCommands = channelController.channel?.config.commands ?? []
         let command = availableCommands.first { composerCommand?.id == "/\($0.name)" }
+
+        guard isDraftUpdateNeeded(
+            quotedMessageId: quotedMessage?.id,
+            isSilent: isSilent,
+            mentionedUserIds: mentionedUserIds,
+            command: command?.name
+        ) else {
+            return
+        }
+
+        let attachments = try? convertAddedAssetsToPayloads()
 
         if let messageController {
             messageController.updateDraftReply(
@@ -356,6 +442,28 @@ import SwiftUI
             command: command,
             extraData: extraData
         )
+    }
+
+    /// Compares the composer's current content against the existing draft
+    /// (if any) to determine whether it actually needs to be saved again.
+    private func isDraftUpdateNeeded(
+        quotedMessageId: MessageId?,
+        isSilent: Bool,
+        mentionedUserIds: [UserId],
+        command: String?
+    ) -> Bool {
+        guard let draftMessage else {
+            return true
+        }
+        if messageText != draftMessage.text { return true }
+        if isSilent != draftMessage.isSilent { return true }
+        if showReplyInChannel != draftMessage.showReplyInChannel { return true }
+        if quotedMessageId != draftMessage.quotedMessage?.id { return true }
+        if command != draftMessage.command { return true }
+        if Set(mentionedUserIds) != Set(draftMessage.mentionedUsers.map(\.id)) { return true }
+        let currentAttachmentsCount = composerAssets.count + addedCustomAttachments.count + addedVoiceRecordings.count
+        if currentAttachmentsCount != draftMessage.attachments.count { return true }
+        return false
     }
 
     /// Deletes the draft message locally and on the server if it exists.
@@ -433,11 +541,20 @@ import SwiftUI
         
         clearRemovedMentions()
         let mentionedUserIds = mentionedUsers.map(\.id)
+        let mentionedRoles = Array(mentionedRoles)
+        let mentionedGroupIds = mentionedGroups.map(\.id)
+        let mentionsHere = mentionsHere
+        let mentionsChannel = mentionsChannel
         
         if let editedMessage = self.editedMessage?.wrappedValue {
             edit(
                 message: editedMessage,
                 attachments: try? convertAddedAssetsToPayloads(),
+                mentionedUserIds: mentionedUserIds,
+                mentionedRoles: mentionedRoles,
+                mentionedGroupIds: mentionedGroupIds,
+                mentionsHere: mentionsHere,
+                mentionsChannel: mentionsChannel,
                 completion: completion
             )
             return
@@ -450,6 +567,10 @@ import SwiftUI
                     text: messageText,
                     attachments: attachments,
                     mentionedUserIds: mentionedUserIds,
+                    mentionedHere: mentionsHere,
+                    mentionedChannel: mentionsChannel,
+                    mentionedGroupIds: mentionedGroupIds,
+                    mentionedRoles: mentionedRoles,
                     showReplyInChannel: showReplyInChannel,
                     isSilent: isSilent,
                     quotedMessageId: quotedMessage?.wrappedValue?.id,
@@ -471,6 +592,10 @@ import SwiftUI
                     isSilent: isSilent,
                     attachments: attachments,
                     mentionedUserIds: mentionedUserIds,
+                    mentionedHere: mentionsHere,
+                    mentionedChannel: mentionsChannel,
+                    mentionedGroupIds: mentionedGroupIds,
+                    mentionedRoles: mentionedRoles,
                     quotedMessageId: quotedMessage?.wrappedValue?.id,
                     skipPush: skipPush,
                     skipEnrichUrl: skipEnrichUrl,
@@ -556,6 +681,9 @@ import SwiftUI
         guard !suggestions.isEmpty else { return false }
 
         if suggestions.keys.contains("mentions") {
+            if let mentions = suggestions["mentions"] as? [MentionSuggestion], !mentions.isEmpty {
+                return true
+            }
             if let users = suggestions["mentions"] as? [ChatUser], !users.isEmpty {
                 return true
             }
@@ -779,32 +907,75 @@ import SwiftUI
         }
         let assets = PHAsset.fetchAssets(with: fetchOptions)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-            self?.imageAssets = assets
+            guard let self else { return }
+            // Publishing a new fetch result invalidates every instantiated row in the
+            // media picker grid, which is expensive for large libraries, so keep the
+            // current one when the library content has not changed.
+            if let current = imageAssets, Self.haveSameContent(current, assets) {
+                return
+            }
+            imageAssets = assets
         }
+    }
+
+    static func haveSameContent(_ lhs: PHFetchResult<PHAsset>, _ rhs: PHFetchResult<PHAsset>) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return lhs.firstObject?.localIdentifier == rhs.firstObject?.localIdentifier
+            && lhs.lastObject?.localIdentifier == rhs.lastObject?.localIdentifier
     }
 
     public func checkForMentionedUsers(
         commandId: String?,
         extraData: [String: Any]
     ) {
-        guard commandId == "mentions",
-              let user = extraData["chatUser"] as? ChatUser else {
-            return
+        guard commandId == "mentions" else { return }
+
+        if let suggestion = extraData["mentionSuggestion"] as? MentionSuggestion {
+            switch suggestion.kind {
+            case let userSuggestion as MentionSuggestion.User:
+                mentionedUsers.insert(userSuggestion.user)
+            case is MentionSuggestion.Here:
+                mentionsHere = true
+            case is MentionSuggestion.Channel:
+                mentionsChannel = true
+            case let roleSuggestion as MentionSuggestion.Role:
+                mentionedRoles.insert(roleSuggestion.role.name)
+            case let groupSuggestion as MentionSuggestion.Group:
+                if !mentionedGroups.contains(where: { $0.id == groupSuggestion.group.id }) {
+                    mentionedGroups.append(groupSuggestion.group)
+                }
+            default:
+                break
+            }
+        } else if let user = extraData["chatUser"] as? ChatUser {
+            mentionedUsers.insert(user)
         }
-        mentionedUsers.insert(user)
     }
     
     public func clearRemovedMentions() {
-        for user in mentionedUsers {
-            if !text.contains("@\(user.mentionText)") {
-                mentionedUsers.remove(user)
-            }
+        for user in mentionedUsers where !text.contains("@\(user.mentionText)") {
+            mentionedUsers.remove(user)
+        }
+        for role in mentionedRoles where !text.contains("@\(role)") {
+            mentionedRoles.remove(role)
+        }
+        mentionedGroups.removeAll { !text.contains("@\($0.name)") }
+        if mentionsHere, !text.contains("@\(L10n.Composer.Suggestions.Mentions.Here.text)") {
+            mentionsHere = false
+        }
+        if mentionsChannel, !text.contains("@\(L10n.Composer.Suggestions.Mentions.Channel.text)") {
+            mentionsChannel = false
         }
     }
     
     private func edit(
         message: ChatMessage,
         attachments: [AnyAttachmentPayload]?,
+        mentionedUserIds: [UserId],
+        mentionedRoles: [String],
+        mentionedGroupIds: [String],
+        mentionsHere: Bool,
+        mentionsChannel: Bool,
         completion: @escaping @MainActor () -> Void
     ) {
         guard let channelId = channelController.channel?.cid else {
@@ -817,7 +988,12 @@ import SwiftUI
         
         messageController.editMessage(
             text: adjustedText,
-            attachments: attachments ?? []
+            attachments: attachments ?? [],
+            mentionedUserIds: mentionedUserIds,
+            mentionedHere: mentionsHere,
+            mentionedChannel: mentionsChannel,
+            mentionedGroupIds: mentionedGroupIds,
+            mentionedRoles: mentionedRoles
         ) { [weak self] error in
             if error != nil {
                 self?.isSendingMessage = false
@@ -837,8 +1013,16 @@ import SwiftUI
         withAnimation(.easeInOut(duration: 0.2)) {
             composerCommand = nil
         }
-        mentionedUsers = Set<ChatUser>()
+        clearMentions()
         clearText()
+    }
+
+    private func clearMentions() {
+        mentionedUsers = Set<ChatUser>()
+        mentionedRoles = Set<String>()
+        mentionedGroups = [UserGroup]()
+        mentionsHere = false
+        mentionsChannel = false
     }
 
     private func showCommandSnackBar(commandId: String, text: String) {
@@ -879,16 +1063,39 @@ import SwiftUI
     }
     
     private func showTypingSuggestions() {
-        if let composerCommand {
-            commandsHandler.showSuggestions(for: composerCommand)
-                .sink { _ in
-                    log.debug("Finished showing suggestions")
-                } receiveValue: { [weak self] suggestionInfo in
+        suggestionsCancellable?.cancel()
+
+        guard let composerCommand else {
+            clearComposerSuggestions()
+            return
+        }
+
+        // Capture the query that started this request so a slower, superseded
+        // search cannot overwrite newer (or cleared) suggestions while deleting.
+        let expectedCommandId = composerCommand.id
+        let expectedTypingText = composerCommand.typingSuggestion.text
+
+        suggestionsCancellable = commandsHandler.showSuggestions(for: composerCommand)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] suggestionInfo in
+                    guard let self else { return }
+                    guard self.composerCommand?.id == expectedCommandId,
+                          self.composerCommand?.typingSuggestion.text == expectedTypingText else {
+                        return
+                    }
                     withAnimation {
-                        self?.suggestions[suggestionInfo.key] = suggestionInfo.value
+                        self.suggestions[suggestionInfo.key] = suggestionInfo.value
                     }
                 }
-                .store(in: &cancellables)
+            )
+    }
+
+    private func clearComposerSuggestions() {
+        suggestionsCancellable?.cancel()
+        commandsHandler.clearSuggestions()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            suggestions.removeAll()
         }
     }
     
@@ -1064,13 +1271,13 @@ final class TotalAddedAssets {
     }
 }
 
-// A asset containing file information.
-// If it has a payload, it means that the file is already uploaded to the server.
+// A asset containing file or audio information.
+// If it has a payload, it means that the attachment is already uploaded to the server.
 final class FileAddedAsset {
     var url: URL
-    var payload: FileAttachmentPayload?
+    var payload: AnyAttachmentPayload?
 
-    init(url: URL, payload: FileAttachmentPayload? = nil) {
+    init(url: URL, payload: AnyAttachmentPayload? = nil) {
         self.url = url
         self.payload = payload
     }
@@ -1091,10 +1298,11 @@ final class FileAddedAsset {
         var attachments = try mediaAssets.map { try $0.toAttachmentPayload() }
         attachments += try fileAssets.map { file in
             _ = file.url.startAccessingSecurityScopedResource()
-            if let filePayload = file.payload {
-                return AnyAttachmentPayload(payload: filePayload)
+            if let uploadedPayload = file.payload {
+                return uploadedPayload
             }
-            return try AnyAttachmentPayload(localFileURL: file.url, attachmentType: .file)
+            let attachmentType = AttachmentType(fileExtension: file.url.pathExtension)
+            return try AnyAttachmentPayload(localFileURL: file.url, attachmentType: attachmentType)
         }
         attachments += try voiceAssets.map { recording in
             _ = recording.url.startAccessingSecurityScopedResource()
@@ -1156,12 +1364,16 @@ final class FileAddedAsset {
                 guard let fileAsset = fileAttachmentToAddedAsset(attachment) else { break }
                 addedAssets.fileAssets.append(fileAsset)
                 group?.leave()
+            case .audio:
+                guard let fileAsset = audioAttachmentToAddedAsset(attachment) else { break }
+                addedAssets.fileAssets.append(fileAsset)
+                group?.leave()
             case .voiceRecording:
                 if let addedVoiceRecording = attachment.toAddedVoiceRecording() {
                     addedAssets.voiceAssets.append(addedVoiceRecording)
                 }
                 group?.leave()
-            case .linkPreview, .audio, .giphy, .unknown:
+            case .linkPreview, .giphy, .unknown:
                 break
             default:
                 guard let customAttachment = customAttachmentToAddedAsset(attachment) else { break }
@@ -1194,7 +1406,22 @@ final class FileAddedAsset {
         }
         return FileAddedAsset(
             url: filePayload.assetURL,
-            payload: filePayload.payload
+            payload: AnyAttachmentPayload(payload: filePayload.payload)
+        )
+    }
+
+    private func audioAttachmentToAddedAsset(
+        _ attachment: AnyChatMessageAttachment
+    ) -> FileAddedAsset? {
+        guard let audioPayload = attachment.attachment(payloadType: AudioAttachmentPayload.self) else {
+            return nil
+        }
+        if let localUrl = attachment.uploadingState?.localFileURL {
+            return FileAddedAsset(url: localUrl)
+        }
+        return FileAddedAsset(
+            url: audioPayload.audioURL,
+            payload: AnyAttachmentPayload(payload: audioPayload.payload)
         )
     }
 

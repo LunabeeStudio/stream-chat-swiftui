@@ -83,6 +83,72 @@ final class InputTextView_Tests: StreamChatTestCase {
         XCTAssertEqual(textView.placeholderLabel.textAlignment, .left)
     }
 
+    func test_textAlignment_isReappliedOnlyWhenSemanticContentAttributeChanges() {
+        let textView = makeTextView(placeholder: "@username", text: "")
+        textView.semanticContentAttribute = .forceRightToLeft
+        textView.textAlignment = .center
+
+        textView.semanticContentAttribute = .forceRightToLeft
+        XCTAssertEqual(textView.textAlignment, .center)
+
+        textView.semanticContentAttribute = .forceLeftToRight
+        XCTAssertEqual(textView.textAlignment, .natural)
+    }
+
+    // MARK: - Placeholder Sizing
+
+    func test_sizeThatFits_whenEmpty_includesMultilinePlaceholderHeight() {
+        // A long placeholder at a constrained width must wrap, and the text view's
+        // fitting height must grow to fit it so it is never truncated.
+        let textView = makeTextView(
+            placeholder: "You can't send messages in this channel",
+            text: ""
+        )
+        textView.placeholderLabel.font = .systemFont(ofSize: 40)
+        textView.handleTextChange()
+
+        let narrow = CGSize(width: 120, height: CGFloat.greatestFiniteMagnitude)
+        let placeholderHeight = textView.placeholderLabel.sizeThatFits(narrow).height
+        let fittingHeight = textView.sizeThatFits(narrow).height
+
+        XCTAssertGreaterThanOrEqual(fittingHeight, placeholderHeight)
+        XCTAssertGreaterThan(placeholderHeight, 40, "Placeholder should wrap to multiple lines")
+    }
+
+    func test_sizeThatFits_whenNotEmpty_ignoresPlaceholder() {
+        // Once there is text, the placeholder is hidden and must not influence sizing.
+        let textView = makeTextView(placeholder: "A very long placeholder text here", text: "Hi")
+        textView.handleTextChange()
+
+        let size = CGSize(width: 120, height: CGFloat.greatestFiniteMagnitude)
+        let baseline = UITextView()
+        baseline.text = "Hi"
+
+        XCTAssertEqual(
+            textView.sizeThatFits(size).height,
+            baseline.sizeThatFits(size).height,
+            accuracy: 1
+        )
+    }
+
+    // MARK: - Scroll Edge Effects
+
+    func test_scrollEdgeEffects_areHidden() throws {
+        #if compiler(>=6.2)
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("Scroll edge effects are available from iOS 26")
+        }
+        let container = UIView()
+        let textView = makeTextView(placeholder: "@username", text: "")
+        container.addSubview(textView)
+
+        XCTAssertTrue(textView.topEdgeEffect.isHidden)
+        XCTAssertTrue(textView.bottomEdgeEffect.isHidden)
+        #else
+        throw XCTSkip("Scroll edge effects require the iOS 26 SDK")
+        #endif
+    }
+
     // MARK: - Helpers
 
     private func makeTextView(placeholder: String, text: String) -> InputTextView {

@@ -1,12 +1,13 @@
 # Fork specificities — StreamChatSwiftUI (LunabeeStudio)
 
 This fork tracks GetStream's `stream-chat-swiftui`. This document lists everything that differs
-between this fork (`feature/v5-migration`) and the upstream release it is based on, **v5.5.1**
-(git tag `5.5.1`). Use it when reconciling against future upstream bumps.
+between this fork and the upstream release it is based on, **v5.18.0** (git tag `5.18.0`). Use it when
+reconciling against future upstream bumps.
 
-Scope of diff: `git diff 5.5.1..feature/v5-migration` — 19 SDK source files (+ demo + tests).
-Later commits (composer look, composer height animation, `MarkdownParser` crash fix — §9 to §11) were made on
-`fix/markdown-parser-rope-crash`, the branch the Amata app pins.
+Scope of diff: `git diff 5.18.0..feature/merge-upstream-v5` — 23 SDK source files (+ demo + tests).
+History: the fork was first based on 5.5.1 (`feature/v5-migration`). Later commits (composer look, composer height
+animation, `MarkdownParser` crash fix — §9 to §11) were made on `fix/markdown-parser-rope-crash`, then 5.18.0 was
+merged in on `feature/merge-upstream-v5` (see "Merge notes — 5.18.0" at the end).
 Every forked SDK file carries an inline `- Note:` comment describing its divergence; grep for
 `Fork` / `Changes from original implementation` to find them.
 
@@ -14,15 +15,19 @@ Every forked SDK file carries an inline `- Note:` comment describing its diverge
 
 ## 1. Platform — minimum iOS 14 → 15
 
-- `Package.swift`: `.iOS(.v14)` → `.iOS(.v15)`; Xcode deployment target `15.6` on the 3 SDK build configs.
-- Removed all `if #available(iOS 15)` / `@available(iOS 15)` fallbacks:
+- `Package.swift`: `.iOS(.v14)` → `.iOS(.v15)`; Xcode deployment target `15.6` on the 3 SDK build configs
+  (upstream 5.18.0: `15.0`).
+- Removed the `if #available(iOS 15)` / `@available(iOS 15)` fallbacks in:
   `BouncedMessageActionsModifier` (drops the iOS-14 `actionSheet` branch, keeps `.alert`),
-  `ChatChannelListView` (`setupTabBarAppeareance`), `ChatChannelListViewModel` (`checkTabBarAppearance`),
-  `AlertBannerViewModifier`, `AttributedString+Extensions`, `MarkdownFormatter`,
-  `ChatChannelView` (`FloatingComposerContainer` keeps only `.overlay(alignment: .bottom)`; the iOS-14
-  `VStack { Spacer(); composer() }` overlay branch is removed — commit `2dc36e58` "Fix crash").
+  `ChatChannelListViewModel` (`checkTabBarAppearance`), `AlertBannerViewModifier`,
+  `AttributedString+Extensions`, `MarkdownFormatter`,
+  `ChatChannelView` (`FloatingComposerContainer` keeps only `.overlay(alignment: .bottom)`; the iOS-14 overlay
+  branch is removed — commit `2dc36e58` "Fix crash").
+- Other upstream files still have `#available(iOS 15)` checks (e.g. `CreatePollView`, `SearchBar`). They are harmless
+  and left as upstream.
 
-These should become no-op conflicts as upstream also requires iOS 15+.
+Upstream 5.18.0 still supports iOS 14 (`.iOS(.v14)`), so these edits keep conflicting on each bump whenever upstream
+touches the same lines. Resolve them by keeping the fork side.
 
 ## 2. Message rendering — composition layout (the core divergence)
 
@@ -61,6 +66,11 @@ Lets custom attachments render in **two independent slots** (before/after the re
 - `ViewFactory/Options/AttachmentViewFactoryOptions.swift`: `CustomAttachmentViewTypeOptions.layout`
   field (default `.all`).
 - `MessageView` calls `hasCustomAttachment(..., layout: .top)` and `.bottom` around the other content.
+- Upstream callers of the old `hasCustomAttachment(message:)` are changed to `layout: .all` (same meaning):
+  `MessageViewModel.keepsBubbleAccessibilityChildrenFocusable` (added upstream in 5.18.0).
+  ⚠️ The fork removed the old signature, so any new upstream caller fails to compile. On each bump, run
+  `grep -rn "hasCustomAttachment(message: [a-zA-Z.]*)" Sources StreamChatSwiftUITests` and add `layout: .all`.
+  Also fixed in `StreamChatSwiftUITests/Tests/ChatChannel/MessageTypeResolver_Tests.swift`.
 
 ## 5. Layout & padding
 
@@ -70,10 +80,14 @@ Lets custom attachments render in **two independent slots** (before/after the re
   - `hasHorizontalSpacer: Bool = true` — when `false`, `spacerWidth` returns `0` so the message can
     use the full width. Set per message via a custom `makeMessageItemView`.
 - `MessageContainerView.swift`: `extraBottomPadding = 8`; HStack spacing tweaks;
-  `deliveryStatusView` phantom-padding fix (only pads the read-indicator/date `HStack` when the
-  date is shown); the message-actions gesture (`MessageActionsGestureModifier` + `contentShape`)
-  is applied on the **bubble content** here rather than on the whole row in `MessageItemView`,
-  so it only triggers on the bubble.
+  `deliveryStatusView` phantom-padding fix (only builds the read-indicator + date `HStack` when the
+  date is shown; it keeps upstream's `MessageViewModel.isDeliveryStatusShown(for:in:)` condition);
+  `showBubble` passed to `MessageView` in `messageView`; the message-actions gesture
+  (`MessageActionsGestureModifier` + `contentShape`) is applied at the end of `messageBubbleContent`
+  (after the accessibility modifiers and the reactions overlay, before `.frame`) rather than on the whole row
+  in `MessageItemView`, so it only triggers on the bubble. Upstream 5.18.0 split the bubble into
+  `messageView` / `bubbleView` / `reactionsOverlay` / `messageBubbleContent` and dropped the
+  `usesScrollView` wrapper (deprecated); the fork follows that structure.
 - `ChatComposer/MessageComposerView.swift`: leading composer `HStack` alignment `.center`
   (upstream `.bottom`).
 - **Grouped-message spacing**: upstream adds `messagePaddings.groupBottom` (default 4) between
@@ -83,8 +97,8 @@ Lets custom attachments render in **two independent slots** (before/after the re
   ignores the bottom safe area when a tab bar is present, so with a floating composer and **no** tab
   bar the message list stops above the safe area. Fork makes the list scroll **under** the floating
   composer into the bottom safe area while the composer stays **above** it:
-  - `.ignoresSafeArea(.container, edges:)` ignores `.bottom` when `tabBarAvailable || composerPlacement == .floating` (was `tabBarAvailable` only); `MessageListView` also carries `.edgesIgnoringSafeArea(.bottom)`.
-  - `needsBottomSafeAreaPadding` kept **tab-bar-only** (`!keyboardShown && tabBarAvailable`) — it drives `contentBottomPadding`; a floating composer must be excluded or the content double-pads (shifts up **and** the composer pads).
+  - `.ignoresSafeArea(.container, edges:)` ignores `.bottom` when `ignoresBottomSafeArea || composerPlacement == .floating` (upstream: `ignoresBottomSafeArea` only, which is `tabBarAvailable && !isInSplitView` since 5.18.0); `MessageListView` also carries `.edgesIgnoringSafeArea(.bottom)`.
+  - `needsBottomSafeAreaPadding` kept **tab-bar-only** (`!keyboardShown && ignoresBottomSafeArea`, as upstream) — it drives `contentBottomPadding`; a floating composer must be excluded or the content double-pads (shifts up **and** the composer pads).
   - `floatingComposerBottomPadding` uses its **own** condition (`floating && !keyboardShown`): composer owns the safe-area padding when there's no tab bar, `0` with a tab bar (content owns it), `bottomPadding` for thread/snapshot — matching the `+ bottomPadding` reserved in `floatingComposerHeight`.
   - Invariant: exactly one of {content, composer} owns the bottom safe-area padding per case.
   - **Min composer bottom inset** — the composer must not sit flush against its bottom boundary, in two cases: (a) while the **keyboard is shown** (gap between composer and keyboard top), and (b) on devices with **no bottom safe area** (iPhone SE / Touch-ID) at the physical bottom. The gap is owned by the **composer content**, not the channel slot, so each composer decides independently:
@@ -152,8 +166,11 @@ markdown messages.
 - Final fix (`08c34296`): the parsed runs are copied into an array of `MarkdownSegment`, every edit is done on that
   array with integer positions, and the result is built once with `append` (which only coalesces with the
   preceding run).
-- ⚠️ On each StreamChat bump, diff upstream `MarkdownParser.swift` against 5.5.1 and port its changes into the copy.
-  Drop the copy if upstream fixes the crash.
+- StreamChat's `MarkdownParser.swift` is unchanged between 5.5.1 and 5.18.0 (last upstream change: #4098 "Fix
+  MarkdownParser crash on long markdown with many presentation intents", already in 5.5.1 — and the fork still
+  crashed with it). So the copy is current for the `from: "5.18.0"` StreamChat dependency.
+- ⚠️ On each StreamChat bump, check upstream commits to `Sources/StreamChat/Utils/MarkdownParser.swift` since 5.18.0
+  and port them into the copy. Drop the copy if upstream fixes the crash.
 
 ## Demo & tests
 
@@ -165,7 +182,8 @@ markdown messages.
 
 ## Reconciling on the next upstream bump — risk order
 
-1. **Custom-attachment `layout` API** — public protocol/options surface; conflicts hard.
+1. **Custom-attachment `layout` API** — public protocol/options surface; conflicts hard. New upstream callers of
+   `hasCustomAttachment(message:)` merge without a conflict but do not compile (see §4).
 2. **`MessageView` composition** — upstream reworks message rendering frequently.
 3. **`showBubble` plumbing** — spans `MessageItemView`/`MessageContainerView`/`MessageView`/`MessageBubble`/`Styles`.
 4. **Padding/spacer** (`MessageItemView`, `MessageContainerView`), **reactions offset**.
@@ -173,3 +191,23 @@ markdown messages.
 6. **Composer look** (`MessageComposerView`, `RegularInputViewModifier`, placeholder string) and composer height
    animation — small, local edits.
 7. Platform availability, composer alignment, misc — usually trivial.
+
+## Merge notes — 5.18.0
+
+Merge of tag `5.18.0` into the fork (base before: 5.5.1). 8 files conflicted; everything else merged automatically,
+and every section above was checked in the merged code afterwards.
+
+| File | Resolution |
+|---|---|
+| `StreamChatSwiftUI.xcodeproj/project.pbxproj` | Fork: deployment target `15.6` (§1). |
+| `ChatChannel/ChatChannelView.swift` | Fork floating rule on top of upstream's new `ignoresBottomSafeArea` (§5); fork overlay without the iOS-14 branch (§1). |
+| `ChatChannelList/ChatChannelListView.swift` | Upstream: `setupTabBarAppeareance()` and its caller were removed upstream (`c19b51f0`), so the fork no longer changes this file. |
+| `ChatMessageList/MessageContainerView.swift` | Upstream structure + fork `showBubble`, bubble gesture and `deliveryStatusView` (§5). |
+| `ChatMessageList/MessageView.swift` | Poll view: fork `availableWidth` + upstream `translationLanguage`. |
+| `.github/workflows/release-*.yml` | Upstream. The differences came from an earlier `upstream/v4` merge, not from fork changes. |
+
+Change without a conflict: `MessageViewModel.swift` — new upstream call to `hasCustomAttachment(message:)` changed to
+`layout: .all` (§4).
+
+Do not merge `upstream/v4` into this fork: it is based on v5, and v4 releases conflict on v4/v5 structure. Take v4
+fixes from their v5 ports instead.

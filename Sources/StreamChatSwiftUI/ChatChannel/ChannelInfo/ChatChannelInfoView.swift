@@ -19,13 +19,7 @@ public struct ChatChannelInfoView<Factory: ViewFactory>: View, KeyboardReadable 
     private var shownFromMessageList: Bool
 
     @Environment(\.presentationMode) var presentationMode
-
-    private enum AlertType: Identifiable {
-        case blockUser, leaveConversation, error
-        var id: Self { self }
-    }
-
-    @State private var alertType: AlertType?
+    @Environment(\.splitViewSelectedChannelId) private var splitViewSelectedChannelId
 
     public init(
         factory: Factory = DefaultViewFactory.shared,
@@ -99,47 +93,12 @@ public struct ChatChannelInfoView<Factory: ViewFactory>: View, KeyboardReadable 
             }
             .modifier(PresentationDetentsModifier(sheetSizes: [.custom(280), .medium]))
         }
-        .onChange(of: viewModel.errorShown) { shown in
-            if shown { alertType = .error }
+        .alert(isPresented: $viewModel.errorShown) {
+            Alert.defaultErrorAlert
         }
-        .alert(item: $alertType) { type -> Alert in
-            switch type {
-            case .blockUser:
-                return Alert(
-                    title: Text(viewModel.blockUserTitle),
-                    message: Text(
-                        viewModel.isDMUserBlocked
-                            ? L10n.Message.Actions.UserUnblock.confirmationMessage
-                            : L10n.Message.Actions.UserBlock.confirmationMessage
-                    ),
-                    primaryButton: .destructive(Text(viewModel.blockUserTitle)) {
-                        viewModel.blockUserTapped()
-                    },
-                    secondaryButton: .cancel()
-                )
-            case .leaveConversation:
-                return Alert(
-                    title: Text(viewModel.leaveButtonTitle),
-                    message: Text(viewModel.leaveConversationDescription),
-                    primaryButton: .destructive(Text(viewModel.leaveButtonTitle)) {
-                        viewModel.leaveConversationTapped {
-                            presentationMode.wrappedValue.dismiss()
-                            if shownFromMessageList {
-                                notifyChannelDismiss()
-                            }
-                        }
-                    },
-                    secondaryButton: .cancel()
-                )
-            case .error:
-                return Alert(
-                    title: Text(L10n.Alert.Error.title),
-                    message: Text(L10n.Alert.Error.message),
-                    dismissButton: .cancel(Text(L10n.Alert.Actions.ok)) {
-                        viewModel.errorShown = false
-                    }
-                )
-            }
+        // The split view keeps screens pushed on top of a channel when another channel is selected.
+        .onChange(of: splitViewSelectedChannelId) { _ in
+            presentationMode.wrappedValue.dismiss()
         }
     }
 
@@ -265,67 +224,32 @@ public struct ChatChannelInfoView<Factory: ViewFactory>: View, KeyboardReadable 
 
     // MARK: - Actions Card
 
-    @ViewBuilder
     private var actionsCard: some View {
-        if viewModel.shouldShowMuteChannelButton || viewModel.shouldShowBlockUserButton || viewModel.shouldShowLeaveConversationButton {
-            InfoSectionCard {
-                if viewModel.shouldShowMuteChannelButton {
-                    ChannelInfoItemView(
-                        icon: images.muted,
-                        title: viewModel.mutedText
-                    ) {
-                        Toggle(isOn: $viewModel.muted) {
-                            EmptyView()
-                        }
-                    }
-                }
+        factory.makeChannelInfoActionsView(
+            options: ChannelInfoActionsViewOptions(
+                viewModel: viewModel,
+                leaveConversation: leaveConversation,
+                deleteChannel: deleteChannel
+            )
+        )
+    }
 
-                if viewModel.shouldShowBlockUserButton {
-                    blockButton
-                }
-
-                if viewModel.shouldShowLeaveConversationButton {
-                    leaveButton
-                }
-            }
+    private func leaveConversation() {
+        viewModel.leaveConversationTapped {
+            dismissChannelInfo()
         }
     }
 
-    private var blockButton: some View {
-        Button {
-            alertType = .blockUser
-        } label: {
-            HStack(spacing: tokens.spacingMd) {
-                Image(uiImage: images.messageActionBlockUser)
-                    .customizable()
-                    .frame(width: tokens.spacingLg)
-                Text(viewModel.blockUserTitle)
-                Spacer()
-            }
-            .padding(.horizontal, tokens.spacingMd)
-            .padding(.vertical, tokens.spacingMd)
-            .font(fonts.body)
-            .foregroundColor(Color(colors.textPrimary))
-            .background(Color(colors.backgroundCoreSurfaceSubtle))
+    private func deleteChannel() {
+        viewModel.deleteChannelTapped {
+            dismissChannelInfo()
         }
     }
 
-    private var leaveButton: some View {
-        Button {
-            alertType = .leaveConversation
-        } label: {
-            HStack(spacing: tokens.spacingMd) {
-                Image(systemName: viewModel.showSingleMemberDMView ? "trash" : "rectangle.portrait.and.arrow.right")
-                    .customizable()
-                    .frame(width: tokens.spacingLg)
-                Text(viewModel.leaveButtonTitle)
-                Spacer()
-            }
-            .padding(.horizontal, tokens.spacingMd)
-            .padding(.vertical, tokens.spacingMd)
-            .font(fonts.body)
-            .foregroundColor(Color(colors.accentError))
-            .background(Color(colors.backgroundCoreSurfaceSubtle))
+    private func dismissChannelInfo() {
+        presentationMode.wrappedValue.dismiss()
+        if shownFromMessageList {
+            notifyChannelDismiss()
         }
     }
 }
@@ -365,6 +289,8 @@ struct ChatChannelInfoViewHeaderViewModifier: ViewModifier {
         ToolbarItem(placement: .navigationBarTrailing) {
             if !viewModel.showSingleMemberDMView && viewModel.channel.canUpdateChannel {
                 editButton
+                    // Without a fixed size the toolbar can collapse the button into an overflow menu.
+                    .fixedSize()
             }
         }
     }
